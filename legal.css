@@ -1,0 +1,25 @@
+/* صفحات الشروط والخصوصية: عمود قراءة واحد مع فهرس سريع */
+.top .sp a:not(.btn) { color: var(--muted); text-decoration: none; font-weight: 500; }
+.top .sp a:not(.btn):hover { color: var(--ink); }
+.legal { max-width: 760px; padding-block: 32px 64px; display: grid; gap: 18px; }
+.legal h1 { font-size: clamp(1.7rem, 4vw, 2.3rem); }
+.legal .eyebrow { color: var(--brand); font-weight: 600; font-size: .9rem; }
+.legal .updated { color: var(--muted); font-size: .9rem; margin-top: -8px; }
+.legal section { display: grid; gap: 10px; scroll-margin-top: 80px; }
+.legal h2 { font-size: 1.2rem; padding-top: 10px; border-top: 1px solid var(--line); }
+.legal p, .legal li, .legal dd { max-width: 68ch; }
+.legal ul { margin: 0; padding-inline-start: 22px; display: grid; gap: 6px; }
+.legal dl { margin: 0; display: grid; gap: 4px 0; }
+.legal dt { font-weight: 600; margin-top: 6px; }
+.legal dd { margin: 0; color: var(--muted); }
+.legal table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.legal th, .legal td { text-align: start; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.legal th { color: var(--muted); font-weight: 600; font-size: .85rem; }
+.legal td:first-child { font-weight: 600; white-space: nowrap; }
+.legal .callout { background: var(--brand-soft); border-radius: 10px; padding: 12px 14px; }
+.toc { display: flex; flex-wrap: wrap; gap: 6px; }
+.toc a { font-size: .85rem; text-decoration: none; color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; background: var(--surface); }
+.toc a:hover { border-color: var(--brand); color: var(--brand); }
+.legal-foot { border-top: 1px solid var(--line); color: var(--muted); font-size: .9rem; }
+.legal-foot .in { max-width: 1080px; margin: 0 auto; padding: 24px 16px 40px; display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; }
+@media (max-width: 560px) { .legal td:first-child { white-space: normal; } }
