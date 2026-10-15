@@ -63,6 +63,13 @@ export function friendlyError(e) {
   if (/rate limit|too many/i.test(m)) return 'محاولات كثيرة. انتظر دقيقة وحاول مرة ثانية.';
   if (/exceeded the maximum allowed size|Payload too large/i.test(m)) return 'حجم الملف أكبر من المسموح.';
   if (/mime type/i.test(m)) return 'نوع الملف غير مقبول. ارفع PDF أو صورة.';
+  if (/merchant_staff_merchant_id_email_key|duplicate key.*merchant_staff/i.test(m)) return 'هذا الإيميل مضاف للفريق من قبل.';
+  if (/cannot_invite_self/.test(m)) return 'ما تقدر تضيف إيميلك نفسه كموظف.';
+  if (/staff_limit/.test(m)) return 'وصلت الحد الأقصى: 10 موظفين.';
+  if (/invite_not_found/.test(m)) return 'الدعوة ما عادت موجودة. اطلب من صاحب المتجر يرسلها من جديد.';
+  if (/change_not_found/.test(m)) return 'هذا الطلب تمت مراجعته من قبل.';
+  if (/not_staff|no_permission|not_allowed|row-level security/i.test(m)) return 'ما عندك صلاحية لهذا الإجراء.';
+  if (/product_not_found/.test(m)) return 'المنتج ما عاد موجود.';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'تعذر الاتصال. تأكد من الإنترنت وحاول مرة ثانية.';
   return 'صار خطأ: ' + m;
 }

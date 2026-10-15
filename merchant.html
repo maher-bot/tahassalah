@@ -156,14 +156,34 @@
     </div>
   </section>
 
+  <!-- دعوات الانضمام لفريق متجر -->
+  <section id="v-invites" class="narrow" hidden>
+    <div class="card stack">
+      <div>
+        <h1 style="font-size:1.5rem">دعوة للانضمام لفريق متجر</h1>
+        <p class="hint" style="margin-top:4px">صاحب المتجر أضاف إيميلك لفريقه. بعد القبول تقدر تدير المنتجات حسب الصلاحيات اللي أعطاك إياها.</p>
+      </div>
+      <div class="mlist" id="inv-list"></div>
+      <button class="btn ghost" type="button" id="inv-skip">تخطّي الآن</button>
+    </div>
+  </section>
+
   <!-- لوحة المنتجات -->
   <section id="v-dash" hidden>
     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px">
-      <div style="min-width:0">
+      <div style="min-width:0;flex:1">
         <h1 style="font-size:1.6rem" id="d-store"></h1>
-        <p class="hint"><span class="badge approved">مفعّل</span> <span id="d-plan"></span></p>
+        <p class="hint"><span class="badge approved" id="d-badge">مفعّل</span> <span id="d-plan"></span></p>
       </div>
+      <label class="switch" id="d-switch-wrap" hidden><span class="hint">المتجر</span><select id="d-switch"></select></label>
     </div>
+    <div class="tabs" role="tablist" id="d-tabs">
+      <button role="tab" aria-selected="true" data-tab="products">المنتجات</button>
+      <button role="tab" aria-selected="false" data-tab="approvals" data-owner>بانتظار موافقتك <span class="count" id="c-approvals" hidden></span></button>
+      <button role="tab" aria-selected="false" data-tab="mine" data-staff>طلباتي <span class="count" id="c-mine" hidden></span></button>
+      <button role="tab" aria-selected="false" data-tab="team" data-owner>الفريق</button>
+    </div>
+    <div id="p-products">
     <div class="trial" id="trial" hidden>
       <div class="t-text"><b id="trial-title"></b><span class="hint" id="trial-sub"></span></div>
       <div class="t-pick">
@@ -183,17 +203,47 @@
     </div>
     <div class="toolbar">
       <input type="search" id="q" placeholder="ابحث في منتجاتك بالاسم أو الباركود">
+      <button class="btn ghost" id="q-scan" type="button" title="ابحث بمسح الباركود">▦ امسح</button>
       <button class="btn primary" id="add">+ إضافة منتج</button>
-      <label class="btn ghost" style="display:inline-flex">رفع ملف CSV<input type="file" id="csv" accept=".csv,text/csv" hidden></label>
+      <label class="btn ghost" style="display:inline-flex" id="csv-wrap">رفع ملف CSV<input type="file" id="csv" accept=".csv,text/csv" hidden></label>
       <a class="btn ghost sm" id="csv-tpl" download="tahassalah-products.csv">نموذج الملف</a>
     </div>
+    <p class="note" id="staff-note" style="background:var(--brand-soft);margin-bottom:12px" hidden></p>
     <div class="plist" id="plist"></div>
+    </div>
+
+    <!-- تعديلات الموظفين بانتظار صاحب المتجر -->
+    <div id="p-approvals" hidden>
+      <p class="hint" style="margin-bottom:12px">تعديلات موظفيك ما تظهر في المتجر إلا بعد ما توافق عليها.</p>
+      <div class="mlist" id="appr-list"></div>
+    </div>
+
+    <!-- طلبات الموظف -->
+    <div id="p-mine" hidden>
+      <p class="hint" style="margin-bottom:12px">تعديلاتك تنتظر موافقة صاحب المتجر قبل ما تظهر.</p>
+      <div class="mlist" id="mine-list"></div>
+    </div>
+
+    <!-- فريق المتجر -->
+    <div id="p-team" hidden>
+      <div class="toolbar">
+        <p class="hint" style="flex:1;min-width:200px">أضف موظفيك بإيميلاتهم. يوصلهم إيميل دعوة، ويدخلون بحساباتهم الخاصة. حد أقصى 10 موظفين.</p>
+        <button class="btn primary" id="t-add" type="button">＋ إضافة موظف</button>
+      </div>
+      <div class="mlist" id="team-list"></div>
+    </div>
   </section>
 </main>
 
 <dialog id="dlg">
   <form id="f-prod" method="dialog" novalidate>
     <h2 id="dlg-title" style="font-size:1.25rem">منتج جديد</h2>
+    <div class="capture" id="capture">
+      <label class="btn ghost sm">📷 صوّر المنتج<input type="file" id="cam" accept="image/*" capture="environment" hidden></label>
+      <button class="btn ghost sm" type="button" id="b-scan">▦ امسح الباركود</button>
+      <img id="cam-prev" alt="" hidden>
+    </div>
+    <p class="hint" id="ai-state" hidden></p>
     <label>اسم المنتج<input name="name" required maxlength="120"></label>
     <div class="row3">
       <label>السعر (ر.س)<input name="price" inputmode="decimal" dir="ltr" required></label>
@@ -202,7 +252,7 @@
     </div>
     <div class="row2">
       <label><span>التصنيف <span class="opt">(اختياري)</span></span><input name="category" list="cats"></label>
-      <label><span>الباركود <span class="opt">(اختياري)</span></span><input name="barcode" inputmode="numeric" dir="ltr"></label>
+      <label><span>الباركود <span class="opt">(اختياري)</span></span><input name="barcode" inputmode="numeric" dir="ltr" autocomplete="off"></label>
     </div>
     <datalist id="cats"></datalist>
     <label><span>الوصف <span class="opt">(اختياري)</span></span><textarea name="description" maxlength="1000"></textarea></label>
@@ -215,6 +265,41 @@
       <button class="btn ghost" type="button" value="cancel" id="cancel">إلغاء</button>
       <button class="btn primary" type="submit" id="save">حفظ</button>
     </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-scan">
+  <div class="stack">
+    <h2 style="font-size:1.2rem">وجّه الكاميرا على الباركود</h2>
+    <div class="scanbox"><video id="scan-video" playsinline muted></video><span class="scanline"></span></div>
+    <p class="hint" id="scan-state">جارِ تشغيل الكاميرا…</p>
+    <label>أو اكتب رقم الباركود<input id="scan-manual" inputmode="numeric" dir="ltr" autocomplete="off"></label>
+    <div class="foot"><span style="flex:1"></span><button class="btn ghost" type="button" id="scan-close">إغلاق</button><button class="btn primary" type="button" id="scan-ok">بحث</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlg-staff">
+  <form id="f-staff" method="dialog" class="stack" novalidate>
+    <h2 style="font-size:1.25rem" id="staff-title">إضافة موظف</h2>
+    <div class="row2">
+      <label>اسم الموظف<input name="name" maxlength="60" required></label>
+      <label>إيميله<input name="email" type="email" dir="ltr" autocomplete="off" required></label>
+    </div>
+    <label>الدور
+      <select name="role">
+        <option value="manager">مدير فرع — المنتجات والأسعار</option>
+        <option value="stock" selected>أمين مخزون — المنتجات والكميات</option>
+        <option value="pricing">موظف أسعار — الأسعار فقط</option>
+      </select>
+    </label>
+    <fieldset>
+      <legend>الصلاحيات</legend>
+      <label class="check"><input type="checkbox" name="p_inventory" checked> إضافة المنتجات وتعديلها والكميات</label>
+      <label class="check"><input type="checkbox" name="p_prices"> تعديل الأسعار والعروض</label>
+    </fieldset>
+    <label class="check"><input type="checkbox" name="needs_approval" checked> <span><b>تعديلاته تحتاج موافقتي</b><br><span class="hint">كل إضافة أو تعديل أو حذف يسويه ينتظر موافقتك قبل ما يظهر. شيلها لما تثق فيه.</span></span></label>
+    <p class="err" role="alert"></p>
+    <div class="foot"><span style="flex:1"></span><button class="btn ghost" type="button" id="staff-cancel">إلغاء</button><button class="btn primary" type="submit" id="staff-save">إرسال الدعوة</button></div>
   </form>
 </dialog>
 

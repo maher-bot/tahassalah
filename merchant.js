@@ -1,10 +1,22 @@
 import { sb, $, $$, toast, clean, digits, valid, money, ACTIVITIES, PLANS, STATUS, fileExt, shrinkImage, friendlyError, setBusy, trialInfo, fmtDay } from './lib.js';
 
-const VIEWS = ['v-loading', 'v-auth', 'v-check-email', 'v-reset', 'v-apply', 'v-status', 'v-dash'];
+const VIEWS = ['v-loading', 'v-auth', 'v-check-email', 'v-reset', 'v-apply', 'v-status', 'v-invites', 'v-dash'];
 const show = id => { VIEWS.forEach(v => { $('#' + v).hidden = v !== id; }); window.scrollTo(0, 0); };
 const here = () => location.origin + location.pathname;
 
 let user = null, merchant = null, products = [], editing = null, recovering = false, routedFor = undefined, coords = null;
+let invites = [], stores = [], skipInvites = false;
+// ctx: المتجر المفتوح حاليًا — صاحبه أو موظف فيه
+let ctx = null;
+const ROLES = { manager: 'مدير فرع', stock: 'أمين مخزون', pricing: 'موظف أسعار', cashier: 'كاشير', accountant: 'محاسب' };
+const ROLE_PERMS = { manager: ['inventory', 'prices'], stock: ['inventory'], pricing: ['prices'] };
+const canInv = () => ctx?.owner || ctx?.perms.has('inventory');
+const canPrice = () => ctx?.owner || ctx?.perms.has('prices');
+const viaApproval = () => !!ctx && !ctx.owner && ctx.needs;
+const store = {
+  get: k => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+};
 
 // ---------------- الحساب ----------------
 $$('#v-auth [role=tab]').forEach(t => t.addEventListener('click', () => {
@@ -77,13 +89,53 @@ async function route(session) {
   if (!user) return show('v-auth');
 
   show('v-loading');
-  const { data, error } = await sb.from('merchants').select('*').eq('id', user.id).maybeSingle();
-  if (error) { $('#v-loading').textContent = friendlyError(error); return; }
-  merchant = data;
+  const [m, inv, st] = await Promise.all([
+    sb.from('merchants').select('*').eq('id', user.id).maybeSingle(),
+    sb.rpc('my_invites'), sb.rpc('my_stores'),
+  ]);
+  if (m.error) { $('#v-loading').textContent = friendlyError(m.error); return; }
+  merchant = m.data; invites = inv.data || []; stores = st.data || [];
+  if (invites.length && !skipInvites) return showInvites();
+  if (merchant?.status === 'approved' || stores.length) return openDash(pickStore());
   if (!merchant) return openApply();
-  if (merchant.status === 'approved') return openDash();
   showStatus();
 }
+
+function pickStore() {
+  const saved = store.get('tah-store');
+  const ids = [merchant?.status === 'approved' ? merchant.id : null, ...stores.map(s => s.merchant_id)].filter(Boolean);
+  return ids.includes(saved) ? saved : ids[0];
+}
+
+// ---------------- دعوات الانضمام ----------------
+function showInvites() {
+  const box = $('#inv-list');
+  box.replaceChildren(...invites.map(i => {
+    const el = document.createElement('div'); el.className = 'row-card';
+    const txt = document.createElement('div');
+    txt.append(Object.assign(document.createElement('div'), { className: 't', textContent: i.store_name }),
+      Object.assign(document.createElement('div'), { className: 's', textContent: `الدور: ${ROLES[i.role] || i.role}` }));
+    const acts = document.createElement('div'); acts.className = 'acts';
+    const yes = Object.assign(document.createElement('button'), { className: 'btn primary sm', textContent: 'قبول الدعوة' });
+    const no = Object.assign(document.createElement('button'), { className: 'btn ghost sm', textContent: 'رفض' });
+    const answer = async (accept, btn) => {
+      if (!accept && !confirm(`رفض دعوة «${i.store_name}»؟`)) return;
+      setBusy(btn, true);
+      const { error } = await sb.rpc('accept_invite', { invite: i.id, accept });
+      setBusy(btn, false);
+      if (error) return toast(friendlyError(error));
+      toast(accept ? `انضممت لفريق «${i.store_name}» ✓` : 'تم رفض الدعوة.');
+      if (accept) store.set('tah-store', i.merchant_id || '');
+      routedFor = undefined; route();
+    };
+    yes.onclick = () => answer(true, yes); no.onclick = () => answer(false, no);
+    acts.append(yes, no); el.append(txt, acts);
+    return el;
+  }));
+  $('#inv-skip').textContent = merchant || stores.length ? 'تخطّي الآن' : 'لا، أبغى أسجّل متجري الخاص';
+  show('v-invites');
+}
+$('#inv-skip').addEventListener('click', () => { skipInvites = true; routedFor = undefined; route(); });
 
 // ---------------- حالة الطلب ----------------
 function showStatus() {
@@ -110,6 +162,7 @@ function showStatus() {
   };
   if (s === 'pending' || s === 'rejected') mk(s === 'rejected' ? 'primary' : 'ghost', s === 'rejected' ? 'عدّل الطلب وأعد الإرسال' : 'تعديل البيانات', () => openApply(merchant));
   mk('ghost', 'تواصل معنا على واتساب', null, 'https://wa.me/966555606635');
+  if (stores.length) mk('ghost', 'رجوع لمتجر ' + stores[0].store_name, () => openDash(stores[0].merchant_id));
   show('v-status');
 }
 
@@ -246,16 +299,73 @@ fa.addEventListener('submit', async e => {
   } finally { setBusy(btn, false); }
 });
 
-// ---------------- لوحة المنتجات ----------------
+// ---------------- لوحة المتجر ----------------
 const imgUrl = p => p ? sb.storage.from('product-images').getPublicUrl(p).data.publicUrl : null;
+let pendingIds = new Set(), approvals = [], team = [];
 
-async function openDash() {
-  $('#d-store').textContent = merchant.store_name;
-  $('#d-plan').textContent = PLANS[merchant.plan] || '';
-  renderTrial();
+function setCtx(id) {
+  if (merchant && id === merchant.id) {
+    ctx = { mid: id, owner: true, perms: new Set(['inventory', 'prices']), needs: false, store: merchant.store_name };
+  } else {
+    const s = stores.find(x => x.merchant_id === id) || stores[0];
+    ctx = { mid: s.merchant_id, owner: false, perms: new Set(s.perms), needs: s.needs_approval, store: s.store_name, role: s.role };
+  }
+  store.set('tah-store', ctx.mid);
+}
+
+async function openDash(id) {
+  setCtx(id); pendingIds = new Set();
+  $('#d-store').textContent = ctx.store;
+  const badge = $('#d-badge');
+  if (ctx.owner) {
+    badge.textContent = 'مفعّل'; badge.className = 'badge approved';
+    $('#d-plan').textContent = PLANS[merchant.plan] || '';
+    renderTrial();
+  } else {
+    badge.textContent = ROLES[ctx.role] || 'موظف'; badge.className = 'badge pending';
+    $('#d-plan').textContent = 'أنت موظف في هذا المتجر';
+    $('#trial').hidden = true;
+  }
+  // مبدّل المتاجر: متجري + المتاجر اللي أنا موظف فيها
+  const sw = $('#d-switch'), opts = [];
+  if (merchant) opts.push(new Option(merchant.status === 'approved' ? `متجري: ${merchant.store_name}` : `متجري (${STATUS[merchant.status]})`, merchant.id));
+  stores.forEach(s => opts.push(new Option(`${s.store_name} · ${ROLES[s.role] || 'موظف'}`, s.merchant_id)));
+  if (!merchant) opts.push(new Option('＋ سجّل متجرك الخاص', 'new'));
+  sw.replaceChildren(...opts); sw.value = ctx.mid;
+  $('#d-switch-wrap').hidden = opts.length < 2;
+
+  $$('#d-tabs [data-owner]').forEach(b => { b.hidden = !ctx.owner; });
+  $$('#d-tabs [data-staff]').forEach(b => { b.hidden = !viaApproval(); });
+  $('#add').hidden = !canInv();
+  const direct = ctx.owner || (canInv() && !ctx.needs);
+  $('#csv-wrap').hidden = !direct; $('#csv-tpl').hidden = !direct;
+  const note = $('#staff-note');
+  note.hidden = ctx.owner;
+  if (!ctx.owner) {
+    const can = [canInv() && 'إضافة المنتجات وتعديل الكميات', canPrice() && 'تعديل الأسعار'].filter(Boolean).join(' و');
+    note.textContent = `صلاحياتك: ${can || 'عرض فقط'}.` + (ctx.needs ? ' كل تعديل تسويه يوصل لصاحب المتجر ويظهر بعد موافقته.' : '');
+  }
+  selectTab('products');
   show('v-dash');
   await loadProducts();
+  if (ctx.owner) loadApprovals(); else if (viaApproval()) loadMine();
 }
+
+$('#d-switch').addEventListener('change', e => {
+  const v = e.target.value;
+  if (v === 'new') return openApply();
+  if (merchant && v === merchant.id && merchant.status !== 'approved') return showStatus();
+  openDash(v);
+});
+
+function selectTab(name) {
+  $$('#d-tabs [role=tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  for (const t of ['products', 'approvals', 'mine', 'team']) $('#p-' + t).hidden = t !== name;
+  if (name === 'approvals') loadApprovals();
+  if (name === 'mine') loadMine();
+  if (name === 'team') loadTeam();
+}
+$$('#d-tabs [role=tab]').forEach(b => b.addEventListener('click', () => selectTab(b.dataset.tab)));
 
 function renderTrial() {
   const t = trialInfo(merchant), box = $('#trial');
@@ -285,12 +395,14 @@ $('#trial-save').addEventListener('click', async e => {
 });
 
 async function loadProducts() {
-  const { data, error } = await sb.from('products').select('*').eq('merchant_id', user.id).order('created_at', { ascending: false });
+  const { data, error } = await sb.from('products').select('*').eq('merchant_id', ctx.mid).order('created_at', { ascending: false });
   if (error) { toast(friendlyError(error)); return; }
   products = data;
   $('#cats').replaceChildren(...[...new Set(products.map(p => p.category).filter(Boolean))].map(c => new Option(c)));
   render();
 }
+
+const mk = (tag, cls, text) => Object.assign(document.createElement(tag), cls ? { className: cls } : {}, text != null ? { textContent: text } : {});
 
 function render() {
   const q = $('#q').value.trim().toLowerCase();
@@ -300,59 +412,96 @@ function render() {
   $('#s-low').textContent = products.filter(p => p.quantity <= 2).length;
   const box = $('#plist');
   if (!products.length) {
-    box.innerHTML = '<div class="empty"><b>ما أضفت منتجات بعد</b><br>ابدأ بـ «إضافة منتج»، أو ارفع ملف CSV فيه كل منتجاتك دفعة وحدة.</div>';
+    box.innerHTML = canInv()
+      ? '<div class="empty"><b>ما فيه منتجات بعد</b><br>ابدأ بـ «إضافة منتج» وصوّر المنتج أو امسح الباركود، أو ارفع ملف CSV فيه كل المنتجات دفعة وحدة.</div>'
+      : '<div class="empty">ما فيه منتجات في المتجر بعد.</div>';
     return;
   }
   if (!list.length) { box.innerHTML = '<div class="empty">ما فيه نتائج لبحثك.</div>'; return; }
   box.replaceChildren(...list.map(p => {
-    const el = document.createElement('article');
-    el.className = 'prod' + (p.is_active ? '' : ' off');
+    const el = mk('article', 'prod' + (p.is_active ? '' : ' off'));
     const url = imgUrl(p.image_path);
-    const pic = url ? Object.assign(document.createElement('img'), { src: url, alt: '', loading: 'lazy' })
-      : Object.assign(document.createElement('div'), { className: 'ph', textContent: p.name.trim()[0] || '؟' });
-    const mid = document.createElement('div'); mid.style.minWidth = '0';
-    const n = document.createElement('div'); n.className = 'n'; n.textContent = p.name;
-    const m = document.createElement('div'); m.className = 'm num';
-    const price = document.createElement('span');
-    if (p.sale_price != null) { price.innerHTML = '<b></b> <s></s>'; price.querySelector('b').textContent = money(p.sale_price); price.querySelector('s').textContent = money(p.price); }
-    else { price.innerHTML = '<b></b>'; price.querySelector('b').textContent = money(p.price); }
-    const qty = document.createElement('span');
-    qty.textContent = p.quantity > 0 ? `الكمية ${p.quantity}` : 'نفد';
-    if (p.quantity <= 2) qty.className = 'low';
+    const pic = url ? Object.assign(document.createElement('img'), { src: url, alt: '', loading: 'lazy' }) : mk('div', 'ph', p.name.trim()[0] || '؟');
+    const mid = mk('div'); mid.style.minWidth = '0';
+    const m = mk('div', 'm num');
+    const price = mk('span');
+    if (p.sale_price != null) { price.append(mk('b', '', money(p.sale_price)), ' ', mk('s', '', money(p.price))); }
+    else price.append(mk('b', '', money(p.price)));
+    const qty = mk('span', p.quantity <= 2 ? 'low' : '', p.quantity > 0 ? `الكمية ${p.quantity}` : 'نفد');
     m.append(price, qty);
-    if (p.category) m.append(Object.assign(document.createElement('span'), { textContent: p.category }));
-    if (!p.is_active) m.append(Object.assign(document.createElement('span'), { textContent: 'مخفي' }));
-    mid.append(n, m);
-    const acts = document.createElement('div'); acts.className = 'acts';
-    const minus = Object.assign(document.createElement('button'), { className: 'btn ghost sm', textContent: '−1', title: 'إنقاص الكمية' });
-    const plus = Object.assign(document.createElement('button'), { className: 'btn ghost sm', textContent: '+1', title: 'زيادة الكمية' });
-    const edit = Object.assign(document.createElement('button'), { className: 'btn ghost sm', textContent: 'تعديل' });
-    minus.disabled = p.quantity <= 0;
-    minus.onclick = () => bump(p, -1); plus.onclick = () => bump(p, 1); edit.onclick = () => openProduct(p);
-    acts.append(minus, plus, edit);
+    if (p.category) m.append(mk('span', '', p.category));
+    if (!p.is_active) m.append(mk('span', '', 'مخفي'));
+    if (pendingIds.has(p.id)) m.append(mk('span', 'low', '⏳ تعديل بانتظار الموافقة'));
+    mid.append(mk('div', 'n', p.name), m);
+    const acts = mk('div', 'acts');
+    if (canInv()) {
+      const minus = mk('button', 'btn ghost sm', '−1'); minus.title = 'إنقاص الكمية';
+      const plus = mk('button', 'btn ghost sm', '+1'); plus.title = 'زيادة الكمية';
+      minus.disabled = p.quantity <= 0;
+      minus.onclick = () => bump(p, -1); plus.onclick = () => bump(p, 1);
+      acts.append(minus, plus);
+    }
+    if (canInv() || canPrice()) { const edit = mk('button', 'btn ghost sm', 'تعديل'); edit.onclick = () => openProduct(p); acts.append(edit); }
     el.append(pic, mid, acts);
     return el;
   }));
 }
 $('#q').addEventListener('input', render);
 
+// كل الكتابة على المنتجات تمر من هنا: مباشرة، أو طلب ينتظر موافقة صاحب المتجر
+const FIELDS = ['name', 'price', 'sale_price', 'quantity', 'category', 'barcode', 'description', 'image_path', 'is_active'];
+function changed(p, row) {
+  const out = {};
+  for (const k of FIELDS) {
+    if (!(k in row)) continue;
+    const a = p[k] ?? null, b = row[k] ?? null;
+    const same = typeof a === 'number' || typeof b === 'number' || ['price', 'sale_price'].includes(k) ? (a == null ? b == null : b != null && Number(a) === Number(b)) : a === b;
+    if (!same) out[k] = b;
+  }
+  return out;
+}
+async function writeProduct(action, p, row = {}) {
+  if (viaApproval()) {
+    const payload = action === 'update' ? changed(p, row) : action === 'insert' ? row : {};
+    if (action === 'update' && !Object.keys(payload).length) return 'same';
+    const { error } = await sb.from('product_changes').insert({ merchant_id: ctx.mid, action, product_id: p?.id ?? null, payload });
+    if (error) throw error;
+    if (p) pendingIds.add(p.id);
+    loadMine();
+    return 'queued';
+  }
+  const q = action === 'insert' ? sb.from('products').insert({ ...row, merchant_id: ctx.mid })
+    : action === 'update' ? sb.from('products').update(row).eq('id', p.id)
+    : sb.from('products').delete().eq('id', p.id);
+  const { error } = await q;
+  if (error) throw error;
+  return 'done';
+}
+const QUEUED = 'أُرسل لصاحب المتجر للموافقة ✓';
+
 async function bump(p, d) {
   const qn = Math.max(0, p.quantity + d);
-  const { error } = await sb.from('products').update({ quantity: qn }).eq('id', p.id);
-  if (error) return toast(friendlyError(error));
-  p.quantity = qn; render();
+  try {
+    const r = await writeProduct('update', p, { quantity: qn });
+    if (r === 'queued') { toast(QUEUED); render(); return; }
+    p.quantity = qn; render();
+  } catch (ex) { toast(friendlyError(ex)); }
 }
 
+// ---------------- نافذة المنتج ----------------
 const dlg = $('#dlg'), fp = $('#f-prod');
 $('#add').addEventListener('click', () => openProduct(null));
 $('#cancel').addEventListener('click', () => dlg.close());
+const aiState = (t) => { const el = $('#ai-state'); el.hidden = !t; el.textContent = t || ''; };
 
 function openProduct(p) {
+  if (dlg.open) dlg.close();
   editing = p;
   fp.reset();
   $('#dlg-title').textContent = p ? 'تعديل منتج' : 'منتج جديد';
-  $('#del').hidden = !p;
+  $('#del').hidden = !p || !canInv();
   $('.err', fp).textContent = '';
+  aiState(''); $('#cam-prev').hidden = true;
   if (p) {
     for (const k of ['name', 'price', 'sale_price', 'quantity', 'category', 'barcode', 'description']) fp[k].value = p[k] ?? '';
     fp.is_active.checked = p.is_active;
@@ -361,8 +510,15 @@ function openProduct(p) {
   box.dataset.existing = p?.image_path ? '1' : '';
   box.classList.toggle('has', !!p?.image_path);
   $('.cur', box).textContent = p?.image_path ? '✓ فيه صورة (اختر صورة جديدة لاستبدالها)' : '';
+  // الحقول حسب الصلاحية
+  const inv = canInv(), pr = canPrice() || !p;
+  for (const k of ['name', 'quantity', 'category', 'barcode', 'description', 'image', 'is_active']) fp[k].disabled = !inv;
+  for (const k of ['price', 'sale_price']) fp[k].disabled = !pr;
+  $('#capture').hidden = !inv;
+  $('#save').textContent = viaApproval() ? 'إرسال للموافقة' : 'حفظ';
+  if (viaApproval()) aiState('تعديلك يوصل لصاحب المتجر ويظهر بعد موافقته.');
   dlg.showModal();
-  fp.name.focus();
+  (inv ? fp.name : fp.price).focus();
 }
 
 const num = s => { const t = digits(s).replace(/[٫,]/g, '.').trim(); return t === '' ? null : Number(t); };
@@ -379,36 +535,330 @@ fp.addEventListener('submit', async e => {
   try {
     let image_path = editing?.image_path ?? null;
     const file = fp.image.files[0];
-    if (file) {
+    if (file && canInv()) {
       const small = await shrinkImage(file);
       if (small.size > 2 * 1024 * 1024) throw new Error('الصورة كبيرة جدًا، اختر صورة أصغر من 2 ميجا.');
-      const path = `${user.id}/${crypto.randomUUID()}.${small.type === 'image/webp' ? 'webp' : fileExt(small)}`;
+      const path = `${ctx.mid}/${crypto.randomUUID()}.${small.type === 'image/webp' ? 'webp' : fileExt(small)}`;
       const { error } = await sb.storage.from('product-images').upload(path, small, { contentType: small.type });
       if (error) throw error;
-      if (image_path) sb.storage.from('product-images').remove([image_path]);
+      if (image_path && !viaApproval()) sb.storage.from('product-images').remove([image_path]);
       image_path = path;
     }
-    const row = {
+    const row = canInv() ? {
       name: fp.name.value.trim(), price, sale_price: sale, quantity: qty,
       category: fp.category.value.trim() || null, barcode: digits(fp.barcode.value).trim() || null,
       description: fp.description.value.trim() || null, is_active: fp.is_active.checked, image_path,
-    };
-    const { error } = editing
-      ? await sb.from('products').update(row).eq('id', editing.id)
-      : await sb.from('products').insert({ ...row, merchant_id: user.id });
-    if (error) throw error;
-    dlg.close(); toast(editing ? 'تم حفظ التعديل.' : 'تمت إضافة المنتج.');
+    } : { price, sale_price: sale };
+    if (editing && !canPrice()) { delete row.price; delete row.sale_price; }
+    const r = await writeProduct(editing ? 'update' : 'insert', editing, row);
+    dlg.close();
+    toast(r === 'queued' ? QUEUED : r === 'same' ? 'ما فيه تغيير.' : editing ? 'تم حفظ التعديل.' : 'تمت إضافة المنتج.');
     await loadProducts();
   } catch (ex) { err.textContent = friendlyError(ex); }
   finally { setBusy(btn, false); }
 });
 
 $('#del').addEventListener('click', async () => {
-  if (!editing || !confirm(`حذف «${editing.name}» نهائيًا؟`)) return;
-  const { error } = await sb.from('products').delete().eq('id', editing.id);
+  if (!editing || !confirm(viaApproval() ? `طلب حذف «${editing.name}»؟ يُحذف بعد موافقة صاحب المتجر.` : `حذف «${editing.name}» نهائيًا؟`)) return;
+  try {
+    const r = await writeProduct('delete', editing);
+    if (r === 'done' && editing.image_path) sb.storage.from('product-images').remove([editing.image_path]);
+    dlg.close(); toast(r === 'queued' ? QUEUED : 'تم حذف المنتج.'); await loadProducts();
+  } catch (ex) { toast(friendlyError(ex)); }
+});
+
+// ---------------- الكاميرا والتعرّف على المنتج ----------------
+let aiOff = false;
+async function toJpegBase64(file, max = 1024) {
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const c = Object.assign(document.createElement('canvas'), { width: Math.round(bmp.width * k), height: Math.round(bmp.height * k) });
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.82).split(',')[1];
+}
+const fillEmpty = (k, v) => { if (v && !fp[k].value.trim() && !fp[k].disabled) fp[k].value = v; };
+
+$('#cam').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  const dt = new DataTransfer(); dt.items.add(f);
+  fp.image.files = dt.files; fp.image.dispatchEvent(new Event('change'));
+  const prev = $('#cam-prev'); prev.src = URL.createObjectURL(f); prev.hidden = false;
+  if (aiOff) return aiState('✓ انضافت الصورة للمنتج. عبّئ البيانات أو امسح الباركود.');
+  aiState('🤖 جارِ التعرّف على المنتج من الصورة…');
+  try {
+    const image = await toJpegBase64(f);
+    let { data, error } = await sb.functions.invoke('recognize', { body: { merchant_id: ctx.mid, image, media_type: 'image/jpeg' } });
+    if (error) { try { data = await error.context.json(); } catch { throw error; } }
+    if (data?.error === 'not_configured') { aiOff = true; return aiState('✓ انضافت الصورة للمنتج. التعرّف التلقائي بالذكاء الاصطناعي يتفعّل قريبًا، عبّئ البيانات يدويًا أو امسح الباركود.'); }
+    if (data?.error === 'limit') return aiState('وصلت الحد اليومي للتعرّف التلقائي. الصورة انضافت، عبّئ البيانات يدويًا.');
+    if (data?.error) throw new Error(data.error);
+    const r = data?.result;
+    if (!r?.recognized) return aiState('ما قدرنا نتعرّف على المنتج من الصورة. جرّب صورة أوضح للغلاف، أو امسح الباركود.');
+    fillEmpty('name', r.name); fillEmpty('category', r.category); fillEmpty('description', r.description);
+    if (/^\d{8,14}$/.test(String(r.barcode || ''))) fillEmpty('barcode', String(r.barcode));
+    aiState(`✓ تعرّفنا عليه: ${r.name}` + (r.estimatedPriceSar > 0 ? ` · سعره التقريبي في السوق ${money(r.estimatedPriceSar)}` : '') + '. راجع البيانات وحط سعرك قبل الحفظ.');
+  } catch (ex) { aiState('الصورة انضافت، لكن التعرّف التلقائي ما اشتغل الحين: ' + friendlyError(ex)); }
+});
+
+// ---------------- مسح الباركود ----------------
+const dlgScan = $('#dlg-scan'), video = $('#scan-video');
+let scanCb = null, scanStop = null;
+const scanState = t => { $('#scan-state').textContent = t; };
+const FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'code_128', 'code_39', 'itf'];
+
+async function scan(cb) {
+  scanCb = cb; $('#scan-manual').value = '';
+  scanState('جارِ تشغيل الكاميرا…');
+  dlgScan.showModal();
+  try {
+    if ('BarcodeDetector' in window) {
+      const supported = await BarcodeDetector.getSupportedFormats();
+      const det = new BarcodeDetector({ formats: FORMATS.filter(f => supported.includes(f)) });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      video.srcObject = stream; await video.play();
+      let on = true;
+      scanStop = () => { on = false; stream.getTracks().forEach(t => t.stop()); video.srcObject = null; };
+      const tick = async () => {
+        if (!on) return;
+        try { const r = await det.detect(video); if (r[0]?.rawValue) return done(r[0].rawValue); } catch {}
+        setTimeout(tick, 180);
+      };
+      tick();
+    } else {
+      const { BrowserMultiFormatReader } = await import('https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm');
+      const reader = new BrowserMultiFormatReader();
+      const controls = await reader.decodeFromConstraints({ video: { facingMode: 'environment' } }, video, res => { if (res) done(res.getText()); });
+      scanStop = () => controls.stop();
+    }
+    scanState('وجّه الكاميرا على الباركود وقرّبها لين يوضح.');
+  } catch {
+    scanState('ما قدرنا نشغّل الكاميرا. اسمح للمتصفح باستخدامها، أو اكتب رقم الباركود تحت.');
+  }
+}
+function stopScan() { const s = scanStop; scanStop = null; if (s) s(); }
+function done(code) {
+  const cb = scanCb; scanCb = null; stopScan();
+  if (dlgScan.open) dlgScan.close();
+  if ('vibrate' in navigator) navigator.vibrate(60);
+  cb?.(digits(code).replace(/\D/g, ''));
+}
+dlgScan.addEventListener('close', stopScan);
+$('#scan-close').addEventListener('click', () => dlgScan.close());
+$('#scan-ok').addEventListener('click', () => {
+  const v = digits($('#scan-manual').value).replace(/\D/g, '');
+  if (v.length < 6) return scanState('اكتب رقم الباركود كامل.');
+  done(v);
+});
+
+async function lookupBarcode(code) {
+  if (!/^\d{8,14}$/.test(code)) return;
+  const own = products.find(p => p.barcode === code && p.id !== editing?.id);
+  if (own) {
+    if (confirm(`«${own.name}» مسجّل عندك بنفس الباركود. تفتحه للتعديل؟`)) openProduct(own);
+    return;
+  }
+  if (fp.name.value.trim()) return;
+  aiState('جارِ البحث عن الباركود…');
+  let hit = null;
+  const { data } = await sb.rpc('barcode_lookup', { code });
+  if (data?.[0]) hit = data[0];
+  if (!hit) {
+    try {
+      const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name_ar,product_name,brands,quantity`);
+      const j = await r.json();
+      if (j.status === 1) {
+        const pr = j.product, name = pr.product_name_ar || pr.product_name || '';
+        const brand = (pr.brands || '').split(',')[0].trim();
+        hit = { name: [name, brand && !name.includes(brand) ? brand : '', pr.quantity || ''].filter(Boolean).join(' ').trim() };
+      }
+    } catch {}
+  }
+  if (hit?.name) {
+    fillEmpty('name', hit.name); fillEmpty('category', hit.category); fillEmpty('description', hit.description);
+    aiState(`✓ لقينا المنتج: ${hit.name}. راجع الاسم وحط سعرك وكميتك.`);
+  } else aiState('ما لقينا بيانات لهذا الباركود. عبّئ البيانات يدويًا أو صوّر المنتج.');
+}
+
+$('#b-scan').addEventListener('click', () => scan(code => { fp.barcode.value = code; lookupBarcode(code); }));
+fp.barcode.addEventListener('change', () => lookupBarcode(digits(fp.barcode.value).replace(/\D/g, '')));
+$('#q-scan').addEventListener('click', () => scan(code => {
+  const p = products.find(x => x.barcode === code);
+  if (p && (canInv() || canPrice())) return openProduct(p);
+  if (!p && canInv()) { openProduct(null); fp.barcode.value = code; lookupBarcode(code); return; }
+  $('#q').value = code; render();
+  if (!p) toast('ما فيه منتج بهذا الباركود.');
+}));
+
+// ---------------- موافقات صاحب المتجر ----------------
+const LABEL = { name: 'الاسم', price: 'السعر', sale_price: 'سعر العرض', quantity: 'الكمية', category: 'التصنيف', barcode: 'الباركود', description: 'الوصف', image_path: 'الصورة', is_active: 'الظهور' };
+const ACTION = { insert: 'إضافة منتج', update: 'تعديل', delete: 'حذف' };
+const showVal = (k, v) => v == null || v === '' ? '—' : k === 'is_active' ? (v ? 'ظاهر' : 'مخفي') : k === 'image_path' ? 'صورة جديدة' : ['price', 'sale_price'].includes(k) ? money(v) : String(v);
+
+function changeCard(c, { owner }) {
+  const p = products.find(x => x.id === c.product_id);
+  const name = c.payload?.name || p?.name || 'منتج';
+  const el = mk('div', 'row-card');
+  const txt = mk('div');
+  txt.append(mk('div', 't', `${ACTION[c.action]} · ${name}`));
+  const meta = owner ? `من ${c.staff_label || 'موظف'} · ${fmtDay(c.created_at)}` : fmtDay(c.created_at);
+  txt.append(mk('div', 's', meta));
+  const diff = mk('div', 'diff');
+  if (c.action !== 'delete') {
+    for (const [k, v] of Object.entries(c.payload || {})) {
+      if (!LABEL[k] || (c.action === 'insert' && (v == null || v === ''))) continue;
+      const sp = mk('span'); sp.append(`${LABEL[k]}: `);
+      if (c.action === 'update' && p) { sp.append(mk('s', '', showVal(k, p[k])), ' ← '); }
+      sp.append(mk('b', '', showVal(k, v)));
+      diff.append(sp);
+    }
+  }
+  if (diff.childElementCount) txt.append(diff);
+  if (c.payload?.image_path) { const im = Object.assign(document.createElement('img'), { src: imgUrl(c.payload.image_path), alt: '' }); im.style.cssText = 'width:56px;height:56px;object-fit:cover;border-radius:8px;margin-top:6px'; txt.append(im); }
+  if (!owner && c.status === 'rejected' && c.note) txt.append(mk('div', 's', 'سبب الرفض: ' + c.note));
+  const acts = mk('div', 'acts');
+  if (owner) {
+    const ok = mk('button', 'btn primary sm', '✓ موافقة'), no = mk('button', 'btn ghost sm', '✕ رفض');
+    ok.onclick = () => review(c, true, ok); no.onclick = () => review(c, false, no);
+    acts.append(ok, no);
+  } else {
+    const st = { pending: ['pending', 'بانتظار الموافقة'], approved: ['approved', 'تمت الموافقة'], rejected: ['rejected', 'مرفوض'] }[c.status];
+    acts.append(mk('span', 'badge ' + st[0], st[1]));
+    if (c.status === 'pending') {
+      const x = mk('button', 'btn ghost sm', 'إلغاء');
+      x.onclick = async () => { const { error } = await sb.from('product_changes').delete().eq('id', c.id); if (error) return toast(friendlyError(error)); toast('تم إلغاء الطلب.'); loadMine(); loadProducts(); };
+      acts.append(x);
+    }
+  }
+  el.append(txt, acts);
+  return el;
+}
+
+async function loadApprovals() {
+  if (!ctx?.owner) return;
+  const { data, error } = await sb.from('product_changes').select('*').eq('merchant_id', ctx.mid).eq('status', 'pending').order('created_at');
   if (error) return toast(friendlyError(error));
-  if (editing.image_path) sb.storage.from('product-images').remove([editing.image_path]);
-  dlg.close(); toast('تم حذف المنتج.'); await loadProducts();
+  approvals = data;
+  const c = $('#c-approvals'); c.hidden = !approvals.length; c.textContent = approvals.length;
+  const box = $('#appr-list');
+  if (!approvals.length) { box.innerHTML = '<div class="empty">ما فيه تعديلات تنتظر موافقتك.</div>'; return; }
+  const all = mk('button', 'btn ghost sm', `✓ موافقة على الكل (${approvals.length})`);
+  all.style.justifySelf = 'start';
+  all.onclick = async () => {
+    if (!confirm(`الموافقة على ${approvals.length} تعديل؟`)) return;
+    setBusy(all, true);
+    for (const a of approvals) { const { error } = await sb.rpc('review_change', { change_id: a.id, approve: true }); if (error) toast(friendlyError(error)); }
+    toast('تمت الموافقة ✓'); await loadProducts(); loadApprovals();
+  };
+  box.replaceChildren(...(approvals.length > 1 ? [all] : []), ...approvals.map(a => changeCard(a, { owner: true })));
+}
+
+async function review(c, approve, btn) {
+  let reason = null;
+  if (!approve) { reason = prompt('سبب الرفض (اختياري، يشوفه الموظف):', ''); if (reason === null) return; }
+  setBusy(btn, true);
+  const { error } = await sb.rpc('review_change', { change_id: c.id, approve, reason: reason || null });
+  setBusy(btn, false);
+  if (error) return toast(friendlyError(error));
+  toast(approve ? 'تمت الموافقة وتحدّث المتجر ✓' : 'تم الرفض.');
+  if (approve) await loadProducts();
+  loadApprovals();
+}
+
+async function loadMine() {
+  if (!viaApproval()) return;
+  const { data, error } = await sb.from('product_changes').select('*').eq('merchant_id', ctx.mid).eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
+  if (error) return toast(friendlyError(error));
+  const pend = data.filter(c => c.status === 'pending');
+  pendingIds = new Set(pend.map(c => c.product_id).filter(Boolean));
+  const c = $('#c-mine'); c.hidden = !pend.length; c.textContent = pend.length;
+  const box = $('#mine-list');
+  box.replaceChildren(...(data.length ? data.map(x => changeCard(x, { owner: false })) : [Object.assign(mk('div', 'empty'), { textContent: 'ما أرسلت تعديلات بعد.' })]));
+  render();
+}
+
+// ---------------- فريق المتجر ----------------
+const dlgStaff = $('#dlg-staff'), fs = $('#f-staff');
+let editingStaff = null;
+const STAFF_STATUS = { invited: ['pending', 'بانتظار القبول'], active: ['approved', 'نشط'], suspended: ['suspended', 'موقوف'] };
+
+async function loadTeam() {
+  if (!ctx?.owner) return;
+  const { data, error } = await sb.from('merchant_staff').select('*').eq('merchant_id', ctx.mid).order('invited_at');
+  if (error) return toast(friendlyError(error));
+  team = data;
+  $('#t-add').disabled = team.length >= 10;
+  const box = $('#team-list');
+  if (!team.length) { box.innerHTML = '<div class="empty"><b>ما أضفت موظفين بعد</b><br>أضف موظفك بإيميله، ويدخل بحسابه الخاص بالصلاحيات اللي تحددها.</div>'; return; }
+  box.replaceChildren(...team.map(s => {
+    const el = mk('div', 'row-card');
+    const txt = mk('div');
+    const t = mk('div', 't', (s.name || s.email) + ' ');
+    const st = STAFF_STATUS[s.status]; t.append(mk('span', 'badge ' + st[0], st[1]));
+    const perms = [s.perms.includes('inventory') && 'المنتجات والكميات', s.perms.includes('prices') && 'الأسعار'].filter(Boolean).join(' + ');
+    txt.append(t, mk('div', 's', `${s.email} · ${ROLES[s.role] || s.role} · ${perms}`),
+      mk('div', 's', s.needs_approval ? '🔒 تعديلاته تحتاج موافقتك' : '✓ يعدّل مباشرة بدون موافقة'));
+    const acts = mk('div', 'acts');
+    const edit = mk('button', 'btn ghost sm', 'تعديل'); edit.onclick = () => openStaff(s);
+    acts.append(edit);
+    if (s.status !== 'invited') {
+      const tg = mk('button', 'btn ghost sm', s.status === 'active' ? 'إيقاف' : 'تفعيل');
+      tg.onclick = async () => {
+        const { error } = await sb.from('merchant_staff').update({ status: s.status === 'active' ? 'suspended' : 'active' }).eq('id', s.id);
+        if (error) return toast(friendlyError(error)); loadTeam();
+      };
+      acts.append(tg);
+    }
+    const rm = mk('button', 'btn danger sm', 'حذف');
+    rm.onclick = async () => {
+      if (!confirm(`حذف ${s.name || s.email} من الفريق؟`)) return;
+      const { error } = await sb.from('merchant_staff').delete().eq('id', s.id);
+      if (error) return toast(friendlyError(error)); toast('تم الحذف من الفريق.'); loadTeam();
+    };
+    acts.append(rm);
+    el.append(txt, acts);
+    return el;
+  }));
+}
+
+function openStaff(s) {
+  editingStaff = s; fs.reset();
+  $('#staff-title').textContent = s ? 'تعديل الموظف' : 'إضافة موظف';
+  $('#staff-save').textContent = s ? 'حفظ' : 'إرسال الدعوة';
+  $('.err', fs).textContent = '';
+  fs.email.disabled = !!s;
+  if (s) {
+    fs.name.value = s.name || ''; fs.email.value = s.email;
+    fs.role.value = ROLE_PERMS[s.role] ? s.role : 'stock';
+    fs.p_inventory.checked = s.perms.includes('inventory'); fs.p_prices.checked = s.perms.includes('prices');
+    fs.needs_approval.checked = s.needs_approval;
+  }
+  dlgStaff.showModal(); (s ? fs.name : fs.name).focus();
+}
+$('#t-add').addEventListener('click', () => openStaff(null));
+$('#staff-cancel').addEventListener('click', () => dlgStaff.close());
+fs.role.addEventListener('change', () => {
+  const p = ROLE_PERMS[fs.role.value] || [];
+  fs.p_inventory.checked = p.includes('inventory'); fs.p_prices.checked = p.includes('prices');
+});
+fs.addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = $('.err', fs), btn = $('#staff-save');
+  const email = fs.email.value.trim().toLowerCase(), name = fs.name.value.trim();
+  const perms = [fs.p_inventory.checked && 'inventory', fs.p_prices.checked && 'prices'].filter(Boolean);
+  if (name.length < 2) return (err.textContent = 'اكتب اسم الموظف.');
+  if (!editingStaff && !/^\S+@\S+\.\S+$/.test(email)) return (err.textContent = 'اكتب إيميل صحيح.');
+  if (!perms.length) return (err.textContent = 'اختر صلاحية وحدة على الأقل.');
+  err.textContent = ''; setBusy(btn, true);
+  const row = { name, role: fs.role.value, perms, needs_approval: fs.needs_approval.checked };
+  const { error } = editingStaff
+    ? await sb.from('merchant_staff').update(row).eq('id', editingStaff.id)
+    : await sb.from('merchant_staff').insert({ ...row, email, merchant_id: ctx.mid });
+  setBusy(btn, false);
+  if (error) return (err.textContent = friendlyError(error));
+  dlgStaff.close();
+  toast(editingStaff ? 'تم حفظ التعديل.' : `أرسلنا دعوة إلى ${email} ✓`, 4500);
+  loadTeam();
 });
 
 // ---------------- استيراد CSV ----------------
@@ -455,7 +905,7 @@ $('#csv').addEventListener('change', async e => {
     if (name.length < 2 || price == null || !(price >= 0) || !Number.isInteger(qty) || qty < 0 || (sale != null && !(sale >= 0 && sale < price))) { bad.push(i + 2); return; }
     const row = { name, price, sale_price: sale, quantity: qty, barcode, category: g('category') || null, description: g('description') || null };
     const ex = barcode && byBarcode.get(barcode);
-    if (ex) updates.push({ id: ex.id, row }); else inserts.push({ ...row, merchant_id: user.id, is_active: true });
+    if (ex) updates.push({ id: ex.id, row }); else inserts.push({ ...row, merchant_id: ctx.mid, is_active: true });
   });
   if (!inserts.length && !updates.length) return toast(`ما فيه صفوف صحيحة. راجع الصفوف: ${bad.slice(0, 10).join('، ')}`, 6000);
   if (!confirm(`إضافة ${inserts.length} منتج جديد وتحديث ${updates.length} منتج موجود (بنفس الباركود)؟` + (bad.length ? `\nسيتم تجاهل ${bad.length} صف فيه خطأ.` : ''))) return;
