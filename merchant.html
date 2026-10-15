@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>لوحة التاجر · تحصّله</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="top"><div class="in">
+  <a class="mark" href="index.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7z" fill="var(--pin)"/><circle cx="12" cy="9" r="2.6" fill="var(--surface)"/></svg>تحصّله</a>
+  <div class="sp"><span class="who" id="who"></span><button class="btn ghost sm" id="logout" hidden>خروج</button></div>
+</div></header>
+
+<main>
+  <p id="v-loading" class="hint" style="text-align:center;padding:40px">جارِ التحميل…</p>
+
+  <!-- الدخول وإنشاء الحساب -->
+  <section id="v-auth" class="narrow" hidden>
+    <div class="card">
+      <h1 style="font-size:1.6rem">سجّل متجرك في تحصّله</h1>
+      <p class="hint" style="margin:6px 0 16px">أنشئ حسابك، ارفع مستنداتك، ونفعّل متجرك بعد المراجعة لتضيف منتجاتك وأسعارك.</p>
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" data-tab="signup">حساب جديد</button>
+        <button role="tab" aria-selected="false" data-tab="login">عندي حساب</button>
+      </div>
+      <form id="f-signup" class="stack" novalidate>
+        <label>الإيميل<input type="email" name="email" dir="ltr" autocomplete="email" required></label>
+        <label>كلمة المرور<input type="password" name="password" autocomplete="new-password" minlength="8" required><span class="hint">8 أحرف على الأقل</span></label>
+        <label>تأكيد كلمة المرور<input type="password" name="password2" autocomplete="new-password" required></label>
+        <p class="err" role="alert"></p>
+        <button class="btn primary" type="submit">إنشاء الحساب</button>
+      </form>
+      <form id="f-login" class="stack" novalidate hidden>
+        <label>الإيميل<input type="email" name="email" dir="ltr" autocomplete="email" required></label>
+        <label>كلمة المرور<input type="password" name="password" autocomplete="current-password" required></label>
+        <p class="err" role="alert"></p>
+        <button class="btn primary" type="submit">دخول</button>
+        <button class="btn ghost" type="button" id="forgot">نسيت كلمة المرور</button>
+      </form>
+    </div>
+  </section>
+
+  <section id="v-check-email" class="narrow" hidden>
+    <div class="card status">
+      <div class="icon" style="background:var(--brand-soft);color:var(--brand)">✉</div>
+      <h2>أكّد إيميلك</h2>
+      <p>أرسلنا رابط تأكيد إلى <b dir="ltr" id="sent-to"></b>. افتحه وبيرجعك هنا تكمل تسجيل متجرك. ما وصل؟ شيّك على مجلد الرسائل غير المرغوب فيها.</p>
+    </div>
+  </section>
+
+  <section id="v-reset" class="narrow" hidden>
+    <form class="card stack" id="f-reset" novalidate>
+      <h2>كلمة مرور جديدة</h2>
+      <label>كلمة المرور الجديدة<input type="password" name="password" autocomplete="new-password" minlength="8" required></label>
+      <p class="err" role="alert"></p>
+      <button class="btn primary" type="submit">حفظ</button>
+    </form>
+  </section>
+
+  <!-- نموذج طلب التسجيل -->
+  <section id="v-apply" class="narrow" hidden>
+    <form id="f-apply" class="card stack" novalidate>
+      <div>
+        <h1 style="font-size:1.5rem" id="apply-title">بيانات متجرك</h1>
+        <p class="hint" style="margin-top:4px">نراجع المستندات خلال يوم إلى يومي عمل ونبلغك بالإيميل.</p>
+      </div>
+      <div class="note" id="apply-note" hidden></div>
+
+      <fieldset>
+        <legend>المحل</legend>
+        <div class="row2">
+          <label>اسمك الكامل<input name="owner_name" autocomplete="name" required maxlength="80"></label>
+          <label>اسم المحل<input name="store_name" required maxlength="80"></label>
+        </div>
+        <div class="row2">
+          <label>النشاط<select name="activity" required><option value="">اختر</option></select></label>
+          <label>جوال للتواصل<input name="phone" inputmode="numeric" dir="ltr" placeholder="05XXXXXXXX" maxlength="10" required></label>
+        </div>
+        <div class="row2">
+          <label>المدينة<input name="city" required value="مكة المكرمة"></label>
+          <label><span>الحي <span class="opt">(اختياري)</span></span><input name="district"></label>
+        </div>
+        <div>
+          <button class="btn ghost sm" type="button" id="locate">📍 حدّد موقع المحل من جوالك</button>
+          <p class="hint" id="loc-state" style="margin-top:6px">اضغطه وأنت داخل المحل، عشان يظهر للمشترين القريبين.</p>
+        </div>
+        <label>العنوان الوطني المختصر
+          <input name="national_address" dir="ltr" maxlength="9" placeholder="مثال: RRRD2929" autocomplete="off" required>
+          <span class="hint">4 حروف و4 أرقام. تلقاه في تطبيق «سبل» أو موقع splonline.com.sa، في خانة العنوان الوطني للمنشأة.</span>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>السجل التجاري</legend>
+        <label>رقم السجل التجاري أو وثيقة العمل الحر<input name="cr_number" inputmode="numeric" dir="ltr" maxlength="10" placeholder="10 أرقام" required></label>
+        <div class="file" data-file="cr"><label>صورة السجل التجاري (PDF أو صورة، حتى 5 ميجا)<input type="file" name="cr_file" accept="application/pdf,image/*"></label><span class="cur"></span></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>الضريبة</legend>
+        <label class="check"><input type="checkbox" name="no_vat"> المنشأة غير مسجلة في ضريبة القيمة المضافة</label>
+        <div id="vat-fields" class="stack">
+          <label>الرقم الضريبي<input name="vat_number" inputmode="numeric" dir="ltr" maxlength="15" placeholder="15 رقم يبدأ وينتهي بـ 3"></label>
+          <div class="file" data-file="vat"><label>شهادة التسجيل في ضريبة القيمة المضافة<input type="file" name="vat_file" accept="application/pdf,image/*"></label><span class="cur"></span></div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>الحساب البنكي لتحويل مستحقاتك</legend>
+        <div class="row2">
+          <label>اسم البنك<input name="bank_name" required list="banks"></label>
+          <label>رقم الآيبان<input name="iban" dir="ltr" maxlength="29" placeholder="SA00 0000 0000 0000 0000 0000" required></label>
+        </div>
+        <datalist id="banks"><option>مصرف الراجحي</option><option>البنك الأهلي السعودي</option><option>بنك الرياض</option><option>بنك البلاد</option><option>مصرف الإنماء</option><option>البنك العربي الوطني</option><option>البنك السعودي الأول</option><option>البنك السعودي الفرنسي</option><option>بنك الجزيرة</option><option>بنك الاستثمار</option><option>STC Bank</option><option>D360</option></datalist>
+        <p class="hint">الحساب لازم يكون باسم المنشأة أو صاحبها نفسه.</p>
+        <div class="file" data-file="iban"><label>شهادة الآيبان من البنك<input type="file" name="iban_file" accept="application/pdf,image/*"></label><span class="cur"></span></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>الباقة</legend>
+        <div class="plans">
+          <label class="plan"><input type="radio" name="plan" value="free" checked><span><b>مجانًا 3 أشهر</b> بدون عمولة ولا اشتراك، تبدأ من يوم إطلاق التطبيق للمشترين</span></label>
+          <label class="plan"><input type="radio" name="plan" value="commission"><span><b class="num">5%</b> عمولة على الطلب المكتمل فقط، شاملة رسوم الدفع</span></label>
+          <label class="plan"><input type="radio" name="plan" value="monthly"><span><b class="num">100 ر.س</b> اشتراك شهري + 2% رسوم الدفع</span></label>
+          <label class="plan"><input type="radio" name="plan" value="yearly"><span><b class="num">1,000 ر.س</b> اشتراك سنوي + 2% رسوم الدفع</span></label>
+        </div>
+        <label id="next-plan-wrap">بعد الأشهر المجانية أنتقل إلى
+          <select name="next_plan">
+            <option value="commission">عمولة 5% على الطلب المكتمل</option>
+            <option value="monthly">اشتراك شهري 100 ر.س</option>
+            <option value="yearly">اشتراك سنوي 1,000 ر.س</option>
+          </select>
+          <span class="hint">تقدر تغيّرها من لوحتك في أي وقت قبل نهاية الفترة المجانية.</span>
+        </label>
+        <p class="hint">تضاف ضريبة القيمة المضافة 15% على العمولة والاشتراك.</p>
+      </fieldset>
+
+      <label class="check"><input type="checkbox" name="agree" required> أقر بصحة البيانات والمستندات، وأوافق على شروط التجار في تحصّله.</label>
+      <p class="err" role="alert" id="apply-err"></p>
+      <button class="btn primary" type="submit" id="apply-btn">إرسال الطلب للمراجعة</button>
+    </form>
+  </section>
+
+  <!-- حالة الطلب -->
+  <section id="v-status" class="narrow" hidden>
+    <div class="card status">
+      <div class="icon" id="st-icon"></div>
+      <h2 id="st-title"></h2>
+      <p id="st-text"></p>
+      <div class="note" id="st-note" style="margin-top:14px" hidden></div>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:18px" id="st-actions"></div>
+    </div>
+  </section>
+
+  <!-- لوحة المنتجات -->
+  <section id="v-dash" hidden>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px">
+      <div style="min-width:0">
+        <h1 style="font-size:1.6rem" id="d-store"></h1>
+        <p class="hint"><span class="badge approved">مفعّل</span> <span id="d-plan"></span></p>
+      </div>
+    </div>
+    <div class="trial" id="trial" hidden>
+      <div class="t-text"><b id="trial-title"></b><span class="hint" id="trial-sub"></span></div>
+      <div class="t-pick">
+        <label for="trial-next" class="hint">بعدها أنتقل إلى</label>
+        <select id="trial-next">
+          <option value="commission">عمولة 5%</option>
+          <option value="monthly">اشتراك شهري 100 ر.س</option>
+          <option value="yearly">اشتراك سنوي 1,000 ر.س</option>
+        </select>
+        <button class="btn ghost sm" type="button" id="trial-save">حفظ</button>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><b class="num" id="s-total">0</b><span>منتج</span></div>
+      <div class="stat"><b class="num" id="s-active">0</b><span>ظاهر للمشترين</span></div>
+      <div class="stat"><b class="num" id="s-low">0</b><span>نفد أو قارب</span></div>
+    </div>
+    <div class="toolbar">
+      <input type="search" id="q" placeholder="ابحث في منتجاتك بالاسم أو الباركود">
+      <button class="btn primary" id="add">+ إضافة منتج</button>
+      <label class="btn ghost" style="display:inline-flex">رفع ملف CSV<input type="file" id="csv" accept=".csv,text/csv" hidden></label>
+      <a class="btn ghost sm" id="csv-tpl" download="tahassalah-products.csv">نموذج الملف</a>
+    </div>
+    <div class="plist" id="plist"></div>
+  </section>
+</main>
+
+<dialog id="dlg">
+  <form id="f-prod" method="dialog" novalidate>
+    <h2 id="dlg-title" style="font-size:1.25rem">منتج جديد</h2>
+    <label>اسم المنتج<input name="name" required maxlength="120"></label>
+    <div class="row3">
+      <label>السعر (ر.س)<input name="price" inputmode="decimal" dir="ltr" required></label>
+      <label><span>سعر العرض <span class="opt">(اختياري)</span></span><input name="sale_price" inputmode="decimal" dir="ltr"></label>
+      <label>الكمية المتوفرة<input name="quantity" inputmode="numeric" dir="ltr" required value="0"></label>
+    </div>
+    <div class="row2">
+      <label><span>التصنيف <span class="opt">(اختياري)</span></span><input name="category" list="cats"></label>
+      <label><span>الباركود <span class="opt">(اختياري)</span></span><input name="barcode" inputmode="numeric" dir="ltr"></label>
+    </div>
+    <datalist id="cats"></datalist>
+    <label><span>الوصف <span class="opt">(اختياري)</span></span><textarea name="description" maxlength="1000"></textarea></label>
+    <div class="file" data-file="img"><label><span>صورة المنتج <span class="opt">(اختياري)</span></span><input type="file" name="image" accept="image/*"></label><span class="cur"></span></div>
+    <label class="check"><input type="checkbox" name="is_active" checked> ظاهر للمشترين</label>
+    <p class="err" role="alert"></p>
+    <div class="foot">
+      <button class="btn danger" type="button" id="del" hidden>حذف</button>
+      <span style="flex:1"></span>
+      <button class="btn ghost" type="button" value="cancel" id="cancel">إلغاء</button>
+      <button class="btn primary" type="submit" id="save">حفظ</button>
+    </div>
+  </form>
+</dialog>
+
+<script type="module" src="merchant.js"></script>
+</body>
+</html>
