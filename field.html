@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>الفريق الميداني · إدارة تحصّله</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="top"><div class="in">
+  <a class="mark" href="admin.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7z" fill="var(--pin)"/><circle cx="12" cy="9" r="2.6" fill="var(--surface)"/></svg>تحصّله</a>
+  <div class="sp"><a class="btn ghost sm" href="admin.html">طلبات التجار</a><span class="who" id="who"></span><button class="btn ghost sm" id="logout" hidden>خروج</button></div>
+</div></header>
+
+<main>
+  <p id="v-loading" class="hint" style="text-align:center;padding:40px">جارِ التحميل…</p>
+
+  <section id="v-login" class="narrow" hidden>
+    <form class="card stack" id="f-login" novalidate>
+      <h1 style="font-size:1.4rem">دخول الإدارة</h1>
+      <label>الإيميل<input type="email" name="email" dir="ltr" required></label>
+      <label>كلمة المرور<input type="password" name="password" required></label>
+      <p class="err" role="alert"></p>
+      <button class="btn primary" type="submit">دخول</button>
+    </form>
+  </section>
+  <section id="v-denied" class="narrow" hidden><div class="card status"><h2>هذي الصفحة للإدارة فقط</h2></div></section>
+
+  <section id="v-app" hidden>
+    <div class="toolbar">
+      <h1 style="font-size:1.6rem;flex:1">الفريق الميداني</h1>
+      <select id="period" style="width:auto">
+        <option value="today">اليوم</option>
+        <option value="week" selected>آخر 7 أيام</option>
+        <option value="month">آخر 30 يوم</option>
+        <option value="all">من البداية</option>
+      </select>
+      <button class="btn ghost sm" id="reload">تحديث</button>
+      <button class="btn primary" id="add-rep">＋ إضافة مسوّق</button>
+    </div>
+
+    <div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
+      <div class="stat"><b class="num" id="k-visits">0</b><span>زيارات</span></div>
+      <div class="stat"><b class="num" id="k-new">0</b><span>محلات جديدة</span></div>
+      <div class="stat"><b class="num" id="k-reg">0</b><span>سجّلوا في تحصّله</span></div>
+      <div class="stat"><b class="num" id="k-int">0</b><span>مهتمين ومتابعات</span></div>
+      <div class="stat"><b class="num" id="k-prob">0</b><span>عندهم مشكلة</span></div>
+      <div class="stat"><b class="num" id="k-conv">0%</b><span>نسبة التسجيل</span></div>
+    </div>
+
+    <h2 style="font-size:1.15rem;margin:8px 0 10px">أداء المسوّقين</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>المسوّق</th><th style="white-space:normal">الأحياء</th><th>زيارات</th><th>اليوم / الهدف</th><th>محلات جديدة</th><th>سجّلوا</th><th>مهتم</th><th>زيارة ثانية</th><th>مشكلة</th><th>غير مهتم</th><th>نسبة التسجيل</th><th>آخر نشاط</th></tr></thead>
+      <tbody id="reps"></tbody>
+    </table></div>
+
+    <div class="row2" style="margin:22px 0 10px;align-items:start">
+      <div>
+        <h2 style="font-size:1.15rem;margin-bottom:8px">مشاكل التسجيل الأكثر تكرارًا</h2>
+        <div class="card" style="padding:14px" id="problems"></div>
+      </div>
+      <div>
+        <h2 style="font-size:1.15rem;margin-bottom:8px">الأحياء</h2>
+        <div class="card" style="padding:14px" id="districts"></div>
+      </div>
+    </div>
+
+    <h2 style="font-size:1.15rem;margin:22px 0 10px">المحلات اللي زاروها</h2>
+    <div class="toolbar">
+      <input type="search" id="q" placeholder="ابحث باسم المحل أو الجوال">
+      <select id="f-rep" style="width:auto"><option value="">كل المسوّقين</option></select>
+      <select id="f-district" style="width:auto"><option value="">كل الأحياء</option></select>
+      <select id="f-status" style="width:auto"><option value="">كل النتائج</option></select>
+    </div>
+    <p class="hint" id="s-count" style="margin-bottom:8px"></p>
+    <div class="fgrid" id="stores"></div>
+  </section>
+</main>
+
+<dialog id="dlg-rep">
+  <form id="f-rep-edit" method="dialog" novalidate>
+    <h2 style="font-size:1.25rem" id="rep-title">إضافة مسوّق</h2>
+    <div class="row2">
+      <label>الاسم<input name="name" maxlength="60" required></label>
+      <label>الإيميل<input name="email" type="email" dir="ltr" required></label>
+    </div>
+    <div class="row3">
+      <label><span>الجوال <span class="opt">(اختياري)</span></span><input name="phone" inputmode="numeric" dir="ltr" maxlength="10"></label>
+      <label>كود الإحالة<input name="code" dir="ltr" maxlength="8" required></label>
+      <label>هدف الزيارات اليومي<input name="daily_target" inputmode="numeric" dir="ltr" value="10"></label>
+    </div>
+    <fieldset><legend>الأحياء المسؤول عنها</legend><div class="chips" id="rep-districts"></div>
+      <label><span>حي غير موجود بالقائمة <span class="opt">(اختياري، افصل بفاصلة)</span></span><input name="extra"></label>
+    </fieldset>
+    <label class="check"><input type="checkbox" name="active" checked> نشط (يقدر يدخل ويسجّل زيارات)</label>
+    <p class="hint">بعد الحفظ أرسل له الرابط <b dir="ltr">tahassalah.com/rep.html</b> يدخل منه بنفس الإيميل.</p>
+    <p class="err" role="alert"></p>
+    <div class="foot"><span style="flex:1"></span><button class="btn ghost" type="button" id="rep-cancel">إلغاء</button><button class="btn primary" type="submit" id="rep-save">حفظ</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlg-store">
+  <div class="stack" style="padding:20px">
+    <img id="d-photo" class="photo-big" alt="" hidden>
+    <div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center"><h2 style="font-size:1.25rem" id="d-name"></h2><span class="badge" id="d-badge"></span></div>
+    <p class="hint" id="d-meta"></p>
+    <div style="display:flex;flex-wrap:wrap;gap:6px" id="d-actions"></div>
+    <div class="tl" id="d-history"></div>
+    <div class="foot"><span style="flex:1"></span><button class="btn ghost" type="button" id="d-close">إغلاق</button></div>
+  </div>
+</dialog>
+
+<script type="module" src="field.js"></script>
+</body>
+</html>

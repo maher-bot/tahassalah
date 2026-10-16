@@ -1,4 +1,4 @@
-import { sb, $, $$, toast, clean, digits, valid, money, ACTIVITIES, PLANS, STATUS, fileExt, shrinkImage, friendlyError, setBusy, trialInfo, fmtDay } from './lib.js';
+import { sb, $, $$, toast, clean, digits, valid, money, ACTIVITIES, PLANS, STATUS, fileExt, shrinkImage, friendlyError, setBusy, trialInfo, fmtDay, OFFER_REASONS } from './lib.js';
 
 const VIEWS = ['v-loading', 'v-auth', 'v-check-email', 'v-reset', 'v-apply', 'v-status', 'v-invites', 'v-dash'];
 const show = id => { VIEWS.forEach(v => { $('#' + v).hidden = v !== id; }); window.scrollTo(0, 0); };
@@ -6,6 +6,11 @@ const here = () => location.origin + location.pathname;
 
 let user = null, merchant = null, products = [], editing = null, recovering = false, routedFor = undefined, coords = null;
 let invites = [], stores = [], skipInvites = false;
+// كود المسوّق من رابط التسجيل (?ref=M01) — نحفظه لين يكمل التاجر طلبه
+const REF = (() => {
+  const r = new URLSearchParams(location.search).get('ref');
+  try { if (r) localStorage.setItem('tah-ref', r.toUpperCase()); return r?.toUpperCase() || localStorage.getItem('tah-ref'); } catch { return r?.toUpperCase() || null; }
+})();
 // ctx: المتجر المفتوح حاليًا — صاحبه أو موظف فيه
 let ctx = null;
 const ROLES = { manager: 'مدير فرع', stock: 'أمين مخزون', pricing: 'موظف أسعار', cashier: 'كاشير', accountant: 'محاسب' };
@@ -289,6 +294,7 @@ fa.addEventListener('submit', async e => {
       vat_path: vatReg ? (paths.vat ?? merchant?.vat_path ?? null) : null,
       iban_path: paths.iban ?? merchant?.iban_path,
     };
+    if (!merchant && REF && /^[A-Z0-9]{2,8}$/.test(REF)) row.rep_code = REF;
     const q = merchant ? sb.from('merchants').update(row).eq('id', user.id) : sb.from('merchants').insert(row);
     const { error } = await q;
     if (error) throw error;
@@ -319,7 +325,7 @@ async function openDash(id) {
   const badge = $('#d-badge');
   if (ctx.owner) {
     badge.textContent = 'مفعّل'; badge.className = 'badge approved';
-    $('#d-plan').textContent = PLANS[merchant.plan] || '';
+    $('#d-plan').textContent = merchant.plan === 'free' ? `مجانية ${merchant.trial_months || 3} أشهر` + (merchant.founder ? ' ⭐' : '') : (PLANS[merchant.plan] || '');
     renderTrial();
   } else {
     badge.textContent = ROLES[ctx.role] || 'موظف'; badge.className = 'badge pending';
@@ -360,7 +366,8 @@ $('#d-switch').addEventListener('change', e => {
 
 function selectTab(name) {
   $$('#d-tabs [role=tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
-  for (const t of ['products', 'approvals', 'mine', 'team']) $('#p-' + t).hidden = t !== name;
+  for (const t of ['products', 'approvals', 'mine', 'team', 'settings']) $('#p-' + t).hidden = t !== name;
+  if (name === 'settings') loadSettings();
   if (name === 'approvals') loadApprovals();
   if (name === 'mine') loadMine();
   if (name === 'team') loadTeam();
@@ -375,8 +382,9 @@ function renderTrial() {
   $('#trial-next').value = merchant.next_plan || 'commission';
   $('.t-pick', box).hidden = t.state === 'ended';
   if (t.state === 'waiting') {
-    $('#trial-title').textContent = 'باقتك مجانية 3 أشهر';
-    $('#trial-sub').textContent = 'تبدأ الأشهر الثلاثة من يوم إطلاق التطبيق للمشترين، وقبلها كل شيء مجاني. أضف منتجاتك الحين عشان تكون جاهز من أول يوم.';
+    const n = merchant.trial_months || 3, months = n === 3 ? '3 أشهر' : n === 6 ? '6 أشهر' : n + ' أشهر';
+    $('#trial-title').textContent = `باقتك مجانية ${months}` + (merchant.founder ? ' ⭐ عرض المؤسسين' : '');
+    $('#trial-sub').textContent = `المدة المجانية تبدأ من يوم إطلاق التطبيق للمشترين، وقبلها كل شيء مجاني. أضف منتجاتك الحين عشان تكون جاهز من أول يوم.`;
   } else if (t.state === 'active') {
     $('#trial-title').textContent = `باقي ${t.days} يوم على الفترة المجانية`;
     $('#trial-sub').textContent = `تنتهي ${fmtDay(t.end)}، وبعدها يتفعّل حسابك كامل على الباقة اللي تختارها.`;
@@ -431,6 +439,9 @@ function render() {
     m.append(price, qty);
     if (p.category) m.append(mk('span', '', p.category));
     if (!p.is_active) m.append(mk('span', '', 'مخفي'));
+    if (p.sale_price != null) m.append(mk('span', 'low', '🏷️ ' + (OFFER_REASONS[p.offer_reason] || 'عرض') + (p.offer_ends_at ? ' · ينتهي ' + fmtDay(p.offer_ends_at) : '')));
+    const dLeft = p.expires_on ? Math.ceil((new Date(p.expires_on + 'T23:59:59') - Date.now()) / 864e5) : null;
+    if (dLeft != null) m.append(mk('span', dLeft <= 7 ? 'low' : '', dLeft < 0 ? 'منتهي الصلاحية' : dLeft <= 7 ? `⚠️ تنتهي صلاحيته خلال ${dLeft} يوم${p.sale_price == null ? ' — سوّ عليه عرض' : ''}` : 'الصلاحية ' + fmtDay(p.expires_on)));
     if (pendingIds.has(p.id)) m.append(mk('span', 'low', '⏳ تعديل بانتظار الموافقة'));
     mid.append(mk('div', 'n', p.name), m);
     const acts = mk('div', 'acts');
@@ -449,12 +460,13 @@ function render() {
 $('#q').addEventListener('input', render);
 
 // كل الكتابة على المنتجات تمر من هنا: مباشرة، أو طلب ينتظر موافقة صاحب المتجر
-const FIELDS = ['name', 'price', 'sale_price', 'quantity', 'category', 'barcode', 'description', 'image_path', 'is_active'];
+const FIELDS = ['name', 'price', 'sale_price', 'quantity', 'category', 'barcode', 'description', 'image_path', 'is_active', 'offer_reason', 'offer_ends_at', 'expires_on'];
 function changed(p, row) {
   const out = {};
   for (const k of FIELDS) {
     if (!(k in row)) continue;
     const a = p[k] ?? null, b = row[k] ?? null;
+    if (k === 'offer_ends_at') { if ((a ? new Date(a).getTime() : null) !== (b ? new Date(b).getTime() : null)) out[k] = b; continue; }
     const same = typeof a === 'number' || typeof b === 'number' || ['price', 'sale_price'].includes(k) ? (a == null ? b == null : b != null && Number(a) === Number(b)) : a === b;
     if (!same) out[k] = b;
   }
@@ -503,9 +515,11 @@ function openProduct(p) {
   $('.err', fp).textContent = '';
   aiState(''); $('#cam-prev').hidden = true;
   if (p) {
-    for (const k of ['name', 'price', 'sale_price', 'quantity', 'category', 'barcode', 'description']) fp[k].value = p[k] ?? '';
+    for (const k of ['name', 'price', 'sale_price', 'quantity', 'category', 'barcode', 'description', 'offer_reason', 'expires_on']) fp[k].value = p[k] ?? '';
+    fp.offer_ends_at.value = p.offer_ends_at ? new Date(p.offer_ends_at).toLocaleDateString('en-CA') : '';
     fp.is_active.checked = p.is_active;
   }
+  syncOffer();
   const box = $('.file[data-file="img"]', fp);
   box.dataset.existing = p?.image_path ? '1' : '';
   box.classList.toggle('has', !!p?.image_path);
@@ -513,7 +527,8 @@ function openProduct(p) {
   // الحقول حسب الصلاحية
   const inv = canInv(), pr = canPrice() || !p;
   for (const k of ['name', 'quantity', 'category', 'barcode', 'description', 'image', 'is_active']) fp[k].disabled = !inv;
-  for (const k of ['price', 'sale_price']) fp[k].disabled = !pr;
+  for (const k of ['price', 'sale_price', 'offer_reason', 'offer_ends_at']) fp[k].disabled = !pr;
+  fp.expires_on.disabled = !inv;
   $('#capture').hidden = !inv;
   $('#save').textContent = viaApproval() ? 'إرسال للموافقة' : 'حفظ';
   if (viaApproval()) aiState('تعديلك يوصل لصاحب المتجر ويظهر بعد موافقته.');
@@ -544,12 +559,18 @@ fp.addEventListener('submit', async e => {
       if (image_path && !viaApproval()) sb.storage.from('product-images').remove([image_path]);
       image_path = path;
     }
+    const offer = sale == null ? { offer_reason: null, offer_ends_at: null } : {
+      offer_reason: fp.offer_reason.value || null,
+      offer_ends_at: fp.offer_ends_at.value ? new Date(fp.offer_ends_at.value + 'T23:59:59').toISOString() : null,
+    };
+    if (offer.offer_ends_at && new Date(offer.offer_ends_at) < new Date()) throw new Error('تاريخ نهاية العرض لازم يكون اليوم أو بعده.');
     const row = canInv() ? {
       name: fp.name.value.trim(), price, sale_price: sale, quantity: qty,
       category: fp.category.value.trim() || null, barcode: digits(fp.barcode.value).trim() || null,
       description: fp.description.value.trim() || null, is_active: fp.is_active.checked, image_path,
-    } : { price, sale_price: sale };
-    if (editing && !canPrice()) { delete row.price; delete row.sale_price; }
+      expires_on: fp.expires_on.value || null, ...offer,
+    } : { price, sale_price: sale, ...offer };
+    if (editing && !canPrice()) { delete row.price; delete row.sale_price; delete row.offer_reason; delete row.offer_ends_at; }
     const r = await writeProduct(editing ? 'update' : 'insert', editing, row);
     dlg.close();
     toast(r === 'queued' ? QUEUED : r === 'same' ? 'ما فيه تغيير.' : editing ? 'تم حفظ التعديل.' : 'تمت إضافة المنتج.');
@@ -698,9 +719,9 @@ $('#q-scan').addEventListener('click', () => scan(code => {
 }));
 
 // ---------------- موافقات صاحب المتجر ----------------
-const LABEL = { name: 'الاسم', price: 'السعر', sale_price: 'سعر العرض', quantity: 'الكمية', category: 'التصنيف', barcode: 'الباركود', description: 'الوصف', image_path: 'الصورة', is_active: 'الظهور' };
+const LABEL = { name: 'الاسم', price: 'السعر', sale_price: 'سعر العرض', quantity: 'الكمية', category: 'التصنيف', barcode: 'الباركود', description: 'الوصف', image_path: 'الصورة', is_active: 'الظهور', offer_reason: 'سبب العرض', offer_ends_at: 'نهاية العرض', expires_on: 'الصلاحية' };
 const ACTION = { insert: 'إضافة منتج', update: 'تعديل', delete: 'حذف' };
-const showVal = (k, v) => v == null || v === '' ? '—' : k === 'is_active' ? (v ? 'ظاهر' : 'مخفي') : k === 'image_path' ? 'صورة جديدة' : ['price', 'sale_price'].includes(k) ? money(v) : String(v);
+const showVal = (k, v) => v == null || v === '' ? '—' : k === 'offer_reason' ? (OFFER_REASONS[v] || v) : ['offer_ends_at', 'expires_on'].includes(k) ? fmtDay(v) : k === 'is_active' ? (v ? 'ظاهر' : 'مخفي') : k === 'image_path' ? 'صورة جديدة' : ['price', 'sale_price'].includes(k) ? money(v) : String(v);
 
 function changeCard(c, { owner }) {
   const p = products.find(x => x.id === c.product_id);
@@ -930,4 +951,48 @@ $('#csv').addEventListener('change', async e => {
     toast(`تم ✓ أُضيف ${inserts.length} وتحدّث ${updates.length}` + (bad.length ? ` · تجاهلنا الصفوف: ${bad.slice(0, 8).join('، ')}` : ''), 6000);
   } catch (ex) { toast(friendlyError(ex), 6000); }
   await loadProducts();
+});
+
+
+// ---------------- العروض ----------------
+function syncOffer() { $('#offer-row').hidden = !fp.sale_price.value.trim(); }
+fp.sale_price.addEventListener('input', syncOffer);
+
+// ---------------- التوصيل والاستلام ----------------
+const fset = $('#f-settings');
+const syncDelivery = () => { $('#delivery-box').hidden = !fset.delivers.checked; };
+fset.delivers.addEventListener('change', syncDelivery);
+async function loadSettings() {
+  if (!ctx?.owner) return;
+  const { data, error } = await sb.from('store_settings').select('*').eq('merchant_id', ctx.mid).maybeSingle();
+  if (error) return toast(friendlyError(error));
+  const d = data || {};
+  fset.pickup.checked = d.pickup ?? true; fset.delivers.checked = d.delivers ?? false;
+  fset.delivery_radius_m.value = String(d.delivery_radius_m ?? 1000);
+  fset.delivery_fee.value = d.delivery_fee ?? 0; fset.free_delivery_over.value = d.free_delivery_over ?? '';
+  fset.min_order.value = d.min_order ?? 0;
+  fset.delivery_from.value = (d.delivery_from || '').slice(0, 5); fset.delivery_to.value = (d.delivery_to || '').slice(0, 5);
+  fset.prep_minutes.value = String(d.prep_minutes ?? 15); fset.note.value = d.note ?? '';
+  if (![...fset.prep_minutes.options].some(o => o.value === fset.prep_minutes.value)) fset.prep_minutes.value = '15';
+  syncDelivery();
+}
+fset.addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = $('.err', fset), btn = $('#settings-save');
+  if (!fset.pickup.checked && !fset.delivers.checked) return (err.textContent = 'اختر الاستلام أو التوصيل أو الاثنين.');
+  const fee = num(fset.delivery_fee.value) ?? 0, over = num(fset.free_delivery_over.value), min = num(fset.min_order.value) ?? 0;
+  if (!(fee >= 0 && fee <= 100)) return (err.textContent = 'رسوم التوصيل من 0 إلى 100 ريال.');
+  if (over != null && !(over >= 0)) return (err.textContent = 'اكتب مبلغ صحيح للتوصيل المجاني.');
+  if (!(min >= 0)) return (err.textContent = 'اكتب أقل مبلغ للطلب بشكل صحيح.');
+  err.textContent = ''; setBusy(btn, true);
+  const row = {
+    merchant_id: ctx.mid, pickup: fset.pickup.checked, delivers: fset.delivers.checked,
+    delivery_radius_m: Number(fset.delivery_radius_m.value), delivery_fee: fee, free_delivery_over: over, min_order: min,
+    delivery_from: fset.delivery_from.value || null, delivery_to: fset.delivery_to.value || null,
+    prep_minutes: Number(fset.prep_minutes.value), note: fset.note.value.trim() || null,
+  };
+  const { error } = await sb.from('store_settings').upsert(row);
+  setBusy(btn, false);
+  if (error) return (err.textContent = friendlyError(error));
+  toast('تم حفظ إعدادات التوصيل والاستلام ✓');
 });

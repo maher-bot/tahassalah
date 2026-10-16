@@ -84,8 +84,31 @@ export function setBusy(btn, busy, text) {
 export function trialInfo(m) {
   if (m.plan !== 'free') return null;
   if (!m.trial_started_at) return { state: 'waiting' };
-  const end = new Date(m.trial_started_at); end.setMonth(end.getMonth() + 3);
+  const end = new Date(m.trial_started_at); end.setMonth(end.getMonth() + (m.trial_months || 3));
   const days = Math.ceil((end - Date.now()) / 864e5);
   return { state: days > 0 ? 'active' : 'ended', end, days: Math.max(0, days) };
 }
+export const OFFER_REASONS = { expiry: 'قرب انتهاء الصلاحية', low_stock: 'كمية قليلة متبقية', clearance: 'تصفية', season: 'عرض موسمي', new: 'منتج جديد' };
 export const fmtDay = d => new Date(d).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { day: 'numeric', month: 'long', year: 'numeric' });
+
+// ---------- الفريق الميداني ----------
+export const FIELD_STATUS = {
+  registered: 'سجّل', interested: 'مهتم', follow_up: 'زيارة ثانية',
+  problem: 'عنده مشكلة', not_interested: 'غير مهتم', closed: 'مغلق',
+};
+export const FIELD_BADGE = { registered: 'approved', interested: 'pending', follow_up: 'pending', problem: 'rejected', not_interested: 'suspended', closed: 'suspended' };
+export const FIELD_PROBLEMS = [
+  'ما عنده سجل تجاري', 'الآيبان مو باسم المنشأة', 'ما عنده إيميل', 'صعوبة في رفع المستندات',
+  'ما يعرف يستخدم الجوال', 'يبغى يستشير المالك أو الشريك', 'المالك مو موجود', 'خايف من العمولة أو الرسوم', 'أخرى',
+];
+export const MAKKAH_DISTRICTS = [
+  'المنطقة المركزية', 'وسط مكة', 'الشرايع', 'النورية', 'الكعكية', 'الشوقية', 'العزيزية', 'العوالي', 'الزاهر',
+  'العتيبية', 'المنصور', 'جرول', 'الرصيفة', 'بطحاء قريش', 'النسيم', 'الزايدي', 'الهجرة', 'الحمراء', 'العمرة',
+  'المسفلة', 'الخالدية', 'الكعكية', 'ولي العهد', 'الشرائع الجديدة', 'العدل', 'الفيصلية', 'التنعيم', 'الملاوي',
+].filter((d, i, a) => a.indexOf(d) === i);
+export const ago = d => {
+  const m = Math.round((Date.now() - new Date(d)) / 6e4);
+  if (m < 1) return 'الحين'; if (m < 60) return `قبل ${m} دقيقة`;
+  const h = Math.round(m / 60); if (h < 24) return `قبل ${h} ساعة`;
+  const dd = Math.round(h / 24); return dd === 1 ? 'أمس' : `قبل ${dd} يوم`;
+};
