@@ -28,14 +28,14 @@
         <button role="tab" aria-selected="false" data-tab="login">عندي حساب</button>
       </div>
       <form id="f-signup" class="stack" novalidate>
-        <label>الإيميل<input type="email" name="email" dir="ltr" autocomplete="email" required></label>
+        <label>الإيميل<input type="email" name="email" dir="ltr" autocomplete="username" required></label>
         <label>كلمة المرور<input type="password" name="password" autocomplete="new-password" minlength="8" required><span class="hint">8 أحرف على الأقل</span></label>
         <label>تأكيد كلمة المرور<input type="password" name="password2" autocomplete="new-password" required></label>
         <p class="err" role="alert"></p>
         <button class="btn primary" type="submit">إنشاء الحساب</button>
       </form>
       <form id="f-login" class="stack" novalidate hidden>
-        <label>الإيميل<input type="email" name="email" dir="ltr" autocomplete="email" required></label>
+        <label>الإيميل<input type="email" name="email" dir="ltr" autocomplete="username" required></label>
         <label>كلمة المرور<input type="password" name="password" autocomplete="current-password" required></label>
         <p class="err" role="alert"></p>
         <button class="btn primary" type="submit">دخول</button>
@@ -122,21 +122,15 @@
 
       <fieldset>
         <legend>الباقة</legend>
+        <p class="note" style="background:var(--brand-soft)"><b>تبدأ مجانًا بكل المزايا</b> من الحين لين يوم إطلاق التطبيق للمشترين، وبعده 3 أشهر. <b>⭐ أول 500 محل في كل حي: 6 أشهر.</b></p>
+        <p class="hint">بعد الفترة المجانية أنتقل إلى:</p>
         <div class="plans">
-          <label class="plan"><input type="radio" name="plan" value="free" checked><span><b>مجانًا 3 أشهر</b> بدون عمولة ولا اشتراك، تبدأ من يوم إطلاق التطبيق للمشترين. <b>⭐ أول 500 محل في كل حي: 6 أشهر</b></span></label>
-          <label class="plan"><input type="radio" name="plan" value="commission"><span><b class="num">5%</b> عمولة على الطلب المكتمل فقط، شاملة رسوم الدفع</span></label>
-          <label class="plan"><input type="radio" name="plan" value="monthly"><span><b class="num">100 ر.س</b> اشتراك شهري + 2% رسوم الدفع</span></label>
-          <label class="plan"><input type="radio" name="plan" value="yearly"><span><b class="num">1,000 ر.س</b> اشتراك سنوي + 2% رسوم الدفع</span></label>
+          <label class="plan"><input type="radio" name="next_plan" value="basic" checked><span><b>أساسي · مجاني دائمًا</b> يظهر محلك، وحتى 30 منتج، والاستلام من المحل</span></label>
+          <label class="plan"><input type="radio" name="next_plan" value="trader"><span><b class="num">تاجر · 59 ر.س شهريًا</b> منتجات بلا حد، وعروض التصريف، والتوصيل بنفسك، والموظفين</span></label>
+          <label class="plan"><input type="radio" name="next_plan" value="pro"><span><b class="num">مميز · 119 ر.س شهريًا</b> كل مزايا «تاجر»، وظهور أعلى في البحث، وشارة «مميز»، وتنبيه للمشترين القريبين بعروضك</span></label>
         </div>
-        <label id="next-plan-wrap">بعد الأشهر المجانية أنتقل إلى
-          <select name="next_plan">
-            <option value="commission">عمولة 5% على الطلب المكتمل</option>
-            <option value="monthly">اشتراك شهري 100 ر.س</option>
-            <option value="yearly">اشتراك سنوي 1,000 ر.س</option>
-          </select>
-          <span class="hint">تقدر تغيّرها من لوحتك في أي وقت قبل نهاية الفترة المجانية.</span>
-        </label>
-        <p class="hint">تضاف ضريبة القيمة المضافة 15% على العمولة والاشتراك.</p>
+        <label class="check"><input type="checkbox" name="yearly"> <span>أدفع سنويًا وأوفّر شهرين (590 ر.س لـ«تاجر» أو 1,190 ر.س لـ«مميز»)</span></label>
+        <p class="hint">تقدر تغيّر اختيارك من لوحتك في أي وقت قبل نهاية الفترة المجانية. تضاف ضريبة القيمة المضافة 15% على الاشتراك. ما فيه عمولة على مبيعاتك.</p>
       </fieldset>
 
       <label class="check"><input type="checkbox" name="agree" required> <span>أقر بصحة البيانات والمستندات، وأوافق على <a href="terms.html" target="_blank">شروط التجار</a> و<a href="privacy.html" target="_blank">سياسة الخصوصية</a>.</span></label>
@@ -190,9 +184,11 @@
       <div class="t-pick">
         <label for="trial-next" class="hint">بعدها أنتقل إلى</label>
         <select id="trial-next">
-          <option value="commission">عمولة 5%</option>
-          <option value="monthly">اشتراك شهري 100 ر.س</option>
-          <option value="yearly">اشتراك سنوي 1,000 ر.س</option>
+          <option value="basic">أساسي · مجاني</option>
+          <option value="trader">تاجر · 59 ر.س شهريًا</option>
+          <option value="pro">مميز · 119 ر.س شهريًا</option>
+          <option value="trader:yearly">تاجر · 590 ر.س سنويًا</option>
+          <option value="pro:yearly">مميز · 1,190 ر.س سنويًا</option>
         </select>
         <button class="btn ghost sm" type="button" id="trial-save">حفظ</button>
       </div>

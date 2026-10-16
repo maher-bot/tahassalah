@@ -33,7 +33,10 @@ export const money = n => n == null || n === '' ? '' : Number(n).toLocaleString(
 
 export const ACTIVITIES = ['بقالة وتموينات', 'إلكترونيات وجوالات', 'صيدلية', 'ملابس وإكسسوارات', 'عطور وتجميل',
   'مطعم أو منتجات أسر', 'أدوات منزلية', 'قطع غيار وسيارات', 'خياط أو مغسلة', 'خدمات بالمواعيد', 'أخرى'];
-export const PLANS = { free: 'مجانية 3 أشهر', commission: 'عمولة 5% على الطلب المكتمل', monthly: 'اشتراك شهري 100 ر.س', yearly: 'اشتراك سنوي 1,000 ر.س' };
+export const PLANS = { free: 'الفترة المجانية', basic: 'أساسي (مجاني)', trader: 'تاجر', pro: 'مميز' };
+export const PLAN_PRICE = { basic: { monthly: 0, yearly: 0 }, trader: { monthly: 59, yearly: 590 }, pro: { monthly: 119, yearly: 1190 } };
+export const planLabel = (p, b = 'monthly') => p === 'basic' ? 'أساسي (مجاني)' : p === 'free' ? 'الفترة المجانية'
+  : `${PLANS[p] || p} · ${PLAN_PRICE[p]?.[b] ?? ''} ر.س ${b === 'yearly' ? 'سنويًا' : 'شهريًا'}`;
 export const STATUS = { pending: 'قيد المراجعة', approved: 'مفعّل', rejected: 'يحتاج تعديل', suspended: 'موقوف' };
 
 export function fileExt(f) {
@@ -70,6 +73,10 @@ export function friendlyError(e) {
   if (/change_not_found/.test(m)) return 'هذا الطلب تمت مراجعته من قبل.';
   if (/not_staff|no_permission|not_allowed|row-level security/i.test(m)) return 'ما عندك صلاحية لهذا الإجراء.';
   if (/product_not_found/.test(m)) return 'المنتج ما عاد موجود.';
+  if (/plan_basic_products/.test(m)) return 'الباقة الأساسية تسمح بـ 30 منتج ظاهر. رقّ باقتك لـ«تاجر» عشان تضيف أكثر.';
+  if (/plan_basic_offers/.test(m)) return 'العروض متاحة في باقة «تاجر» و«مميز».';
+  if (/plan_basic_delivery/.test(m)) return 'التوصيل متاح في باقة «تاجر» و«مميز». الأساسية فيها الاستلام من المحل فقط.';
+  if (/plan_basic_staff/.test(m)) return 'إضافة الموظفين متاحة في باقة «تاجر» و«مميز».';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'تعذر الاتصال. تأكد من الإنترنت وحاول مرة ثانية.';
   return 'صار خطأ: ' + m;
 }
@@ -99,7 +106,7 @@ export const FIELD_STATUS = {
 export const FIELD_BADGE = { registered: 'approved', interested: 'pending', follow_up: 'pending', problem: 'rejected', not_interested: 'suspended', closed: 'suspended' };
 export const FIELD_PROBLEMS = [
   'ما عنده سجل تجاري', 'الآيبان مو باسم المنشأة', 'ما عنده إيميل', 'صعوبة في رفع المستندات',
-  'ما يعرف يستخدم الجوال', 'يبغى يستشير المالك أو الشريك', 'المالك مو موجود', 'خايف من العمولة أو الرسوم', 'أخرى',
+  'ما يعرف يستخدم الجوال', 'يبغى يستشير المالك أو الشريك', 'المالك مو موجود', 'خايف من الرسوم', 'أخرى',
 ];
 export const MAKKAH_DISTRICTS = [
   'المنطقة المركزية', 'وسط مكة', 'الشرايع', 'النورية', 'الكعكية', 'الشوقية', 'العزيزية', 'العوالي', 'الزاهر',
@@ -112,3 +119,54 @@ export const ago = d => {
   const h = Math.round(m / 60); if (h < 24) return `قبل ${h} ساعة`;
   const dd = Math.round(h / 24); return dd === 1 ? 'أمس' : `قبل ${dd} يوم`;
 };
+
+// إظهار/إخفاء كلمة المرور: زر 👁 بجانب كل خانة كلمة مرور
+export function enhancePasswords(root = document) {
+  root.querySelectorAll('input[type="password"]:not([data-pw])').forEach((inp) => {
+    inp.dataset.pw = '1';
+    inp.setAttribute('dir', 'ltr');
+    inp.setAttribute('autocapitalize', 'off');
+    inp.setAttribute('autocorrect', 'off');
+    inp.setAttribute('spellcheck', 'false');
+    const wrap = document.createElement('span');
+    wrap.className = 'pw-wrap';
+    inp.parentNode.insertBefore(wrap, inp);
+    wrap.appendChild(inp);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pw-eye';
+    b.setAttribute('aria-label', 'إظهار كلمة المرور');
+    b.textContent = '👁';
+    b.addEventListener('click', () => {
+      const show = inp.type === 'password';
+      inp.type = show ? 'text' : 'password';
+      b.textContent = show ? '🙈' : '👁';
+      b.setAttribute('aria-label', show ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور');
+      inp.focus();
+    });
+    wrap.appendChild(b);
+  });
+}
+
+// قبل الإرسال: نرجّع الخانات لوضع الإخفاء عشان المتصفح يعرضها كحفظ كلمة مرور
+export function hidePasswords(form) {
+  form.querySelectorAll('input[data-pw]').forEach((inp) => {
+    inp.type = 'password';
+    const b = inp.parentNode.querySelector('.pw-eye');
+    if (b) b.textContent = '👁';
+  });
+}
+
+// بعد الدخول الناجح: نطلب من المتصفح حفظ الإيميل وكلمة المرور على الجهاز
+export async function rememberLogin(email, password) {
+  try {
+    if (window.PasswordCredential && navigator.credentials) {
+      await navigator.credentials.store(new window.PasswordCredential({ id: email, password, name: email }));
+    }
+  } catch { /* بعض المتصفحات ما تدعمها، وتحفظ تلقائيًا من النموذج */ }
+}
+
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => enhancePasswords());
+  else enhancePasswords();
+}

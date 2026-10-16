@@ -1,4 +1,4 @@
-import { sb, $, $$, toast, digits, valid, friendlyError, setBusy, fmtDay,
+import { rememberLogin, hidePasswords, sb, $, $$, toast, digits, valid, friendlyError, setBusy, fmtDay,
   FIELD_STATUS, FIELD_BADGE, MAKKAH_DISTRICTS, ago } from './lib.js';
 
 const VIEWS = ['v-loading', 'v-login', 'v-denied', 'v-app'];
@@ -10,7 +10,9 @@ $('#f-login').addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target, err = $('.err', f), btn = $('button', f);
   setBusy(btn, true);
+  hidePasswords(f);
   const { error } = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.password.value });
+  if (!error) rememberLogin(f.email.value.trim(), f.password.value);
   setBusy(btn, false);
   err.textContent = error ? friendlyError(error) : '';
 });

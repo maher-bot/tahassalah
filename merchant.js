@@ -1,4 +1,4 @@
-import { sb, $, $$, toast, clean, digits, valid, money, ACTIVITIES, PLANS, STATUS, fileExt, shrinkImage, friendlyError, setBusy, trialInfo, fmtDay, OFFER_REASONS } from './lib.js';
+import { rememberLogin, hidePasswords, sb, $, $$, toast, clean, digits, valid, money, ACTIVITIES, PLANS, planLabel, STATUS, fileExt, shrinkImage, friendlyError, setBusy, trialInfo, fmtDay, OFFER_REASONS } from './lib.js';
 import { pickLocation } from './mappick.js';
 
 const VIEWS = ['v-loading', 'v-auth', 'v-check-email', 'v-reset', 'v-apply', 'v-status', 'v-invites', 'v-dash'];
@@ -39,6 +39,7 @@ $('#f-signup').addEventListener('submit', async e => {
   if (password.length < 8) return (err.textContent = 'كلمة المرور لازم تكون 8 أحرف على الأقل.');
   if (password !== f.password2.value) return (err.textContent = 'كلمتا المرور غير متطابقتين.');
   err.textContent = ''; setBusy(btn, true);
+  hidePasswords(f);
   const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: here() } });
   setBusy(btn, false);
   if (error) return (err.textContent = friendlyError(error));
@@ -52,7 +53,9 @@ $('#f-login').addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target, err = $('.err', f), btn = $('button[type=submit]', f);
   err.textContent = ''; setBusy(btn, true);
+  hidePasswords(f);
   const { error } = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.password.value });
+  if (!error) rememberLogin(f.email.value.trim(), f.password.value);
   setBusy(btn, false);
   if (error) err.textContent = friendlyError(error);
 });
@@ -182,8 +185,6 @@ fa.iban.addEventListener('input', () => {
   fa.iban.value = v.replace(/(.{4})/g, '$1 ').trim();
 });
 fa.national_address.addEventListener('input', () => { fa.national_address.value = clean(fa.national_address.value).replace(/[^A-Z0-9]/g, '').slice(0, 8); });
-const syncNext = () => { $('#next-plan-wrap').hidden = fa.querySelector('input[name=plan]:checked')?.value !== 'free'; };
-$$('input[name=plan]', fa).forEach(r => r.addEventListener('change', syncNext));
 for (const n of ['phone', 'cr_number', 'vat_number']) fa[n].addEventListener('input', () => { fa[n].value = digits(fa[n].value).replace(/\D/g, ''); });
 
 $$('.file input[type=file]').forEach(inp => inp.addEventListener('change', () => {
@@ -229,13 +230,12 @@ function openApply(m = null) {
   note.textContent = m?.review_note ? 'ملاحظة المراجعة: ' + m.review_note : '';
   if (m) {
     for (const k of ['owner_name', 'store_name', 'activity', 'phone', 'city', 'district', 'national_address', 'cr_number', 'vat_number', 'bank_name']) fa[k].value = m[k] ?? '';
-    fa.next_plan.value = m.next_plan || 'commission';
+    $$('input[name=next_plan]', fa).forEach(r => { r.checked = r.value === (m.next_plan || 'basic'); });
+    fa.yearly.checked = m.billing === 'yearly';
     fa.iban.value = (m.iban || '').replace(/(.{4})/g, '$1 ').trim();
     fa.no_vat.checked = !m.vat_registered;
-    $$('input[name=plan]', fa).forEach(r => { r.checked = r.value === m.plan; });
   }
   $('#vat-fields').hidden = fa.no_vat.checked;
-  syncNext();
   setExisting('cr', m?.cr_path); setExisting('vat', m?.vat_path); setExisting('iban', m?.iban_path);
   $('#apply-err').textContent = '';
   show('v-apply');
@@ -296,8 +296,8 @@ fa.addEventListener('submit', async e => {
       cr_number: v('cr_number'),
       vat_registered: vatReg, vat_number: vatReg ? v('vat_number') : null,
       bank_name: v('bank_name'), iban,
-      plan: fa.querySelector('input[name=plan]:checked').value,
-      next_plan: fa.next_plan.value,
+      next_plan: fa.querySelector('input[name=next_plan]:checked')?.value || 'basic',
+      billing: fa.yearly.checked ? 'yearly' : 'monthly',
       cr_path: paths.cr ?? merchant?.cr_path,
       vat_path: vatReg ? (paths.vat ?? merchant?.vat_path ?? null) : null,
       iban_path: paths.iban ?? merchant?.iban_path,
@@ -333,7 +333,7 @@ async function openDash(id) {
   const badge = $('#d-badge');
   if (ctx.owner) {
     badge.textContent = 'مفعّل'; badge.className = 'badge approved';
-    $('#d-plan').textContent = merchant.plan === 'free' ? `مجانية ${merchant.trial_months || 3} أشهر` + (merchant.founder ? ' ⭐' : '') : (PLANS[merchant.plan] || '');
+    $('#d-plan').textContent = merchant.plan === 'free' ? `مجانية ${merchant.trial_months || 3} أشهر` + (merchant.founder ? ' ⭐' : '') : 'باقة ' + planLabel(merchant.plan, merchant.billing) + (merchant.plan === 'basic' ? ' · حتى 30 منتج، بدون عروض ولا توصيل' : '');
     renderTrial();
   } else {
     badge.textContent = ROLES[ctx.role] || 'موظف'; badge.className = 'badge pending';
@@ -387,7 +387,7 @@ function renderTrial() {
   box.hidden = !t;
   if (!t) return;
   box.classList.toggle('ended', t.state === 'ended');
-  $('#trial-next').value = merchant.next_plan || 'commission';
+  $('#trial-next').value = (merchant.next_plan || 'basic') + (merchant.billing === 'yearly' && merchant.next_plan !== 'basic' ? ':yearly' : '');
   $('.t-pick', box).hidden = t.state === 'ended';
   if (t.state === 'waiting') {
     const n = merchant.trial_months || 3, months = n === 3 ? '3 أشهر' : n === 6 ? '6 أشهر' : n + ' أشهر';
@@ -398,16 +398,17 @@ function renderTrial() {
     $('#trial-sub').textContent = `تنتهي ${fmtDay(t.end)}، وبعدها يتفعّل حسابك كامل على الباقة اللي تختارها.`;
   } else {
     $('#trial-title').textContent = 'انتهت الفترة المجانية';
-    $('#trial-sub').textContent = `يتحوّل حسابك إلى ${PLANS[merchant.next_plan]} خلال يوم.`;
+    $('#trial-sub').textContent = `يتحوّل حسابك إلى باقة ${planLabel(merchant.next_plan, merchant.billing)} خلال يوم.`;
   }
 }
 $('#trial-save').addEventListener('click', async e => {
   const btn = e.currentTarget, p = $('#trial-next').value;
   setBusy(btn, true);
-  const { error } = await sb.rpc('set_next_plan', { p });
+  const [plan, cycle] = p.split(':');
+  const { error } = await sb.rpc('set_plan_choice', { p: plan, b: cycle || 'monthly' });
   setBusy(btn, false);
   if (error) return toast(friendlyError(error));
-  merchant.next_plan = p; toast('تم حفظ باقتك القادمة: ' + PLANS[p]);
+  merchant.next_plan = plan; merchant.billing = cycle || 'monthly'; toast('تم حفظ باقتك القادمة: ' + planLabel(plan, merchant.billing));
 });
 
 async function loadProducts() {

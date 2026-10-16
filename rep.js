@@ -1,4 +1,4 @@
-import { sb, $, $$, toast, digits, valid, ACTIVITIES, shrinkImage, friendlyError, setBusy, fmtDay,
+import { rememberLogin, hidePasswords, sb, $, $$, toast, digits, valid, ACTIVITIES, shrinkImage, friendlyError, setBusy, fmtDay,
   FIELD_STATUS, FIELD_BADGE, FIELD_PROBLEMS, MAKKAH_DISTRICTS, ago } from './lib.js';
 import { pickLocation } from './mappick.js';
 
@@ -21,7 +21,9 @@ $('#f-login').addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target, err = $('.err', f), btn = $('button[type=submit]', f);
   setBusy(btn, true);
+  hidePasswords(f);
   const { error } = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.password.value });
+  if (!error) rememberLogin(f.email.value.trim(), f.password.value);
   setBusy(btn, false);
   err.textContent = error ? friendlyError(error) : '';
 });
@@ -31,6 +33,7 @@ $('#f-signup').addEventListener('submit', async e => {
   if (!/^\S+@\S+\.\S+$/.test(f.email.value.trim())) return (err.textContent = 'اكتب إيميل صحيح.');
   if (f.password.value.length < 8) return (err.textContent = 'كلمة المرور لازم تكون 8 أحرف على الأقل.');
   setBusy(btn, true);
+  hidePasswords(f);
   const { data, error } = await sb.auth.signUp({ email: f.email.value.trim(), password: f.password.value, options: { emailRedirectTo: here() } });
   setBusy(btn, false);
   if (error) return (err.textContent = friendlyError(error));

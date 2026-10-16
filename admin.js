@@ -1,4 +1,4 @@
-import { sb, $, $$, toast, PLANS, STATUS, friendlyError, setBusy, trialInfo, fmtDay } from './lib.js';
+import { rememberLogin, hidePasswords, sb, $, $$, toast, PLANS, planLabel, STATUS, friendlyError, setBusy, trialInfo, fmtDay } from './lib.js';
 
 const VIEWS = ['v-loading', 'v-login', 'v-denied', 'v-list'];
 const show = id => VIEWS.forEach(v => { $('#' + v).hidden = v !== id; });
@@ -9,7 +9,9 @@ $('#f-login').addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target, err = $('.err', f), btn = $('button', f);
   setBusy(btn, true);
+  hidePasswords(f);
   const { error } = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.password.value });
+  if (!error) rememberLogin(f.email.value.trim(), f.password.value);
   setBusy(btn, false);
   err.textContent = error ? friendlyError(error) : '';
 });
@@ -85,8 +87,8 @@ function card(m) {
   add('الرقم الضريبي', m.vat_registered ? m.vat_number : 'غير مسجل', m.vat_registered);
   add('البنك', m.bank_name); add('الآيبان', (m.iban || '').replace(/(.{4})/g, '$1 ').trim(), true);
   const tr = trialInfo(m);
-  add('الباقة', m.plan !== 'free' ? PLANS[m.plan]
-    : `مجانية 3 أشهر ${tr.state === 'waiting' ? '(تبدأ عند الإطلاق)' : tr.state === 'active' ? `(باقي ${tr.days} يوم، تنتهي ${fmtDay(tr.end)})` : '(انتهت)'} ← بعدها: ${PLANS[m.next_plan]}`);
+  add('الباقة', m.plan !== 'free' ? planLabel(m.plan, m.billing)
+    : `مجانية ${m.trial_months || 3} أشهر${m.founder ? ' ⭐' : ''} ${tr.state === 'waiting' ? '(تبدأ عند الإطلاق)' : tr.state === 'active' ? `(باقي ${tr.days} يوم، تنتهي ${fmtDay(tr.end)})` : '(انتهت)'} ← بعدها: ${planLabel(m.next_plan, m.billing)}`);
   if (m.lat != null) {
     const d = document.createElement('div'); d.append(t('span', 'الموقع'));
     const a = t('a', 'افتح في الخرائط'); a.href = `https://www.google.com/maps?q=${m.lat},${m.lng}`; a.target = '_blank'; a.rel = 'noopener';
