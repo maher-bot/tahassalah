@@ -413,7 +413,7 @@ function render() {
   const box = $('#plist');
   if (!products.length) {
     box.innerHTML = canInv()
-      ? '<div class="empty"><b>ما فيه منتجات بعد</b><br>ابدأ بـ «إضافة منتج» وصوّر المنتج أو امسح الباركود، أو ارفع ملف CSV فيه كل المنتجات دفعة وحدة.</div>'
+      ? '<div class="empty"><b>ما فيه منتجات بعد</b><br>ابدأ بـ «إضافة منتج» وصوّر المنتج أو امسح الباركود' + ($('#csv-wrap').hidden ? '.' : '، أو ارفع ملف CSV فيه كل المنتجات دفعة وحدة.') + '</div>'
       : '<div class="empty">ما فيه منتجات في المتجر بعد.</div>';
     return;
   }
@@ -641,12 +641,19 @@ function done(code) {
   const cb = scanCb; scanCb = null; stopScan();
   if (dlgScan.open) dlgScan.close();
   if ('vibrate' in navigator) navigator.vibrate(60);
-  cb?.(digits(code).replace(/\D/g, ''));
+  cb?.(normBarcode(code));
+}
+// باركود GS1 (مثل اللي على أكياس الرز): نطلع رقم المنتج GTIN بعد المعرّف 01
+function normBarcode(code) {
+  let d = digits(code).replace(/\D/g, '');
+  if (d.length > 14 && d.startsWith('01')) d = d.slice(2, 16);
+  if (d.length === 14 && d.startsWith('0')) d = d.slice(1);
+  return d;
 }
 dlgScan.addEventListener('close', stopScan);
 $('#scan-close').addEventListener('click', () => dlgScan.close());
 $('#scan-ok').addEventListener('click', () => {
-  const v = digits($('#scan-manual').value).replace(/\D/g, '');
+  const v = normBarcode($('#scan-manual').value);
   if (v.length < 6) return scanState('اكتب رقم الباركود كامل.');
   done(v);
 });
@@ -681,7 +688,7 @@ async function lookupBarcode(code) {
 }
 
 $('#b-scan').addEventListener('click', () => scan(code => { fp.barcode.value = code; lookupBarcode(code); }));
-fp.barcode.addEventListener('change', () => lookupBarcode(digits(fp.barcode.value).replace(/\D/g, '')));
+fp.barcode.addEventListener('change', () => { fp.barcode.value = normBarcode(fp.barcode.value); lookupBarcode(fp.barcode.value); });
 $('#q-scan').addEventListener('click', () => scan(code => {
   const p = products.find(x => x.barcode === code);
   if (p && (canInv() || canPrice())) return openProduct(p);
