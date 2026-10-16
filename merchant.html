@@ -71,10 +71,19 @@
       <div class="note" id="apply-note" hidden></div>
 
       <fieldset>
-        <legend>المحل</legend>
+        <legend>وش نوع نشاطك؟</legend>
+        <div class="plans kinds">
+          <label class="plan"><input type="radio" name="kind" value="store" checked><span><b>🏪 محل</b> عندك محل وسجل تجاري</span></label>
+          <label class="plan"><input type="radio" name="kind" value="family"><span><b>🏠 أسرة منتجة</b> تبيع من البيت: أكل، حلويات، عطور، خياطة، أشغال يدوية</span></label>
+          <label class="plan"><input type="radio" name="kind" value="mobile"><span><b>🚚 بائع متجول أو عربة</b> فود ترك، آيسكريم، قهوة متنقلة، عربة خضار</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend id="lg-store">المحل</legend>
         <div class="row2">
           <label>اسمك الكامل<input name="owner_name" autocomplete="name" required maxlength="80"></label>
-          <label>اسم المحل<input name="store_name" required maxlength="80"></label>
+          <label><span id="lb-store">اسم المحل</span><input name="store_name" required maxlength="80"></label>
         </div>
         <div class="row2">
           <label>النشاط<select name="activity" required><option value="">اختر</option></select></label>
@@ -87,20 +96,32 @@
         <div>
           <div style="display:flex;flex-wrap:wrap;gap:8px"><button class="btn ghost sm" type="button" id="locate">📍 حدّد موقع المحل من جوالك</button><button class="btn ghost sm" type="button" id="map-pick">🗺️ حدّد على الخريطة</button></div>
           <p class="hint" id="loc-state" style="margin-top:6px">اضغطه وأنت داخل المحل، عشان يظهر للمشترين القريبين.</p>
+          <p class="hint" id="loc-kind" hidden></p>
         </div>
         <label>العنوان الوطني المختصر
           <input name="national_address" dir="ltr" maxlength="9" placeholder="مثال: RRRD2929" autocomplete="off" required>
-          <span class="hint">4 حروف و4 أرقام. تلقاه في تطبيق «سبل» أو موقع splonline.com.sa، في خانة العنوان الوطني للمنشأة.</span>
+          <span class="hint" id="na-hint">4 حروف و4 أرقام. تلقاه في تطبيق «سبل» أو موقع splonline.com.sa، في خانة العنوان الوطني للمنشأة.</span>
         </label>
       </fieldset>
 
-      <fieldset>
+      <fieldset id="fs-id" hidden>
+        <legend>الهوية والتراخيص</legend>
+        <p class="note" style="background:var(--brand-soft)">ما تحتاج سجل تجاري. نتحقق من هويتك وعنوانك الوطني، ويزورك أحد فريقنا للتأكد قبل التفعيل.</p>
+        <label>رقم الهوية أو الإقامة<input name="id_number" inputmode="numeric" dir="ltr" maxlength="10" placeholder="10 أرقام" autocomplete="off"></label>
+        <div class="file" data-file="id"><label>صورة الهوية (PDF أو صورة، حتى 5 ميجا)<input type="file" name="id_file" accept="application/pdf,image/*"></label><span class="cur"></span></div>
+        <label><span>رقم وثيقة العمل الحر أو رخصة بلدي <span class="opt">(اختياري، ويقوّي طلبك)</span></span><input name="license_number" dir="ltr" maxlength="30" autocomplete="off"></label>
+        <div class="file" data-file="extra"><label><span>مستندات إضافية <span class="opt">(اختياري، حتى 5 ملفات)</span></span><input type="file" name="extra_files" accept="application/pdf,image/*" multiple></label><span class="cur"></span></div>
+        <p class="hint">مثل: وثيقة العمل الحر، رخصة نشاط منزلي أو عربة متنقلة من بلدي، شهادة صحية، شهادة أسرة منتجة.</p>
+        <p class="note">🏅 <b>شارة «موثّق برخصة»:</b> إذا رفعت رخصة بلدي سارية (وشهادة صحية لو نشاطك أكل)، يراجعها فريقنا ويتأكد من التزامك بالاشتراطات البلدية في الموقع، ثم يمنحك الشارة. تظهر للزبائن جنب اسمك وتزيد ثقتهم فيك.</p>
+      </fieldset>
+
+      <fieldset id="fs-cr">
         <legend>السجل التجاري</legend>
         <label>رقم السجل التجاري أو وثيقة العمل الحر<input name="cr_number" inputmode="numeric" dir="ltr" maxlength="10" placeholder="10 أرقام" required></label>
         <div class="file" data-file="cr"><label>صورة السجل التجاري (PDF أو صورة، حتى 5 ميجا)<input type="file" name="cr_file" accept="application/pdf,image/*"></label><span class="cur"></span></div>
       </fieldset>
 
-      <fieldset>
+      <fieldset id="fs-vat">
         <legend>الضريبة</legend>
         <label class="check"><input type="checkbox" name="no_vat"> المنشأة غير مسجلة في ضريبة القيمة المضافة</label>
         <div id="vat-fields" class="stack">
@@ -116,7 +137,7 @@
           <label>رقم الآيبان<input name="iban" dir="ltr" maxlength="29" placeholder="SA00 0000 0000 0000 0000 0000" required></label>
         </div>
         <datalist id="banks"><option>مصرف الراجحي</option><option>البنك الأهلي السعودي</option><option>بنك الرياض</option><option>بنك البلاد</option><option>مصرف الإنماء</option><option>البنك العربي الوطني</option><option>البنك السعودي الأول</option><option>البنك السعودي الفرنسي</option><option>بنك الجزيرة</option><option>بنك الاستثمار</option><option>STC Bank</option><option>D360</option></datalist>
-        <p class="hint">الحساب لازم يكون باسم المنشأة أو صاحبها نفسه.</p>
+        <p class="hint" id="bank-hint">الحساب لازم يكون باسم المنشأة أو صاحبها نفسه.</p>
         <div class="file" data-file="iban"><label>شهادة الآيبان من البنك<input type="file" name="iban_file" accept="application/pdf,image/*"></label><span class="cur"></span></div>
       </fieldset>
 
@@ -126,10 +147,11 @@
         <p class="hint">بعد الفترة المجانية أنتقل إلى:</p>
         <div class="plans">
           <label class="plan"><input type="radio" name="next_plan" value="basic" checked><span><b>أساسي · مجاني دائمًا</b> يظهر محلك، وحتى 30 منتج، والاستلام من المحل</span></label>
+          <label class="plan" id="plan-family" hidden><input type="radio" name="next_plan" value="family"><span><b class="num">أسر ومتجولين · 29 ر.س شهريًا</b> حتى 60 منتج، والطلب المسبق، والموقع المباشر للعربات، والتوصيل، وعروض التصريف</span></label>
           <label class="plan"><input type="radio" name="next_plan" value="trader"><span><b class="num">تاجر · 59 ر.س شهريًا</b> منتجات بلا حد، وعروض التصريف، والتوصيل بنفسك، والموظفين</span></label>
           <label class="plan"><input type="radio" name="next_plan" value="pro"><span><b class="num">مميز · 119 ر.س شهريًا</b> كل مزايا «تاجر»، وظهور أعلى في البحث، وشارة «مميز»، وتنبيه للمشترين القريبين بعروضك</span></label>
         </div>
-        <label class="check"><input type="checkbox" name="yearly"> <span>أدفع سنويًا وأوفّر شهرين (590 ر.س لـ«تاجر» أو 1,190 ر.س لـ«مميز»)</span></label>
+        <label class="check"><input type="checkbox" name="yearly"> <span>أدفع سنويًا وأوفّر شهرين (<span id="yearly-family" hidden>290 ر.س لـ«أسر ومتجولين»، </span>590 ر.س لـ«تاجر» أو 1,190 ر.س لـ«مميز»)</span></label>
         <p class="hint">تقدر تغيّر اختيارك من لوحتك في أي وقت قبل نهاية الفترة المجانية. تضاف ضريبة القيمة المضافة 15% على الاشتراك. ما فيه عمولة على مبيعاتك.</p>
       </fieldset>
 
@@ -179,12 +201,18 @@
       <button role="tab" aria-selected="false" data-tab="settings" data-owner>التوصيل والاستلام</button>
     </div>
     <div id="p-products">
+    <div class="card live" id="live" hidden>
+      <div style="flex:1;min-width:200px"><b>📍 موقعي الآن</b><p class="hint" id="live-state">حدّث موقعك كل ما تنتقل، عشان يلقاك الزبائن القريبين.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary sm" type="button" id="live-here">أنا هنا الآن</button><button class="btn ghost sm" type="button" id="live-off">أوقف الظهور</button></div>
+    </div>
     <div class="trial" id="trial" hidden>
       <div class="t-text"><b id="trial-title"></b><span class="hint" id="trial-sub"></span></div>
       <div class="t-pick">
         <label for="trial-next" class="hint">بعدها أنتقل إلى</label>
         <select id="trial-next">
           <option value="basic">أساسي · مجاني</option>
+          <option value="family" data-kind>أسر ومتجولين · 29 ر.س شهريًا</option>
+          <option value="family:yearly" data-kind>أسر ومتجولين · 290 ر.س سنويًا</option>
           <option value="trader">تاجر · 59 ر.س شهريًا</option>
           <option value="pro">مميز · 119 ر.س شهريًا</option>
           <option value="trader:yearly">تاجر · 590 ر.س سنويًا</option>
@@ -291,6 +319,15 @@
       <label><span>ينتهي العرض <span class="opt">(اختياري)</span></span><input type="date" name="offer_ends_at"></label>
     </div>
     <label><span>تاريخ انتهاء الصلاحية <span class="opt">(اختياري، للمواد الغذائية والأدوية)</span></span><input type="date" name="expires_on"></label>
+    <label id="preorder-row"><span>التوفر</span><select name="preorder_hours">
+      <option value="">متوفر الحين</option>
+      <option value="2">طلب مسبق · قبل ساعتين</option>
+      <option value="4">طلب مسبق · قبل 4 ساعات</option>
+      <option value="12">طلب مسبق · قبل 12 ساعة</option>
+      <option value="24">طلب مسبق · قبل يوم</option>
+      <option value="48">طلب مسبق · قبل يومين</option>
+      <option value="72">طلب مسبق · قبل 3 أيام</option>
+    </select><span class="hint">للأطباق والكيك والطلبات اللي تتجهّز بالطلب.</span></label>
     <datalist id="cats"></datalist>
     <label><span>الوصف <span class="opt">(اختياري)</span></span><textarea name="description" maxlength="1000"></textarea></label>
     <div class="file" data-file="img"><label><span>صورة المنتج <span class="opt">(اختياري)</span></span><input type="file" name="image" accept="image/*"></label><span class="cur"></span></div>

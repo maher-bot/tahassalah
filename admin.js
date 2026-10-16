@@ -1,4 +1,4 @@
-import { rememberLogin, hidePasswords, sb, $, $$, toast, PLANS, planLabel, STATUS, friendlyError, setBusy, trialInfo, fmtDay } from './lib.js';
+import { rememberLogin, hidePasswords, sb, $, $$, toast, PLANS, planLabel, KINDS, KIND_ICON, STATUS, friendlyError, setBusy, trialInfo, fmtDay } from './lib.js';
 
 const VIEWS = ['v-loading', 'v-login', 'v-denied', 'v-list'];
 const show = id => VIEWS.forEach(v => { $('#' + v).hidden = v !== id; });
@@ -62,7 +62,7 @@ function render() {
   $('#q').hidden = tab === 'launch';
   if (tab === 'launch') return renderLaunch();
   const q = $('#q').value.trim().toLowerCase();
-  const list = all.filter(m => m.status === tab && (!q || [m.store_name, m.owner_name, m.cr_number, m.phone, m.email, m.city].some(x => (x || '').toLowerCase().includes(q))));
+  const list = all.filter(m => m.status === tab && (!q || [m.store_name, m.owner_name, m.cr_number, m.id_number, m.phone, m.email, m.city, KINDS[m.kind]].some(x => (x || '').toLowerCase().includes(q))));
   const box = $('#mlist');
   if (!list.length) { box.innerHTML = '<div class="empty">ما فيه طلبات هنا.</div>'; return; }
   box.replaceChildren(...list.map(card));
@@ -76,27 +76,54 @@ function card(m) {
   const t = (tag, text, cls) => Object.assign(document.createElement(tag), { textContent: text ?? '', className: cls || '' });
 
   const head = document.createElement('div'); head.className = 'head';
-  head.append(t('h3', m.store_name), t('span', STATUS[m.status], 'badge ' + m.status), t('span', 'أُرسل ' + fmtDate(m.submitted_at), 'hint num'));
+  const person = m.kind && m.kind !== 'store';
+  head.append(t('h3', m.store_name), t('span', STATUS[m.status], 'badge ' + m.status));
+  if (person) head.append(t('span', `${KIND_ICON[m.kind]} ${KINDS[m.kind]}`, 'kind-chip'));
+  if (person) head.append(t('span', m.site_verified_at ? '✔ تمت المعاينة' : '⚠️ بدون معاينة ميدانية', 'badge ' + (m.site_verified_at ? 'approved' : 'pending')));
+  if (m.license_verified_at) head.append(t('span', '🏅 موثّق برخصة', 'badge approved'));
+  if (!person && m.cr_check) {
+    const c = m.cr_check, good = c.found && c.active && c.owner_match !== false;
+    head.append(t('span', c.error ? '⚠️ واثق: تعذر التحقق' : !c.found ? '❌ واثق: السجل غير موجود' : good ? '✔ واثق: السجل ساري ومطابق' : !c.active ? '❌ واثق: السجل غير ساري' : '⚠️ واثق: اسم المالك مختلف',
+      'badge ' + (good ? 'approved' : c.error || c.found ? 'pending' : 'rejected')));
+  }
+  head.append(t('span', 'أُرسل ' + fmtDate(m.submitted_at), 'hint num'));
 
   const kv = document.createElement('div'); kv.className = 'kv';
   const add = (k, v, ltr) => { const d = document.createElement('div'); d.append(t('span', k)); const b = t('b', v || '—'); if (ltr) { b.dir = 'ltr'; b.className = 'num'; } d.append(b); kv.append(d); };
   add('المالك', m.owner_name); add('النشاط', m.activity); add('المدينة', [m.city, m.district].filter(Boolean).join(' — '));
   add('العنوان الوطني', m.national_address, true);
   add('الجوال', m.phone, true); add('الإيميل', m.email, true);
-  add('السجل التجاري', m.cr_number, true);
-  add('الرقم الضريبي', m.vat_registered ? m.vat_number : 'غير مسجل', m.vat_registered);
+  if (person) {
+    add('رقم الهوية', m.id_number, true);
+    add('وثيقة العمل الحر / رخصة', m.license_number, !!m.license_number);
+    if (m.site_verified_at) add('المعاينة الميدانية', fmtDate(m.site_verified_at) + (m.site_verified_note ? ' — ' + m.site_verified_note : ''));
+    if (m.license_verified_at) add('شارة موثّق برخصة', fmtDate(m.license_verified_at) + (m.license_verified_note ? ' — ' + m.license_verified_note : ''));
+  } else {
+    add('السجل التجاري', m.cr_number, true);
+    if (m.cr_check?.found) {
+      const c = m.cr_check;
+      add('واثق: اسم المنشأة', c.name);
+      add('واثق: الحالة', [c.status, c.expiry && 'ينتهي ' + c.expiry].filter(Boolean).join(' · '));
+      if (c.parties?.length) add('واثق: الملاك والمدراء', c.parties.join('، '));
+      if (c.activities?.length) add('واثق: الأنشطة', c.activities.slice(0, 3).join('، '));
+      if (c.source === 'sandbox') add('مصدر التحقق', 'بيئة واثق الاختبارية (بيانات تجريبية)');
+    } else if (m.cr_check) add('واثق', (m.cr_check.message || '') + (m.cr_check.http ? ` (${m.cr_check.http})` : ''));
+    add('الرقم الضريبي', m.vat_registered ? m.vat_number : 'غير مسجل', m.vat_registered);
+  }
   add('البنك', m.bank_name); add('الآيبان', (m.iban || '').replace(/(.{4})/g, '$1 ').trim(), true);
   const tr = trialInfo(m);
   add('الباقة', m.plan !== 'free' ? planLabel(m.plan, m.billing)
     : `مجانية ${m.trial_months || 3} أشهر${m.founder ? ' ⭐' : ''} ${tr.state === 'waiting' ? '(تبدأ عند الإطلاق)' : tr.state === 'active' ? `(باقي ${tr.days} يوم، تنتهي ${fmtDay(tr.end)})` : '(انتهت)'} ← بعدها: ${planLabel(m.next_plan, m.billing)}`);
   if (m.lat != null) {
     const d = document.createElement('div'); d.append(t('span', 'الموقع'));
-    const a = t('a', 'افتح في الخرائط'); a.href = `https://www.google.com/maps?q=${m.lat},${m.lng}`; a.target = '_blank'; a.rel = 'noopener';
+    const a = t('a', person && m.kind === 'family' ? 'افتح في الخرائط (البيت، لا يظهر للزبون)' : 'افتح في الخرائط'); a.href = `https://www.google.com/maps?q=${m.lat},${m.lng}`; a.target = '_blank'; a.rel = 'noopener';
     d.append(a); kv.append(d);
   }
 
   const docs = document.createElement('div'); docs.className = 'docs';
-  for (const [label, path] of [['السجل التجاري', m.cr_path], ['الشهادة الضريبية', m.vat_path], ['شهادة الآيبان', m.iban_path]]) {
+  const docList = [['السجل التجاري', m.cr_path], ['صورة الهوية', m.id_path], ['الشهادة الضريبية', m.vat_path], ['شهادة الآيبان', m.iban_path],
+    ...(m.extra_docs || []).map((p, i) => [`مستند إضافي ${i + 1}`, p])];
+  for (const [label, path] of docList) {
     if (!path) continue;
     const b = t('button', '📄 ' + label, 'btn ghost sm');
     b.onclick = async () => {
@@ -107,10 +134,9 @@ function card(m) {
     };
     docs.append(b);
   }
-  const chk = [];
-  chk.push(t('a', 'تحقق من السجل (منصة الأعمال)', 'btn ghost sm'));
-  chk[0].href = 'https://business.sa'; chk[0].target = '_blank'; chk[0].rel = 'noopener';
-  docs.append(...chk);
+  const chk = t('a', person ? 'تحقق من وثيقة العمل الحر' : 'تحقق من السجل (منصة الأعمال)', 'btn ghost sm');
+  chk.href = person ? 'https://freelance.sa' : 'https://business.sa'; chk.target = '_blank'; chk.rel = 'noopener';
+  docs.append(chk);
 
   const parts = [head, kv, docs];
   if (m.review_note && m.status !== 'approved') { const n = t('div', 'ملاحظة سابقة: ' + m.review_note, 'note'); parts.push(n); }
@@ -118,6 +144,9 @@ function card(m) {
   const acts = document.createElement('div'); acts.className = 'acts-row';
   const act = (label, cls, fn) => { const b = t('button', label, 'btn sm ' + cls); b.onclick = () => fn(b); acts.append(b); };
   if (m.status !== 'approved') act(m.status === 'suspended' ? 'إعادة التفعيل' : 'تفعيل المتجر ✓', 'primary', b => setStatus(m, 'approved', null, b));
+  if (person && !m.site_verified_at) act('✔ تمت المعاينة الميدانية', 'ghost', b => verifySite(m, b));
+  if (WATHQ_ON && !person && m.cr_number) act(m.cr_check ? '🔎 أعد التحقق من واثق' : '🔎 تحقق من واثق', 'ghost', b => checkWathq(m, b));
+  if (person) act(m.license_verified_at ? 'سحب شارة «موثّق برخصة»' : '🏅 منح شارة «موثّق برخصة»', 'ghost', b => verifyLicense(m, !m.license_verified_at, b));
   if (m.status === 'pending') act('رفض / طلب تعديل', 'danger', () => askNote(m, 'rejected'));
   if (m.status === 'approved') act('إيقاف مؤقت', 'danger', () => askNote(m, 'suspended'));
   const wa = t('a', 'واتساب التاجر', 'btn ghost sm'); wa.href = 'https://wa.me/966' + m.phone.slice(1); wa.target = '_blank'; wa.rel = 'noopener';
@@ -128,6 +157,8 @@ function card(m) {
 }
 
 async function setStatus(m, status, note, btn) {
+  if (status === 'approved' && m.kind && m.kind !== 'store' && !m.site_verified_at
+      && !confirm(`«${m.store_name}» ما تمت معاينته ميدانيًا بعد. ننصح بزيارة المسوّق أو المشرف قبل التفعيل.\nتفعّله الحين بدون معاينة؟`)) return;
   if (status === 'approved' && !confirm(`تفعيل «${m.store_name}»؟ بيوصل للتاجر إيميل ويقدر يضيف منتجاته.`)) return;
   setBusy(btn, true);
   const { error } = await sb.from('merchants').update({ status, review_note: note }).eq('id', m.id);
@@ -137,10 +168,45 @@ async function setStatus(m, status, note, btn) {
   await load();
 }
 
+async function verifySite(m, btn) {
+  const note = prompt(`تأكيد المعاينة الميدانية لـ«${m.store_name}»\nاكتب ملاحظة قصيرة (مثل: زاره المسوّق فلان، المكان نظيف ومطابق للعنوان):`, '');
+  if (note === null) return;
+  setBusy(btn, true);
+  const { error } = await sb.rpc('mark_site_verified', { mid: m.id, note });
+  setBusy(btn, false);
+  if (error) return toast(friendlyError(error));
+  toast('تم تسجيل المعاينة ✓'); await load();
+}
+
+// الربط مع واثق موقوف مؤقتًا (التحقق يدوي من منصة الأعمال). لإعادة تفعيله: true هنا + تفعيل trigger merchants_wathq_check
+const WATHQ_ON = false;
+async function checkWathq(m, btn) {
+  setBusy(btn, true, 'جارِ الاستعلام من واثق…');
+  const { data, error } = await sb.functions.invoke('wathq', { body: { merchant_id: m.id } });
+  setBusy(btn, false);
+  if (error || data?.error) return toast('تعذر التحقق: ' + (data?.error || error.message));
+  toast(data?.check?.found ? 'تم التحقق ✓' : 'رد واثق: ' + (data?.check?.message || 'غير موجود'));
+  await load();
+}
+
+async function verifyLicense(m, on, btn) {
+  let note = null;
+  if (on) {
+    note = prompt(`منح شارة «موثّق برخصة» لـ«${m.store_name}»\nامنحها فقط بعد ما تتأكد بنفسك أو عن طريق فريقك من:\n• رخصة بلدي سارية (نشاط منزلي أو عربة متنقلة)\n• الشهادة الصحية إن كان النشاط أكل\n• الالتزام بالاشتراطات البلدية في الموقع\n\nاكتب رقم الرخصة وتاريخ انتهائها:`, m.license_number || '');
+    if (note === null) return;
+    if (note.trim().length < 3) return toast('اكتب رقم الرخصة وتاريخ انتهائها.');
+  } else if (!confirm(`سحب شارة «موثّق برخصة» من «${m.store_name}»؟`)) return;
+  setBusy(btn, true);
+  const { error } = await sb.rpc('set_license_verified', { mid: m.id, verified: on, note });
+  setBusy(btn, false);
+  if (error) return toast(friendlyError(error));
+  toast(on ? 'تم منح الشارة 🏅' : 'تم سحب الشارة.'); await load();
+}
+
 // نافذة سبب الرفض / الإيقاف
 const dn = $('#dlg-note'), fn = $('#f-note');
 const PRESETS = {
-  rejected: ['صورة السجل التجاري غير واضحة، ارفعها مرة ثانية.', 'السجل التجاري منتهي، ارفع سجل ساري.', 'اسم صاحب الآيبان لا يطابق اسم المنشأة أو المالك.', 'الشهادة الضريبية لا تطابق الرقم الضريبي المكتوب.', 'النشاط في السجل لا يطابق النشاط المختار.'],
+  rejected: ['صورة الهوية غير واضحة، ارفعها مرة ثانية.', 'اسم صاحب الآيبان لا يطابق الاسم في الهوية.', 'ما قدرنا نتأكد من الموقع، حدّده مرة ثانية من الخريطة.', 'صورة السجل التجاري غير واضحة، ارفعها مرة ثانية.', 'السجل التجاري منتهي، ارفع سجل ساري.', 'اسم صاحب الآيبان لا يطابق اسم المنشأة أو المالك.', 'الشهادة الضريبية لا تطابق الرقم الضريبي المكتوب.', 'النشاط في السجل لا يطابق النشاط المختار.'],
   suspended: ['شكاوى متكررة من المشترين.', 'أسعار أو كميات غير صحيحة.', 'انتهاء صلاحية السجل التجاري.'],
 };
 let pending = null;

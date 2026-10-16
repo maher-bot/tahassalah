@@ -19,6 +19,7 @@ export const clean = s => digits(s).replace(/[\s-]/g, '').toUpperCase();
 export const valid = {
   phone: v => /^05\d{8}$/.test(v),
   cr: v => /^\d{10}$/.test(v),
+  nid: v => /^[12]\d{9}$/.test(v),
   nationalAddress: v => /^[A-Z]{4}\d{4}$/.test(v),
   vat: v => /^3\d{13}3$/.test(v),
   iban(v) {
@@ -33,8 +34,16 @@ export const money = n => n == null || n === '' ? '' : Number(n).toLocaleString(
 
 export const ACTIVITIES = ['بقالة وتموينات', 'إلكترونيات وجوالات', 'صيدلية', 'ملابس وإكسسوارات', 'عطور وتجميل',
   'مطعم أو منتجات أسر', 'أدوات منزلية', 'قطع غيار وسيارات', 'خياط أو مغسلة', 'خدمات بالمواعيد', 'أخرى'];
-export const PLANS = { free: 'الفترة المجانية', basic: 'أساسي (مجاني)', trader: 'تاجر', pro: 'مميز' };
-export const PLAN_PRICE = { basic: { monthly: 0, yearly: 0 }, trader: { monthly: 59, yearly: 590 }, pro: { monthly: 119, yearly: 1190 } };
+export const ACTIVITIES_BY_KIND = {
+  store: ACTIVITIES,
+  family: ['أطباق وأكل بيتي', 'حلويات ومخبوزات', 'قهوة وعصائر ومشروبات', 'مقبلات ومخللات وتوابل', 'عطور وبخور', 'خياطة وتطريز', 'أشغال يدوية وإكسسوارات', 'أخرى'],
+  mobile: ['فود ترك', 'آيسكريم', 'قهوة متنقلة', 'خضار وفواكه', 'ذرة وبليلة وأكلات شعبية', 'بائع متجول', 'أخرى'],
+};
+export const PLANS = { free: 'الفترة المجانية', basic: 'أساسي (مجاني)', family: 'أسر ومتجولين', trader: 'تاجر', pro: 'مميز' };
+export const PLAN_PRICE = { basic: { monthly: 0, yearly: 0 }, family: { monthly: 29, yearly: 290 }, trader: { monthly: 59, yearly: 590 }, pro: { monthly: 119, yearly: 1190 } };
+// نوع الحساب
+export const KINDS = { store: 'محل', family: 'أسرة منتجة', mobile: 'بائع متجول أو عربة' };
+export const KIND_ICON = { store: '🏪', family: '🏠', mobile: '🚚' };
 export const planLabel = (p, b = 'monthly') => p === 'basic' ? 'أساسي (مجاني)' : p === 'free' ? 'الفترة المجانية'
   : `${PLANS[p] || p} · ${PLAN_PRICE[p]?.[b] ?? ''} ر.س ${b === 'yearly' ? 'سنويًا' : 'شهريًا'}`;
 export const STATUS = { pending: 'قيد المراجعة', approved: 'مفعّل', rejected: 'يحتاج تعديل', suspended: 'موقوف' };
@@ -77,6 +86,14 @@ export function friendlyError(e) {
   if (/plan_basic_offers/.test(m)) return 'العروض متاحة في باقة «تاجر» و«مميز».';
   if (/plan_basic_delivery/.test(m)) return 'التوصيل متاح في باقة «تاجر» و«مميز». الأساسية فيها الاستلام من المحل فقط.';
   if (/plan_basic_staff/.test(m)) return 'إضافة الموظفين متاحة في باقة «تاجر» و«مميز».';
+  if (/plan_basic_preorder/.test(m)) return 'الطلب المسبق متاح في باقة «أسر ومتجولين» و«تاجر» و«مميز».';
+  if (/plan_family_products/.test(m)) return 'باقة «أسر ومتجولين» تسمح بـ 60 منتج ظاهر. رقّ باقتك لـ«تاجر» عشان تضيف أكثر.';
+  if (/plan_basic_live/.test(m)) return 'الموقع المباشر متاح في باقة «أسر ومتجولين» وما فوق.';
+  if (/live_mobile_only/.test(m)) return 'الموقع المباشر للباعة المتجولين والعربات فقط.';
+  if (/plan_family_kind/.test(m)) return 'باقة «أسر ومتجولين» خاصة بالأسر المنتجة والباعة المتجولين.';
+  if (/bad_location/.test(m)) return 'الموقع غير صحيح. حاول مرة ثانية.';
+  if (/merchants_id_number_check/.test(m)) return 'رقم الهوية 10 أرقام يبدأ بـ 1 أو 2.';
+  if (/merchants_docs_by_kind/.test(m)) return 'المستندات ناقصة: المحل يحتاج السجل التجاري، والأسرة والمتجول يحتاجون الهوية.';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'تعذر الاتصال. تأكد من الإنترنت وحاول مرة ثانية.';
   return 'صار خطأ: ' + m;
 }

@@ -1,4 +1,4 @@
-import { rememberLogin, hidePasswords, sb, $, $$, toast, clean, digits, valid, money, ACTIVITIES, PLANS, planLabel, STATUS, fileExt, shrinkImage, friendlyError, setBusy, trialInfo, fmtDay, OFFER_REASONS } from './lib.js';
+import { rememberLogin, hidePasswords, sb, $, $$, toast, clean, digits, valid, money, ACTIVITIES, PLANS, planLabel, STATUS, fileExt, shrinkImage, friendlyError, setBusy, trialInfo, fmtDay, OFFER_REASONS, KINDS, KIND_ICON, ACTIVITIES_BY_KIND } from './lib.js';
 import { pickLocation } from './mappick.js';
 
 const VIEWS = ['v-loading', 'v-auth', 'v-check-email', 'v-reset', 'v-apply', 'v-status', 'v-invites', 'v-dash'];
@@ -177,7 +177,30 @@ function showStatus() {
 
 // ---------------- نموذج التسجيل ----------------
 const fa = $('#f-apply');
-fa.activity.append(...ACTIVITIES.map(a => new Option(a, a)));
+const kindOf = () => fa.querySelector('input[name=kind]:checked')?.value || 'store';
+function syncKind() {
+  const k = kindOf(), person = k !== 'store';
+  const keep = fa.activity.value;
+  fa.activity.replaceChildren(new Option('اختر', ''), ...ACTIVITIES_BY_KIND[k].map(a => new Option(a, a)));
+  if (ACTIVITIES_BY_KIND[k].includes(keep)) fa.activity.value = keep;
+  $('#fs-id').hidden = !person; $('#fs-cr').hidden = person; $('#fs-vat').hidden = person;
+  if (person) { fa.no_vat.checked = true; $('#vat-fields').hidden = true; }
+  $('#lg-store').textContent = { store: 'المحل', family: 'مشروعك', mobile: 'العربة أو البسطة' }[k];
+  $('#lb-store').textContent = { store: 'اسم المحل', family: 'اسم مشروعك (مثل: مطبخ أم فهد)', mobile: 'اسم العربة' }[k];
+  $('#locate').textContent = { store: '📍 حدّد موقع المحل من جوالك', family: '📍 حدّد موقع البيت من جوالك', mobile: '📍 حدّد مكان وقوفك المعتاد' }[k];
+  if (!coords) $('#loc-state').textContent = { store: 'اضغطه وأنت داخل المحل، عشان يظهر للمشترين القريبين.', family: 'اضغطه وأنت في البيت.', mobile: 'اضغطه وأنت في المكان اللي توقف فيه عادة.' }[k];
+  const lk = $('#loc-kind');
+  lk.hidden = !person;
+  lk.textContent = k === 'family' ? '🔒 موقع بيتك ما يظهر للزبون بالضبط. يشوف اسم الحي والمسافة التقريبية فقط، والموقع الدقيق يوصله بعد ما تقبل طلبه.'
+    : '🚚 بعد التفعيل تقدر تحدّث موقعك المباشر من لوحتك كل ما تنتقل.';
+  $('#na-hint').textContent = person ? '4 حروف و4 أرقام. تلقاه في تطبيق «سبل» أو «توكلنا»، في عنوانك الوطني الشخصي.'
+    : '4 حروف و4 أرقام. تلقاه في تطبيق «سبل» أو موقع splonline.com.sa، في خانة العنوان الوطني للمنشأة.';
+  $('#bank-hint').textContent = person ? 'حسابك الشخصي يكفي، بشرط يكون باسمك نفس اسم الهوية.' : 'الحساب لازم يكون باسم المنشأة أو صاحبها نفسه.';
+  $('#plan-family').hidden = !person; $('#yearly-family').hidden = !person;
+  if (!person && fa.querySelector('input[name=next_plan]:checked')?.value === 'family') fa.querySelector('input[name=next_plan][value=basic]').checked = true;
+}
+$$('input[name=kind]', fa).forEach(r => r.addEventListener('change', syncKind));
+syncKind();
 
 fa.no_vat.addEventListener('change', () => { $('#vat-fields').hidden = fa.no_vat.checked; });
 fa.iban.addEventListener('input', () => {
@@ -185,12 +208,13 @@ fa.iban.addEventListener('input', () => {
   fa.iban.value = v.replace(/(.{4})/g, '$1 ').trim();
 });
 fa.national_address.addEventListener('input', () => { fa.national_address.value = clean(fa.national_address.value).replace(/[^A-Z0-9]/g, '').slice(0, 8); });
-for (const n of ['phone', 'cr_number', 'vat_number']) fa[n].addEventListener('input', () => { fa[n].value = digits(fa[n].value).replace(/\D/g, ''); });
+for (const n of ['phone', 'cr_number', 'vat_number', 'id_number']) fa[n].addEventListener('input', () => { fa[n].value = digits(fa[n].value).replace(/\D/g, ''); });
 
 $$('.file input[type=file]').forEach(inp => inp.addEventListener('change', () => {
   const box = inp.closest('.file'), f = inp.files[0];
   box.classList.toggle('has', !!f || !!box.dataset.existing);
-  $('.cur', box).textContent = f ? `✓ ${f.name}` : (box.dataset.existing ? '✓ مرفوع مسبقًا (اختر ملف جديد لاستبداله)' : '');
+  const many = inp.multiple && inp.files.length > 1 ? `✓ ${inp.files.length} ملفات` : null;
+  $('.cur', box).textContent = many || (f ? `✓ ${f.name}` : (box.dataset.existing ? '✓ مرفوع مسبقًا (اختر ملف جديد لاستبداله)' : ''));
 }));
 
 $('#locate').addEventListener('click', () => {
@@ -220,6 +244,8 @@ function setExisting(kind, path) {
 
 function openApply(m = null) {
   fa.reset();
+  $$('input[name=kind]', fa).forEach(r => { r.checked = r.value === (m?.kind || 'store'); });
+  syncKind();
   fa.activity.value = '';
   coords = m?.lat != null ? { lat: m.lat, lng: m.lng } : null;
   $('#loc-state').textContent = coords ? '✓ الموقع محدد مسبقًا' : 'اضغطه وأنت داخل المحل، عشان يظهر للمشترين القريبين.';
@@ -229,7 +255,7 @@ function openApply(m = null) {
   note.hidden = !(m?.status === 'rejected' && m.review_note);
   note.textContent = m?.review_note ? 'ملاحظة المراجعة: ' + m.review_note : '';
   if (m) {
-    for (const k of ['owner_name', 'store_name', 'activity', 'phone', 'city', 'district', 'national_address', 'cr_number', 'vat_number', 'bank_name']) fa[k].value = m[k] ?? '';
+    for (const k of ['owner_name', 'store_name', 'activity', 'phone', 'city', 'district', 'national_address', 'cr_number', 'vat_number', 'bank_name', 'id_number', 'license_number']) fa[k].value = m[k] ?? '';
     $$('input[name=next_plan]', fa).forEach(r => { r.checked = r.value === (m.next_plan || 'basic'); });
     fa.yearly.checked = m.billing === 'yearly';
     fa.iban.value = (m.iban || '').replace(/(.{4})/g, '$1 ').trim();
@@ -237,6 +263,7 @@ function openApply(m = null) {
   }
   $('#vat-fields').hidden = fa.no_vat.checked;
   setExisting('cr', m?.cr_path); setExisting('vat', m?.vat_path); setExisting('iban', m?.iban_path);
+  setExisting('id', m?.id_path); setExisting('extra', m?.extra_docs?.length ? 'x' : null);
   $('#apply-err').textContent = '';
   show('v-apply');
 }
@@ -252,24 +279,31 @@ fa.addEventListener('submit', async e => {
   e.preventDefault();
   const err = $('#apply-err'), btn = $('#apply-btn');
   const v = n => fa[n].value.trim();
-  const vatReg = !fa.no_vat.checked;
-  const files = { cr: fa.cr_file.files[0], vat: fa.vat_file.files[0], iban: fa.iban_file.files[0] };
+  const kind = kindOf(), person = kind !== 'store';
+  const vatReg = !person && !fa.no_vat.checked;
+  const files = { cr: person ? null : fa.cr_file.files[0], vat: fa.vat_file.files[0], iban: fa.iban_file.files[0], id: person ? fa.id_file.files[0] : null };
+  const extras = person ? [...fa.extra_files.files] : [];
   const iban = clean(fa.iban.value);
   const problems = [];
   if (v('owner_name').length < 2) problems.push('اكتب اسمك الكامل.');
-  if (v('store_name').length < 2) problems.push('اكتب اسم المحل.');
+  if (v('store_name').length < 2) problems.push(person ? 'اكتب اسم مشروعك.' : 'اكتب اسم المحل.');
   if (!v('activity')) problems.push('اختر النشاط.');
   if (!valid.phone(v('phone'))) problems.push('رقم الجوال يبدأ بـ 05 ومكوّن من 10 أرقام.');
   if (!v('city')) problems.push('اكتب المدينة.');
   if (!valid.nationalAddress(v('national_address'))) problems.push('العنوان الوطني المختصر 4 حروف إنجليزية و4 أرقام، مثل RRRD2929.');
-  if (!valid.cr(v('cr_number'))) problems.push('رقم السجل التجاري 10 أرقام.');
-  if (!files.cr && !merchant?.cr_path) problems.push('ارفع صورة السجل التجاري.');
+  if (!person && !valid.cr(v('cr_number'))) problems.push('رقم السجل التجاري 10 أرقام.');
+  if (!person && !files.cr && !merchant?.cr_path) problems.push('ارفع صورة السجل التجاري.');
+  if (person && !valid.nid(v('id_number'))) problems.push('رقم الهوية أو الإقامة 10 أرقام يبدأ بـ 1 أو 2.');
+  if (person && !files.id && !merchant?.id_path) problems.push('ارفع صورة الهوية.');
+  if (person && !coords) problems.push(kind === 'family' ? 'حدّد موقع البيت (ما يظهر للزبون بالضبط).' : 'حدّد مكان وقوفك المعتاد.');
+  if (extras.length > 5) problems.push('المستندات الإضافية 5 ملفات كحد أقصى.');
+  extras.forEach((f, i) => { const p = checkFile(f, `المستند الإضافي ${i + 1}`); if (p) problems.push(p); });
   if (vatReg && !valid.vat(v('vat_number'))) problems.push('الرقم الضريبي 15 رقم يبدأ وينتهي بـ 3.');
   if (vatReg && !files.vat && !merchant?.vat_path) problems.push('ارفع الشهادة الضريبية، أو اختر «غير مسجلة في الضريبة».');
   if (!v('bank_name')) problems.push('اكتب اسم البنك.');
   if (!valid.iban(iban)) problems.push('رقم الآيبان غير صحيح. يبدأ بـ SA ومكوّن من 24 خانة.');
   if (!files.iban && !merchant?.iban_path) problems.push('ارفع شهادة الآيبان.');
-  for (const [k, l] of [['cr', 'السجل التجاري'], ['vat', 'الشهادة الضريبية'], ['iban', 'شهادة الآيبان']]) {
+  for (const [k, l] of [['cr', 'السجل التجاري'], ['vat', 'الشهادة الضريبية'], ['iban', 'شهادة الآيبان'], ['id', 'صورة الهوية']]) {
     const p = checkFile(files[k], l); if (p) problems.push(p);
   }
   if (!fa.agree.checked) problems.push('وافق على الإقرار والشروط.');
@@ -279,7 +313,7 @@ fa.addEventListener('submit', async e => {
   setBusy(btn, true, 'جارِ رفع المستندات…');
   try {
     const paths = {};
-    for (const k of ['cr', 'vat', 'iban']) {
+    for (const k of ['cr', 'vat', 'iban', 'id']) {
       const f = files[k];
       if (!f || (k === 'vat' && !vatReg)) continue;
       const path = `${user.id}/${k}-${Date.now()}.${fileExt(f)}`;
@@ -287,18 +321,33 @@ fa.addEventListener('submit', async e => {
       if (error) throw error;
       paths[k] = path;
     }
+    let extra_docs = merchant?.extra_docs || [];
+    if (extras.length) {
+      extra_docs = [];
+      for (const [i, f] of extras.entries()) {
+        const path = `${user.id}/extra-${Date.now()}-${i}.${fileExt(f)}`;
+        const { error } = await sb.storage.from('merchant-docs').upload(path, f, { contentType: f.type || undefined, upsert: false });
+        if (error) throw error;
+        extra_docs.push(path);
+      }
+    }
     btn.textContent = 'جارِ الإرسال…';
     const row = {
       id: user.id, email: user.email,
       owner_name: v('owner_name'), store_name: v('store_name'), activity: v('activity'),
       phone: v('phone'), city: v('city'), district: v('district') || null, national_address: v('national_address'),
       lat: coords?.lat ?? null, lng: coords?.lng ?? null,
-      cr_number: v('cr_number'),
+      kind,
+      cr_number: person ? null : v('cr_number'),
+      id_number: person ? v('id_number') : null,
+      license_number: person ? (v('license_number') || null) : null,
+      id_path: person ? (paths.id ?? merchant?.id_path ?? null) : null,
+      extra_docs: person ? extra_docs : [],
       vat_registered: vatReg, vat_number: vatReg ? v('vat_number') : null,
       bank_name: v('bank_name'), iban,
       next_plan: fa.querySelector('input[name=next_plan]:checked')?.value || 'basic',
       billing: fa.yearly.checked ? 'yearly' : 'monthly',
-      cr_path: paths.cr ?? merchant?.cr_path,
+      cr_path: person ? null : (paths.cr ?? merchant?.cr_path),
       vat_path: vatReg ? (paths.vat ?? merchant?.vat_path ?? null) : null,
       iban_path: paths.iban ?? merchant?.iban_path,
     };
@@ -333,12 +382,17 @@ async function openDash(id) {
   const badge = $('#d-badge');
   if (ctx.owner) {
     badge.textContent = 'مفعّل'; badge.className = 'badge approved';
-    $('#d-plan').textContent = merchant.plan === 'free' ? `مجانية ${merchant.trial_months || 3} أشهر` + (merchant.founder ? ' ⭐' : '') : 'باقة ' + planLabel(merchant.plan, merchant.billing) + (merchant.plan === 'basic' ? ' · حتى 30 منتج، بدون عروض ولا توصيل' : '');
+    $('#d-plan').textContent = (merchant.kind && merchant.kind !== 'store' ? `${KIND_ICON[merchant.kind]} ${KINDS[merchant.kind]} · ` : '')
+      + (merchant.plan === 'free' ? `مجانية ${merchant.trial_months || 3} أشهر` + (merchant.founder ? ' ⭐' : '') : 'باقة ' + planLabel(merchant.plan, merchant.billing)
+      + (merchant.plan === 'basic' ? ' · حتى 30 منتج، بدون عروض ولا توصيل' : merchant.plan === 'family' ? ' · حتى 60 منتج' : ''))
+      + (merchant.license_verified_at ? ' · 🏅 موثّق برخصة' : '');
     renderTrial();
+    renderLive();
   } else {
     badge.textContent = ROLES[ctx.role] || 'موظف'; badge.className = 'badge pending';
     $('#d-plan').textContent = 'أنت موظف في هذا المتجر';
     $('#trial').hidden = true;
+    $('#live').hidden = true;
   }
   // مبدّل المتاجر: متجري + المتاجر اللي أنا موظف فيها
   const sw = $('#d-switch'), opts = [];
@@ -387,6 +441,7 @@ function renderTrial() {
   box.hidden = !t;
   if (!t) return;
   box.classList.toggle('ended', t.state === 'ended');
+  $$('#trial-next [data-kind]').forEach(o => { o.hidden = o.disabled = (merchant.kind || 'store') === 'store'; });
   $('#trial-next').value = (merchant.next_plan || 'basic') + (merchant.billing === 'yearly' && merchant.next_plan !== 'basic' ? ':yearly' : '');
   $('.t-pick', box).hidden = t.state === 'ended';
   if (t.state === 'waiting') {
@@ -447,6 +502,7 @@ function render() {
     const qty = mk('span', p.quantity <= 2 ? 'low' : '', p.quantity > 0 ? `الكمية ${p.quantity}` : 'نفد');
     m.append(price, qty);
     if (p.category) m.append(mk('span', '', p.category));
+    if (p.preorder_hours) m.append(mk('span', '', '🕒 طلب مسبق ' + (p.preorder_hours >= 24 ? `${p.preorder_hours / 24 === 1 ? 'يوم' : p.preorder_hours / 24 === 2 ? 'يومين' : p.preorder_hours / 24 + ' أيام'}` : `${p.preorder_hours} ساعات`)));
     if (!p.is_active) m.append(mk('span', '', 'مخفي'));
     if (p.sale_price != null) m.append(mk('span', 'low', '🏷️ ' + (OFFER_REASONS[p.offer_reason] || 'عرض') + (p.offer_ends_at ? ' · ينتهي ' + fmtDay(p.offer_ends_at) : '')));
     const dLeft = p.expires_on ? Math.ceil((new Date(p.expires_on + 'T23:59:59') - Date.now()) / 864e5) : null;
@@ -527,7 +583,10 @@ function openProduct(p) {
     for (const k of ['name', 'price', 'sale_price', 'quantity', 'category', 'barcode', 'description', 'offer_reason', 'expires_on']) fp[k].value = p[k] ?? '';
     fp.offer_ends_at.value = p.offer_ends_at ? new Date(p.offer_ends_at).toLocaleDateString('en-CA') : '';
     fp.is_active.checked = p.is_active;
+    fp.preorder_hours.value = p.preorder_hours ?? '';
   }
+  $('#preorder-row').hidden = viaApproval();
+  fp.preorder_hours.disabled = !canInv();
   syncOffer();
   const box = $('.file[data-file="img"]', fp);
   box.dataset.existing = p?.image_path ? '1' : '';
@@ -579,6 +638,7 @@ fp.addEventListener('submit', async e => {
       description: fp.description.value.trim() || null, is_active: fp.is_active.checked, image_path,
       expires_on: fp.expires_on.value || null, ...offer,
     } : { price, sale_price: sale, ...offer };
+    if (canInv() && !viaApproval()) row.preorder_hours = fp.preorder_hours.value ? Number(fp.preorder_hours.value) : null;
     if (editing && !canPrice()) { delete row.price; delete row.sale_price; delete row.offer_reason; delete row.offer_ends_at; }
     const r = await writeProduct(editing ? 'update' : 'insert', editing, row);
     dlg.close();
@@ -1004,4 +1064,38 @@ fset.addEventListener('submit', async e => {
   setBusy(btn, false);
   if (error) return (err.textContent = friendlyError(error));
   toast('تم حفظ إعدادات التوصيل والاستلام ✓');
+});
+
+// ---------------- الموقع المباشر للعربات ----------------
+function renderLive() {
+  const box = $('#live');
+  box.hidden = !(ctx?.owner && merchant?.kind === 'mobile');
+  if (box.hidden) return;
+  const st = $('#live-state');
+  if (merchant.plan === 'basic') {
+    st.textContent = 'الموقع المباشر متاح في باقة «أسر ومتجولين» بـ 29 ر.س. حاليًا يظهر مكان وقوفك المعتاد.';
+    $('#live-here').disabled = $('#live-off').disabled = true; return;
+  }
+  $('#live-here').disabled = false; $('#live-off').disabled = !merchant.live_at;
+  st.textContent = merchant.live_at ? `ظاهر للزبائن الحين · آخر تحديث ${new Date(merchant.live_at).toLocaleTimeString('ar-SA-u-nu-latn', { hour: 'numeric', minute: '2-digit' })}`
+    : 'غير ظاهر بموقع مباشر. اضغط «أنا هنا الآن» لما توقف عشان يلقاك الزبائن القريبين.';
+}
+$('#live-here').addEventListener('click', e => {
+  const btn = e.currentTarget;
+  if (!navigator.geolocation) return toast('جهازك ما يدعم تحديد الموقع.');
+  setBusy(btn, true, 'جارِ تحديد موقعك…');
+  navigator.geolocation.getCurrentPosition(async p => {
+    const { data, error } = await sb.rpc('set_live_location', { la: p.coords.latitude, ln: p.coords.longitude });
+    setBusy(btn, false);
+    if (error) return toast(friendlyError(error));
+    merchant.live_at = data; merchant.live_lat = p.coords.latitude; merchant.live_lng = p.coords.longitude;
+    renderLive(); toast('تم ✓ الزبائن القريبين يشوفون موقعك الحين.');
+  }, () => { setBusy(btn, false); toast('ما قدرنا نحدد موقعك. اسمح للمتصفح بالوصول للموقع.'); }, { enableHighAccuracy: true, timeout: 15000 });
+});
+$('#live-off').addEventListener('click', async e => {
+  const btn = e.currentTarget; setBusy(btn, true);
+  const { error } = await sb.rpc('set_live_location', { la: null, ln: null });
+  setBusy(btn, false);
+  if (error) return toast(friendlyError(error));
+  merchant.live_at = null; renderLive(); toast('أوقفنا ظهور موقعك المباشر.');
 });

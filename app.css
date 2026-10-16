@@ -177,3 +177,8 @@ dialog > .stack { padding: 20px; }
 .pw-wrap input{padding-left:46px;width:100%}
 .pw-eye{position:absolute;left:4px;top:50%;transform:translateY(-50%);width:38px;height:38px;border:0;background:transparent;font-size:18px;cursor:pointer;border-radius:8px;line-height:1}
 .pw-eye:hover{background:var(--soft,#eef4f1)}
+
+/* موقع العربة المباشر */
+.card.live{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:14px 18px;margin-bottom:14px;border:2px solid var(--brand)}
+.kinds .plan b{font-size:1.02rem}
+.kind-chip{display:inline-block;font-size:.8rem;padding:1px 9px;border-radius:999px;background:var(--brand-soft,#e3f0ea);color:var(--brand,#0f5a46);margin-inline-start:6px}
