@@ -1,5 +1,6 @@
 import { sb, $, $$, toast, digits, valid, ACTIVITIES, shrinkImage, friendlyError, setBusy, fmtDay,
   FIELD_STATUS, FIELD_BADGE, FIELD_PROBLEMS, MAKKAH_DISTRICTS, ago } from './lib.js';
+import { pickLocation } from './mappick.js';
 
 const VIEWS = ['v-loading', 'v-auth', 'v-check', 'v-denied', 'v-app'];
 const show = id => { VIEWS.forEach(v => { $('#' + v).hidden = v !== id; }); window.scrollTo(0, 0); };
@@ -170,19 +171,30 @@ function statusChips(box, name, onChange) {
 const fn = $('#f-new'), fv = $('#f-visit');
 fn.activity.append(...ACTIVITIES.map(a => new Option(a, a)));
 for (const sel of [fn.problem, fv.problem]) sel.append(new Option('اختر', ''), ...FIELD_PROBLEMS.map(p => new Option(p, p)));
+// جوال المحل مطلوب لما يكون المحل مهتم أو سجّل، عشان نربطه بحسابه ونرسل له رابط التسجيل
+const NEED_PHONE = ['registered', 'interested', 'follow_up'];
 const syncNew = () => {
   const s = fn.querySelector('input[name=nstatus]:checked')?.value;
+  $('#phone-opt').textContent = NEED_PHONE.includes(s) ? '(مطلوب)' : '(اختياري)';
   $('#new-problem-wrap').hidden = s !== 'problem';
   $('#new-follow-wrap').hidden = !['interested', 'follow_up', 'problem'].includes(s);
 };
 const syncVisit = () => {
   const s = fv.querySelector('input[name=vstatus]:checked')?.value;
+  $('#v-phone-wrap').hidden = !(current && !current.phone && NEED_PHONE.includes(s));
   $('#v-problem-wrap').hidden = s !== 'problem';
   $('#v-follow-wrap').hidden = !['interested', 'follow_up', 'problem'].includes(s);
 };
 statusChips($('#new-status'), 'nstatus', syncNew);
 statusChips($('#v-status'), 'vstatus', syncVisit);
 fn.phone.addEventListener('input', () => { fn.phone.value = digits(fn.phone.value).replace(/\D/g, ''); });
+fn.national_address.addEventListener('input', () => { fn.national_address.value = digits(fn.national_address.value).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8); });
+$('#map-pick').addEventListener('click', async () => {
+  const p = await pickLocation(coords);
+  if (!p) return;
+  coords = { lat: p.lat, lng: p.lng, acc: null };
+  $('#loc-state').textContent = '📍 ✓ تم تحديد الموقع على الخريطة';
+});
 fn.photo.addEventListener('change', () => {
   const f = fn.photo.files[0], img = $('#new-prev');
   img.hidden = !f; if (f) img.src = URL.createObjectURL(f);
@@ -212,8 +224,12 @@ fn.addEventListener('submit', async e => {
   if (fn.store_name.value.trim().length < 2) return (err.textContent = 'اكتب اسم المحل.');
   if (!fn.district.value) return (err.textContent = 'اختر الحي.');
   if (phone && !valid.phone(phone)) return (err.textContent = 'رقم الجوال يبدأ بـ 05 ومكوّن من 10 أرقام.');
+  const na = fn.national_address.value.trim() || null;
+  if (na && !valid.nationalAddress(na)) return (err.textContent = 'العنوان الوطني المختصر 4 حروف إنجليزية و4 أرقام، مثل RRRD2929.');
   if (!status) return (err.textContent = 'اختر نتيجة الزيارة.');
+  if (!coords && !na) return (err.textContent = 'حدّد موقع المحل: من الجوال أو على الخريطة، أو اكتب العنوان الوطني.');
   if (status === 'problem' && !fn.problem.value) return (err.textContent = 'اختر وش المشكلة.');
+  if (NEED_PHONE.includes(status) && !phone) { fn.phone.focus(); return (err.textContent = 'اكتب جوال المحل. مطلوب لما يكون المحل مهتم أو سجّل.'); }
   err.textContent = '';
   setBusy(btn, true, 'جارِ التحقق…');
   try {
@@ -238,7 +254,7 @@ fn.addEventListener('submit', async e => {
     btn.textContent = 'جارِ الحفظ…';
     const row = {
       store_name: fn.store_name.value.trim(), activity: fn.activity.value || null, district: fn.district.value,
-      contact_name: fn.contact_name.value.trim() || null, phone,
+      contact_name: fn.contact_name.value.trim() || null, phone, national_address: na,
       lat: coords?.lat ?? null, lng: coords?.lng ?? null, accuracy_m: coords?.acc ?? null, photo_path: path,
       status, problem: status === 'problem' ? fn.problem.value : null,
       notes: fn.notes.value.trim() || null, follow_up_on: $('#new-follow-wrap').hidden ? null : (fn.follow_up_on.value || null),
@@ -291,8 +307,15 @@ fv.addEventListener('submit', async e => {
   const status = fv.querySelector('input[name=vstatus]:checked')?.value;
   if (!status) return (err.textContent = 'اختر نتيجة الزيارة.');
   if (status === 'problem' && !fv.problem.value) return (err.textContent = 'اختر وش المشكلة.');
+  const vphone = digits(fv.phone.value).replace(/\D/g, '');
+  const needPhone = !current.phone && NEED_PHONE.includes(status);
+  if (needPhone && !valid.phone(vphone)) { fv.phone.focus(); return (err.textContent = 'اكتب جوال المحل صحيح: يبدأ بـ 05 ومكوّن من 10 أرقام.'); }
   setBusy(btn, true);
   try {
+    if (needPhone) {
+      const { error: pe } = await sb.from('field_stores').update({ phone: vphone }).eq('id', current.id);
+      if (pe) throw (/field_stores_phone_uq|duplicate key/i.test(pe.message) ? new Error('هذا الجوال مسجّل لمحل ثاني في الفريق.') : pe);
+    }
     const { error } = await sb.from('field_visits').insert({
       store_id: current.id, status, problem: status === 'problem' ? fv.problem.value : null,
       notes: fv.notes.value.trim() || null, lat: coords?.lat ?? null, lng: coords?.lng ?? null,

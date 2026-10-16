@@ -96,7 +96,7 @@
     <h2 style="font-size:1.25rem">زيارة محل جديد</h2>
     <label class="btn ghost" style="display:flex">📷 صوّر واجهة المحل<input type="file" name="photo" accept="image/*" capture="environment" hidden></label>
     <img id="new-prev" class="photo-big" alt="" hidden>
-    <p class="hint" id="loc-state">📍 جارِ تحديد الموقع…</p>
+    <div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center"><p class="hint" id="loc-state" style="flex:1;min-width:200px">📍 جارِ تحديد الموقع…</p><button class="btn ghost sm" type="button" id="map-pick">🗺️ حدّد على الخريطة</button></div>
     <label>اسم المحل<input name="store_name" maxlength="120" required></label>
     <div class="row2">
       <label>النشاط<select name="activity"><option value="">اختر</option></select></label>
@@ -104,8 +104,9 @@
     </div>
     <div class="row2">
       <label><span>اسم المسؤول <span class="opt">(اختياري)</span></span><input name="contact_name" maxlength="60"></label>
-      <label><span>جوال المحل <span class="opt">(اختياري)</span></span><input name="phone" inputmode="numeric" dir="ltr" maxlength="10" placeholder="05XXXXXXXX"></label>
+      <label><span>جوال المحل <span class="opt" id="phone-opt">(اختياري)</span></span><input name="phone" inputmode="numeric" dir="ltr" maxlength="10" placeholder="05XXXXXXXX"></label>
     </div>
+    <label><span>العنوان الوطني المختصر <span class="opt">(إذا ما تحدد الموقع)</span></span><input name="national_address" dir="ltr" maxlength="8" placeholder="مثال: RRRD2929" autocomplete="off"><span class="hint">مكتوب على لوحة العنوان عند باب المحل، أو في تطبيق «سبل».</span></label>
     <fieldset><legend>نتيجة الزيارة</legend><div class="chips" id="new-status"></div></fieldset>
     <label id="new-problem-wrap" hidden>وش المشكلة؟<select name="problem"></select></label>
     <label id="new-follow-wrap" hidden><span>موعد الزيارة الجاية <span class="opt">(اختياري)</span></span><input type="date" name="follow_up_on"></label>
@@ -127,6 +128,7 @@
     <div class="tl" id="st-history"></div>
     <fieldset id="visit-box"><legend>تسجيل زيارة جديدة</legend>
       <div class="chips" id="v-status"></div>
+      <label id="v-phone-wrap" hidden>جوال المحل<input name="phone" inputmode="numeric" dir="ltr" maxlength="10" placeholder="05XXXXXXXX"><span class="hint">مطلوب عشان نربط المحل بحسابه لما يسجّل.</span></label>
       <label id="v-problem-wrap" hidden>وش المشكلة؟<select name="problem"></select></label>
       <label id="v-follow-wrap" hidden><span>موعد الزيارة الجاية <span class="opt">(اختياري)</span></span><input type="date" name="follow_up_on"></label>
       <label><span>ملاحظات <span class="opt">(اختياري)</span></span><textarea name="notes" maxlength="1000"></textarea></label>

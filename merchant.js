@@ -1,4 +1,5 @@
 import { sb, $, $$, toast, clean, digits, valid, money, ACTIVITIES, PLANS, STATUS, fileExt, shrinkImage, friendlyError, setBusy, trialInfo, fmtDay, OFFER_REASONS } from './lib.js';
+import { pickLocation } from './mappick.js';
 
 const VIEWS = ['v-loading', 'v-auth', 'v-check-email', 'v-reset', 'v-apply', 'v-status', 'v-invites', 'v-dash'];
 const show = id => { VIEWS.forEach(v => { $('#' + v).hidden = v !== id; }); window.scrollTo(0, 0); };
@@ -199,6 +200,13 @@ $('#locate').addEventListener('click', () => {
     p => { coords = { lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6) }; st.textContent = `✓ تم تحديد الموقع (دقة ${Math.round(p.coords.accuracy)} متر)`; },
     () => { st.textContent = 'ما قدرنا نحدد الموقع. اسمح للمتصفح بالوصول للموقع وحاول مرة ثانية، أو تخطَّ هذه الخطوة.'; },
     { enableHighAccuracy: true, timeout: 15000 });
+});
+
+$('#map-pick').addEventListener('click', async () => {
+  const p = await pickLocation(coords);
+  if (!p) return;
+  coords = p;
+  $('#loc-state').textContent = '✓ تم تحديد الموقع على الخريطة';
 });
 
 function setExisting(kind, path) {

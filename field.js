@@ -165,7 +165,7 @@ async function openStore(s, repName) {
   const img = $('#d-photo'); img.hidden = !photos[s.photo_path]; img.src = photos[s.photo_path] || '';
   $('#d-name').textContent = s.store_name;
   const b = $('#d-badge'); b.className = 'badge ' + FIELD_BADGE[s.status]; b.textContent = FIELD_STATUS[s.status];
-  $('#d-meta').textContent = [`المسوّق: ${repName}`, s.district, s.activity, s.contact_name, s.phone, s.lat != null ? `دقة الموقع ${s.accuracy_m ?? '—'} م` : 'بدون موقع'].filter(Boolean).join(' · ');
+  $('#d-meta').textContent = [`المسوّق: ${repName}`, s.district, s.activity, s.contact_name, s.phone, s.national_address && 'العنوان الوطني ' + s.national_address, s.lat != null ? (s.accuracy_m != null ? `دقة الموقع ${s.accuracy_m} م` : 'الموقع محدد على الخريطة') : 'بدون موقع'].filter(Boolean).join(' · ');
   const acts = $('#d-actions'); acts.replaceChildren();
   const link = (t, h) => { const a = mk('a', 'btn ghost sm', t); a.href = h; a.target = '_blank'; a.rel = 'noopener'; acts.append(a); };
   if (s.phone) link('📞 اتصال', 'tel:' + s.phone);
