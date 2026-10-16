@@ -160,7 +160,9 @@ async function renderStores() {
   }));
 }
 
+let shown = null;
 async function openStore(s, repName) {
+  shown = s;
   const dlg = $('#dlg-store');
   const img = $('#d-photo'); img.hidden = !photos[s.photo_path]; img.src = photos[s.photo_path] || '';
   $('#d-name').textContent = s.store_name;
@@ -181,6 +183,13 @@ async function openStore(s, repName) {
   }));
 }
 $('#d-close').addEventListener('click', () => $('#dlg-store').close());
+$('#d-del').addEventListener('click', async () => {
+  if (!shown || !confirm(`حذف «${shown.store_name}» وكل زياراته نهائيًا؟\nاستخدمه للمحلات المكررة أو المسجّلة بالغلط.`)) return;
+  const { error } = await sb.from('field_stores').delete().eq('id', shown.id);
+  if (error) return toast(friendlyError(error));
+  if (shown.photo_path) sb.storage.from('field-photos').remove([shown.photo_path]);
+  $('#dlg-store').close(); toast('تم الحذف.'); load();
+});
 
 // ---------------- إضافة وتعديل مسوّق ----------------
 const fr = $('#f-rep-edit'), dlgRep = $('#dlg-rep');

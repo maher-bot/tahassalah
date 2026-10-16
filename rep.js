@@ -235,12 +235,23 @@ fn.addEventListener('submit', async e => {
   try {
     // هل زار المحل أحد قبل؟
     if (!dupConfirmed) {
-      const { data: dups } = await sb.rpc('field_duplicates', { p_phone: phone, p_lat: coords?.lat ?? null, p_lng: coords?.lng ?? null });
+      const { data: dups } = await sb.rpc('field_duplicates', { p_phone: phone, p_lat: coords?.lat ?? null, p_lng: coords?.lng ?? null,
+        p_name: fn.store_name.value.trim(), p_district: fn.district.value || null });
       if (dups?.length) {
         const box = $('#dup');
-        box.replaceChildren(mk('b', '', '⚠️ انتبه: فيه محل مسجّل قريب أو بنفس الجوال'),
-          ...dups.map(d => mk('span', '', `«${d.store_name}» — ${d.mine ? 'زرته أنت' : 'زاره ' + d.rep_name} ${ago(d.last_visit_at)}` + (d.distance_m != null ? ` · يبعد ${d.distance_m} متر` : '') + ` · ${FIELD_STATUS[d.status]}`)),
-          mk('span', 'hint', dups.some(d => d.mine) ? 'إذا هو نفس المحل، سكّر هذي النافذة وافتحه من قائمتك وسجّل عليه زيارة جديدة.' : 'إذا هو نفس المحل لا تسجّله، هذا حي زميلك. إذا متأكد إنه محل ثاني اضغط حفظ مرة ثانية.'));
+        const why = { phone: 'نفس الجوال', near: 'في نفس المكان', name: 'اسم مشابه قريب' };
+        const mineDup = dups.find(d => d.mine);
+        box.replaceChildren(mk('b', '', '⚠️ انتبه: يمكن هذا المحل مسجّل من قبل'),
+          ...dups.map(d => mk('span', '', `«${d.store_name}» (${why[d.reason] || ''}) — ${d.mine ? 'زرته أنت' : 'زاره ' + d.rep_name} ${ago(d.last_visit_at)}` + (d.distance_m != null ? ` · يبعد ${d.distance_m} متر` : '') + ` · ${FIELD_STATUS[d.status]}`)));
+        if (mineDup) {
+          const s = stores.find(x => x.id === mineDup.store_id);
+          box.append(mk('span', 'hint', 'إذا هو نفس المحل، سجّل عليه زيارة جديدة بدل ما تكرره.'));
+          if (s) { const open = mk('button', 'btn primary sm', `افتح «${s.store_name}» وسجّل زيارة`); open.type = 'button';
+            open.onclick = () => { dlgNew.close(); openStore(s); }; box.append(open); }
+          box.append(mk('span', 'hint', 'إذا متأكد إنه محل ثاني، اضغط «حفظ الزيارة» مرة ثانية.'));
+        } else {
+          box.append(mk('span', 'hint', 'إذا هو نفس المحل لا تسجّله، هذا محل زميلك. إذا متأكد إنه محل ثاني اضغط «حفظ الزيارة» مرة ثانية.'));
+        }
         box.hidden = false; dupConfirmed = true;
         box.scrollIntoView({ block: 'center' });
         return;
