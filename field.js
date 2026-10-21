@@ -57,6 +57,7 @@ async function load() {
   const err = r.error || s.error || v.error;
   if (err) return toast(friendlyError(err));
   reps = r.data; stores = s.data; visits = v.data;
+  if (stores.length >= 3000 || visits.length >= 5000) toast('⚠️ البيانات وصلت الحد الأعلى للعرض (3000 محل / 5000 زيارة)، فالأرقام ناقصة. اختر فترة أقصر.', 7000);
   const repSel = $('#f-rep'), keep = repSel.value;
   repSel.replaceChildren(new Option('كل المسوّقين', ''), ...reps.map(x => new Option(`${x.name} (${x.code})`, x.id)));
   repSel.value = keep;

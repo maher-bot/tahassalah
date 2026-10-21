@@ -604,7 +604,21 @@ function openProduct(p) {
   (inv ? fp.name : fp.price).focus();
 }
 
-const num = s => { const t = digits(s).replace(/[٫,]/g, '.').trim(); return t === '' ? null : Number(t); };
+// يقرأ الأرقام بالعربي والإنجليزي مع فواصل الآلاف: «1,200» = 1200 و«1,250.50» = 1250.5 و«٩٫٥» = 9.5
+// فاضي = null، وغير صالح = NaN (والفحوصات اللي بعده ترفضه)
+const num = s => {
+  let t = digits(s).replace(/[\s ٬]/g, '').replace(/٫/g, '.');
+  if (t === '') return null;
+  const lastComma = t.lastIndexOf(','), lastDot = t.lastIndexOf('.');
+  if (lastComma >= 0 && lastDot >= 0) {
+    // الفاصل الأخير هو العشري، والثاني فاصل آلاف
+    t = lastComma > lastDot ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
+  } else if (lastComma >= 0) {
+    // «1,200» أو «1,200,000» = آلاف، غير كذا الفاصلة عشرية («9,5»)
+    t = /^\d{1,3}(,\d{3})+$/.test(t) ? t.replace(/,/g, '') : t.replace(',', '.');
+  }
+  return /^\d+(\.\d+)?$/.test(t) ? Number(t) : NaN;
+};
 
 fp.addEventListener('submit', async e => {
   e.preventDefault();
@@ -615,6 +629,7 @@ fp.addEventListener('submit', async e => {
   if (sale != null && !(sale >= 0 && sale < price)) return (err.textContent = 'سعر العرض لازم يكون أقل من السعر الأصلي.');
   if (qty == null || !Number.isInteger(qty) || qty < 0) return (err.textContent = 'الكمية رقم صحيح من 0 وفوق.');
   err.textContent = ''; setBusy(btn, true, 'جارِ الحفظ…');
+  let oldImage = null, newImage = null;   // القديمة تنحذف بعد نجاح الحفظ فقط، والجديدة تنحذف لو فشل
   try {
     let image_path = editing?.image_path ?? null;
     const file = fp.image.files[0];
@@ -624,7 +639,8 @@ fp.addEventListener('submit', async e => {
       const path = `${ctx.mid}/${crypto.randomUUID()}.${small.type === 'image/webp' ? 'webp' : fileExt(small)}`;
       const { error } = await sb.storage.from('product-images').upload(path, small, { contentType: small.type });
       if (error) throw error;
-      if (image_path && !viaApproval()) sb.storage.from('product-images').remove([image_path]);
+      newImage = path;
+      if (image_path && !viaApproval()) oldImage = image_path;
       image_path = path;
     }
     const offer = sale == null ? { offer_reason: null, offer_ends_at: null } : {
@@ -641,10 +657,14 @@ fp.addEventListener('submit', async e => {
     if (canInv() && !viaApproval()) row.preorder_hours = fp.preorder_hours.value ? Number(fp.preorder_hours.value) : null;
     if (editing && !canPrice()) { delete row.price; delete row.sale_price; delete row.offer_reason; delete row.offer_ends_at; }
     const r = await writeProduct(editing ? 'update' : 'insert', editing, row);
+    if (oldImage) sb.storage.from('product-images').remove([oldImage]);
     dlg.close();
     toast(r === 'queued' ? QUEUED : r === 'same' ? 'ما فيه تغيير.' : editing ? 'تم حفظ التعديل.' : 'تمت إضافة المنتج.');
     await loadProducts();
-  } catch (ex) { err.textContent = friendlyError(ex); }
+  } catch (ex) {
+    if (newImage) sb.storage.from('product-images').remove([newImage]);
+    err.textContent = friendlyError(ex);
+  }
   finally { setBusy(btn, false); }
 });
 
@@ -998,11 +1018,20 @@ $('#csv').addEventListener('change', async e => {
   const inserts = [], updates = [], bad = [];
   rows.slice(1).forEach((r, i) => {
     const g = k => col[k] >= 0 ? (r[col[k]] ?? '').trim() : '';
-    const name = g('name'), price = num(g('price')), sale = num(g('sale_price')), qty = num(g('quantity')) ?? 0, barcode = digits(g('barcode')) || null;
+    const name = g('name'), price = num(g('price')), sale = num(g('sale_price')), qtyRaw = num(g('quantity')), qty = qtyRaw ?? 0, barcode = digits(g('barcode')) || null;
     if (name.length < 2 || price == null || !(price >= 0) || !Number.isInteger(qty) || qty < 0 || (sale != null && !(sale >= 0 && sale < price))) { bad.push(i + 2); return; }
-    const row = { name, price, sale_price: sale, quantity: qty, barcode, category: g('category') || null, description: g('description') || null };
     const ex = barcode && byBarcode.get(barcode);
-    if (ex) updates.push({ id: ex.id, row }); else inserts.push({ ...row, merchant_id: ctx.mid, is_active: true });
+    if (ex) {
+      // تحديث منتج موجود: نغيّر فقط الأعمدة الموجودة في الملف، وما نلمس الباقي (الكمية، العرض، الوصف، التصنيف)
+      const row = { name, price };
+      if (col.quantity >= 0 && qtyRaw != null) row.quantity = qty;
+      if (col.sale_price >= 0) row.sale_price = sale;
+      if (col.category >= 0) row.category = g('category') || null;
+      if (col.description >= 0) row.description = g('description') || null;
+      updates.push({ id: ex.id, row });
+    } else {
+      inserts.push({ name, price, sale_price: sale, quantity: qty, barcode, category: g('category') || null, description: g('description') || null, merchant_id: ctx.mid, is_active: true });
+    }
   });
   if (!inserts.length && !updates.length) return toast(`ما فيه صفوف صحيحة. راجع الصفوف: ${bad.slice(0, 10).join('، ')}`, 6000);
   if (!confirm(`إضافة ${inserts.length} منتج جديد وتحديث ${updates.length} منتج موجود (بنفس الباركود)؟` + (bad.length ? `\nسيتم تجاهل ${bad.length} صف فيه خطأ.` : ''))) return;
