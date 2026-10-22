@@ -265,8 +265,6 @@ function openApply(m = null) {
   fa.reset();
   $$('input[name=kind]', fa).forEach(r => { r.checked = r.value === (m?.kind || 'store'); });
   syncKind();
-    fillActivities(k);
-  learnActivities(k);
   coords = m?.lat != null ? { lat: m.lat, lng: m.lng } : null;
   $('#loc-state').textContent = coords ? '✓ الموقع محدد مسبقًا' : 'اضغطه وأنت داخل المحل، عشان يظهر للمشترين القريبين.';
   $('#apply-title').textContent = m ? 'تعديل طلبك' : 'بيانات متجرك';
@@ -307,8 +305,7 @@ fa.addEventListener('submit', async e => {
   const problems = [];
   if (v('owner_name').length < 2) problems.push('اكتب اسمك الكامل.');
   if (v('store_name').length < 2) problems.push(person ? 'اكتب اسم مشروعك.' : 'اكتب اسم المحل.');
-   fillActivities(k);
-  learnActivities(k);
+  if (v('activity').length < 2 || v('activity').length > 40) problems.push('اكتب نشاطك (من حرفين إلى 40 حرف).');
   if (!valid.phone(v('phone'))) problems.push('رقم الجوال يبدأ بـ 05 ومكوّن من 10 أرقام.');
   if (!v('city')) problems.push('اكتب المدينة.');
   if (!valid.nationalAddress(v('national_address'))) problems.push('العنوان الوطني المختصر 4 حروف إنجليزية و4 أرقام، مثل RRRD2929.');
@@ -355,8 +352,7 @@ fa.addEventListener('submit', async e => {
     btn.textContent = 'جارِ الإرسال…';
     const row = {
       id: user.id, email: user.email,
-      owner_name: v('owner_name'), store_name: v('store_name'), activity: v('activity'),
-        if (v('activity').length < 2 || v('activity').length > 40) problems.push('اكتب نشاطك (من حرفين إلى 40 حرف).');
+      owner_name: v('owner_name'), store_name: v('store_name'), activity: v('activity').replace(/\s+/g, ' '),
       phone: v('phone'), city: v('city'), district: v('district') || null, national_address: v('national_address'),
       lat: coords?.lat ?? null, lng: coords?.lng ?? null,
       kind,
