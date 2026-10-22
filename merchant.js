@@ -176,11 +176,19 @@ function showStatus() {
 }
 
 // ---------------- نموذج التسجيل ----------------
+const fa = $('#f-apply');
 // اقتراحات النشاط: القائمة الثابتة + الأنشطة اللي سجّلها تجار معتمدون من نفس النوع
 const learned = {};
 function fillActivities(k) {
-  const list = [...new Set([...ACTIVITIES_BY_KIND[k], ...(learned[k] || [])])].filter(a => a !== 'أخرى');
-  $('#activity-list').replaceChildren(...list.map(a => Object.assign(document.createElement('option'), { value: a })));
+  const all = [...new Set([...ACTIVITIES_BY_KIND[k], ...(learned[k] || [])])];
+  const dl = $('#activity-list');
+  if (dl) {
+    dl.replaceChildren(...all.filter(a => a !== 'أخرى').map(a => Object.assign(document.createElement('option'), { value: a })));
+  } else {   // صفحة قديمة (قائمة منسدلة): نفس السلوك السابق
+    const keep = fa.activity.value;
+    fa.activity.replaceChildren(new Option('اختر', ''), ...all.map(a => new Option(a, a)));
+    if (all.includes(keep)) fa.activity.value = keep;
+  }
 }
 async function learnActivities(k) {
   if (!user || learned[k]) return;
@@ -190,9 +198,10 @@ async function learnActivities(k) {
   if (kindOf() === k) fillActivities(k);
 }
 const kindOf = () => fa.querySelector('input[name=kind]:checked')?.value || 'store';
+function syncKind() {
+  const k = kindOf(), person = k !== 'store';
   fillActivities(k);
-  learnActivities(k);  fa.activity.replaceChildren(new Option('اختر', ''), ...ACTIVITIES_BY_KIND[k].map(a => new Option(a, a)));
-  if (ACTIVITIES_BY_KIND[k].includes(keep)) fa.activity.value = keep;
+  learnActivities(k);
   $('#fs-id').hidden = !person; $('#fs-cr').hidden = person; $('#fs-vat').hidden = person;
   if (person) { fa.no_vat.checked = true; $('#vat-fields').hidden = true; }
   $('#lg-store').textContent = { store: 'المحل', family: 'مشروعك', mobile: 'العربة أو البسطة' }[k];
