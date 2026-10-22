@@ -176,7 +176,19 @@ function showStatus() {
 }
 
 // ---------------- نموذج التسجيل ----------------
-const fa = $('#f-apply');
+// اقتراحات النشاط: القائمة الثابتة + الأنشطة اللي سجّلها تجار معتمدون من نفس النوع
+const learned = {};
+function fillActivities(k) {
+  const list = [...new Set([...ACTIVITIES_BY_KIND[k], ...(learned[k] || [])])].filter(a => a !== 'أخرى');
+  $('#activity-list').replaceChildren(...list.map(a => Object.assign(document.createElement('option'), { value: a })));
+}
+async function learnActivities(k) {
+  if (!user || learned[k]) return;
+  const { data, error } = await sb.rpc('activity_suggestions', { k });
+  if (error) return;
+  learned[k] = (data || []).map(r => r.activity);
+  if (kindOf() === k) fillActivities(k);
+}
 const kindOf = () => fa.querySelector('input[name=kind]:checked')?.value || 'store';
 function syncKind() {
   const k = kindOf(), person = k !== 'store';
