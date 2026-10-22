@@ -356,6 +356,7 @@ fa.addEventListener('submit', async e => {
     const row = {
       id: user.id, email: user.email,
       owner_name: v('owner_name'), store_name: v('store_name'), activity: v('activity'),
+        if (v('activity').length < 2 || v('activity').length > 40) problems.push('اكتب نشاطك (من حرفين إلى 40 حرف).');
       phone: v('phone'), city: v('city'), district: v('district') || null, national_address: v('national_address'),
       lat: coords?.lat ?? null, lng: coords?.lng ?? null,
       kind,
