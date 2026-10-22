@@ -265,7 +265,8 @@ function openApply(m = null) {
   fa.reset();
   $$('input[name=kind]', fa).forEach(r => { r.checked = r.value === (m?.kind || 'store'); });
   syncKind();
-  fa.activity.value = '';
+    fillActivities(k);
+  learnActivities(k);
   coords = m?.lat != null ? { lat: m.lat, lng: m.lng } : null;
   $('#loc-state').textContent = coords ? '✓ الموقع محدد مسبقًا' : 'اضغطه وأنت داخل المحل، عشان يظهر للمشترين القريبين.';
   $('#apply-title').textContent = m ? 'تعديل طلبك' : 'بيانات متجرك';
@@ -306,7 +307,8 @@ fa.addEventListener('submit', async e => {
   const problems = [];
   if (v('owner_name').length < 2) problems.push('اكتب اسمك الكامل.');
   if (v('store_name').length < 2) problems.push(person ? 'اكتب اسم مشروعك.' : 'اكتب اسم المحل.');
-  if (!v('activity')) problems.push('اختر النشاط.');
+   fillActivities(k);
+  learnActivities(k);
   if (!valid.phone(v('phone'))) problems.push('رقم الجوال يبدأ بـ 05 ومكوّن من 10 أرقام.');
   if (!v('city')) problems.push('اكتب المدينة.');
   if (!valid.nationalAddress(v('national_address'))) problems.push('العنوان الوطني المختصر 4 حروف إنجليزية و4 أرقام، مثل RRRD2929.');
