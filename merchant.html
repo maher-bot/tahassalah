@@ -87,7 +87,11 @@
         </div>
         <div class="row2">
           <label>النشاط<input name="activity" list="activity-list" required maxlength="40" autocomplete="off" placeholder="اكتب نشاطك أو اختر من المقترحات"><datalist id="activity-list"></datalist></label>
-          <label>جوال للتواصل<input name="phone" inputmode="numeric" dir="ltr" placeholder="05XXXXXXXX" maxlength="10" required></label>
+          <label>جوالك المسجّل (لا نعرضه للمشترين)<input name="phone" inputmode="numeric" dir="ltr" placeholder="05XXXXXXXX" maxlength="10" required></label>
+        </div>
+        <div class="row2">
+          <label>رقم واتساب للتواصل مع المشترين<input name="contact_phone" inputmode="numeric" dir="ltr" placeholder="05XXXXXXXX" maxlength="10" required></label>
+          <p class="hint" style="align-self:end">هذا هو الرقم الوحيد اللي يظهر للمشتري ويكلّمك عليه واتساب. تقدر تكتب نفس جوالك أو رقماً غيره، والاختيار لك. <button type="button" class="btn ghost sm" id="same-phone">استخدم نفس جوالي</button></p>
         </div>
         <div class="row2">
           <label>المدينة<input name="city" required value="مكة المكرمة"></label>
@@ -146,10 +150,10 @@
         <p class="note" style="background:var(--brand-soft)"><b>تبدأ مجانًا بكل المزايا</b> من الحين لين يوم إطلاق التطبيق للمشترين، وبعده 3 أشهر. <b>⭐ أول 500 محل في كل حي: 6 أشهر.</b></p>
         <p class="hint">بعد الفترة المجانية أنتقل إلى:</p>
         <div class="plans">
-          <label class="plan"><input type="radio" name="next_plan" value="basic" checked><span><b>أساسي · مجاني دائمًا</b> يظهر محلك، وحتى 30 منتج، والاستلام من المحل</span></label>
-          <label class="plan" id="plan-family" hidden><input type="radio" name="next_plan" value="family"><span><b class="num">أسر ومتجولين · 29 ر.س شهريًا</b> حتى 60 منتج، والطلب المسبق، والموقع المباشر للعربات، والتوصيل، وعروض التصريف</span></label>
-          <label class="plan"><input type="radio" name="next_plan" value="trader"><span><b class="num">تاجر · 59 ر.س شهريًا</b> منتجات بلا حد، وعروض التصريف، والتوصيل بنفسك، والموظفين</span></label>
-          <label class="plan"><input type="radio" name="next_plan" value="pro"><span><b class="num">مميز · 119 ر.س شهريًا</b> كل مزايا «تاجر»، وظهور أعلى في البحث، وشارة «مميز»، وتنبيه للمشترين القريبين بعروضك</span></label>
+          <label class="plan" id="plan-basic"><input type="radio" name="next_plan" value="basic" checked><span><b>أساسي · مجاني لفترة محدودة</b> يظهر متجرك أو مشروعك، وحتى 10 منتجات، والاستلام فقط (بدون عروض أو توصيل أو موظفين)</span></label>
+          <label class="plan" id="plan-family" hidden><input type="radio" name="next_plan" value="family"><span><b class="num">أسر ومتجولين · 29 ر.س شهريًا</b> حتى 100 منتج، والطلب المسبق، والموقع المباشر للعربات، والتوصيل، وعروض التصريف</span></label>
+          <label class="plan"><input type="radio" name="next_plan" value="trader"><span><b class="num">تاجر · 59 ر.س شهريًا</b> حتى 500 منتج، وعروض التصريف، والتوصيل بنفسك، والموظفين، وربط متجرك الإلكتروني (قريبًا)</span></label>
+          <label class="plan"><input type="radio" name="next_plan" value="pro"><span><b class="num">مميز · 119 ر.س شهريًا</b> كل مزايا «تاجر» بمنتجات بلا حد، وظهور أعلى في البحث، وشارة «مميز»، وتنبيه للمشترين القريبين بعروضك</span></label>
         </div>
         <label class="check"><input type="checkbox" name="yearly"> <span>أدفع سنويًا وأوفّر شهرين (<span id="yearly-family" hidden>290 ر.س لـ«أسر ومتجولين»، </span>590 ر.س لـ«تاجر» أو 1,190 ر.س لـ«مميز»)</span></label>
         <p class="hint">تقدر تغيّر اختيارك من لوحتك في أي وقت قبل نهاية الفترة المجانية. تضاف ضريبة القيمة المضافة 15% على الاشتراك. ما فيه عمولة على مبيعاتك.</p>
@@ -202,15 +206,15 @@
     </div>
     <div id="p-products">
     <div class="card live" id="live" hidden>
-      <div style="flex:1;min-width:200px"><b>📍 موقعي الآن</b><p class="hint" id="live-state">حدّث موقعك كل ما تنتقل، عشان يلقاك الزبائن القريبين.</p></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary sm" type="button" id="live-here">أنا هنا الآن</button><button class="btn ghost sm" type="button" id="live-off">أوقف الظهور</button></div>
+      <div style="flex:1;min-width:200px"><b>📍 إتاحتي الآن</b><p class="hint" id="live-state">اختر حالتك: متاح، أو مشغول، أو خارج الخدمة.</p></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary sm" type="button" id="live-here">🟢 متاح الآن</button><button class="btn ghost sm" type="button" id="live-busy">🟠 مشغول الآن</button><button class="btn ghost sm" type="button" id="live-extend" hidden>⏱ تمديد 3 ساعات</button><button class="btn ghost sm" type="button" id="live-off">⚫ خارج الخدمة</button></div>
     </div>
     <div class="trial" id="trial" hidden>
       <div class="t-text"><b id="trial-title"></b><span class="hint" id="trial-sub"></span></div>
       <div class="t-pick">
         <label for="trial-next" class="hint">بعدها أنتقل إلى</label>
         <select id="trial-next">
-          <option value="basic">أساسي · مجاني</option>
+          <option value="basic" data-basic>أساسي · مجاني (10 منتجات)</option>
           <option value="family" data-kind>أسر ومتجولين · 29 ر.س شهريًا</option>
           <option value="family:yearly" data-kind>أسر ومتجولين · 290 ر.س سنويًا</option>
           <option value="trader">تاجر · 59 ر.س شهريًا</option>
@@ -221,11 +225,27 @@
         <button class="btn ghost sm" type="button" id="trial-save">حفظ</button>
       </div>
     </div>
+    <div class="card live" id="contact-card" hidden style="border-color:var(--line)">
+      <div style="flex:1;min-width:200px"><b>📱 رقم واتساب التواصل مع المشترين</b><p class="hint" id="contact-state"></p></div>
+      <form id="f-contact" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input name="contact_phone" inputmode="numeric" dir="ltr" maxlength="10" placeholder="05XXXXXXXX" aria-label="رقم واتساب للمشترين" style="width:auto;min-width:160px" required>
+        <button class="btn primary sm" type="submit" id="contact-save">حفظ</button>
+      </form>
+    </div>
+    <div class="card live" id="link-card" hidden style="border-color:var(--line)">
+      <div style="flex:1;min-width:200px"><b>🔗 اربط متجرك الإلكتروني <span class="badge pending">قريبًا</span></b><p class="hint" id="link-state">منتجاتك وأسعارك تتحدّث عندنا تلقائيًا من متجرك على سلة أو زد أو موقعك الخاص، بدون إدخال يدوي. الميزة قادمة لباقة «تاجر» وما فوق، وسجّل اهتمامك الحين.</p></div>
+      <form id="f-link" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select name="platform" aria-label="منصة متجرك" style="width:auto"><option value="salla">سلة</option><option value="zid">زد</option><option value="shopify">شوبيفاي</option><option value="custom">موقع أو تطبيق خاص</option></select>
+        <input name="store_url" type="url" dir="ltr" maxlength="300" placeholder="رابط متجرك (اختياري)" aria-label="رابط متجرك" style="width:auto;min-width:200px">
+        <button class="btn primary sm" type="submit" id="link-save">سجّل اهتمامي</button>
+      </form>
+    </div>
     <div class="stats">
       <div class="stat"><b class="num" id="s-total">0</b><span>منتج</span></div>
       <div class="stat"><b class="num" id="s-active">0</b><span>ظاهر للمشترين</span></div>
       <div class="stat"><b class="num" id="s-low">0</b><span>نفد أو قارب</span></div>
     </div>
+    <p class="hint" id="limit-hint" hidden></p>
     <div class="toolbar">
       <input type="search" id="q" placeholder="ابحث في منتجاتك بالاسم أو الباركود">
       <button class="btn ghost" id="q-scan" type="button" title="ابحث بمسح الباركود">▦ امسح</button>

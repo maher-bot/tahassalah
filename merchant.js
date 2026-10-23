@@ -24,6 +24,10 @@ const store = {
   set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
 };
 
+// حدود المنتجات الظاهرة لكل باقة (مميز والفترة المجانية بلا حد)
+const PLAN_LIMITS = { basic: 10, family: 100, trader: 500 };
+const PLAN_NOTE = { basic: ' · حتى 10 منتجات، بدون عروض ولا توصيل', family: ' · حتى 100 منتج', trader: ' · حتى 500 منتج', pro: ' · منتجات بلا حد' };
+
 // ---------------- الحساب ----------------
 $$('#v-auth [role=tab]').forEach(t => t.addEventListener('click', () => {
   $$('#v-auth [role=tab]').forEach(x => x.setAttribute('aria-selected', String(x === t)));
@@ -211,11 +215,13 @@ function syncKind() {
   const lk = $('#loc-kind');
   lk.hidden = !person;
   lk.textContent = k === 'family' ? '🔒 موقع بيتك ما يظهر للزبون بالضبط. يشوف اسم الحي والمسافة التقريبية فقط، والموقع الدقيق يوصله بعد ما تقبل طلبه.'
-    : '🚚 بعد التفعيل تقدر تحدّث موقعك المباشر من لوحتك كل ما تنتقل.';
+    : '🚚 بعد التفعيل تتحكم بظهورك من لوحتك: متاح الآن، أو مشغول، أو خارج الخدمة.';
   $('#na-hint').textContent = person ? '4 حروف و4 أرقام. تلقاه في تطبيق «سبل» أو «توكلنا»، في عنوانك الوطني الشخصي.'
     : '4 حروف و4 أرقام. تلقاه في تطبيق «سبل» أو موقع splonline.com.sa، في خانة العنوان الوطني للمنشأة.';
   $('#bank-hint').textContent = person ? 'حسابك الشخصي يكفي، بشرط يكون باسمك نفس اسم الهوية.' : 'الحساب لازم يكون باسم المنشأة أو صاحبها نفسه.';
   $('#plan-family').hidden = !person; $('#yearly-family').hidden = !person;
+  const pb = $('#plan-basic'); if (pb) pb.hidden = k === 'mobile';   // المتنقل ما له باقة مجانية
+  if (k === 'mobile' && fa.querySelector('input[name=next_plan]:checked')?.value === 'basic') fa.querySelector('input[name=next_plan][value=family]').checked = true;
   if (!person && fa.querySelector('input[name=next_plan]:checked')?.value === 'family') fa.querySelector('input[name=next_plan][value=basic]').checked = true;
 }
 $$('input[name=kind]', fa).forEach(r => r.addEventListener('change', syncKind));
@@ -227,7 +233,8 @@ fa.iban.addEventListener('input', () => {
   fa.iban.value = v.replace(/(.{4})/g, '$1 ').trim();
 });
 fa.national_address.addEventListener('input', () => { fa.national_address.value = clean(fa.national_address.value).replace(/[^A-Z0-9]/g, '').slice(0, 8); });
-for (const n of ['phone', 'cr_number', 'vat_number', 'id_number']) fa[n].addEventListener('input', () => { fa[n].value = digits(fa[n].value).replace(/\D/g, ''); });
+$('#same-phone')?.addEventListener('click', () => { if (fa.contact_phone) fa.contact_phone.value = fa.phone.value; });
+for (const n of ['phone', 'contact_phone', 'cr_number', 'vat_number', 'id_number']) fa[n]?.addEventListener('input', () => { fa[n].value = digits(fa[n].value).replace(/\D/g, ''); });
 
 $$('.file input[type=file]').forEach(inp => inp.addEventListener('change', () => {
   const box = inp.closest('.file'), f = inp.files[0];
@@ -278,6 +285,7 @@ function openApply(m = null) {
     fa.yearly.checked = m.billing === 'yearly';
     fa.iban.value = (m.iban || '').replace(/(.{4})/g, '$1 ').trim();
     fa.no_vat.checked = !m.vat_registered;
+    if (fa.contact_phone) fa.contact_phone.value = m.contact_phone ?? '';
   }
   $('#vat-fields').hidden = fa.no_vat.checked;
   setExisting('cr', m?.cr_path); setExisting('vat', m?.vat_path); setExisting('iban', m?.iban_path);
@@ -307,6 +315,7 @@ fa.addEventListener('submit', async e => {
   if (v('store_name').length < 2) problems.push(person ? 'اكتب اسم مشروعك.' : 'اكتب اسم المحل.');
   if (v('activity').length < 2 || v('activity').length > 40) problems.push('اكتب نشاطك (من حرفين إلى 40 حرف).');
   if (!valid.phone(v('phone'))) problems.push('رقم الجوال يبدأ بـ 05 ومكوّن من 10 أرقام.');
+  if (fa.contact_phone && !valid.phone(v('contact_phone'))) problems.push('رقم واتساب التواصل مع المشترين يبدأ بـ 05 ومكوّن من 10 أرقام.');
   if (!v('city')) problems.push('اكتب المدينة.');
   if (!valid.nationalAddress(v('national_address'))) problems.push('العنوان الوطني المختصر 4 حروف إنجليزية و4 أرقام، مثل RRRD2929.');
   if (!person && !valid.cr(v('cr_number'))) problems.push('رقم السجل التجاري 10 أرقام.');
@@ -353,7 +362,7 @@ fa.addEventListener('submit', async e => {
     const row = {
       id: user.id, email: user.email,
       owner_name: v('owner_name'), store_name: v('store_name'), activity: v('activity').replace(/\s+/g, ' '),
-      phone: v('phone'), city: v('city'), district: v('district') || null, national_address: v('national_address'),
+      phone: v('phone'), contact_phone: fa.contact_phone ? v('contact_phone') : undefined, city: v('city'), district: v('district') || null, national_address: v('national_address'),
       lat: coords?.lat ?? null, lng: coords?.lng ?? null,
       kind,
       cr_number: person ? null : v('cr_number'),
@@ -402,7 +411,7 @@ async function openDash(id) {
     badge.textContent = 'مفعّل'; badge.className = 'badge approved';
     $('#d-plan').textContent = (merchant.kind && merchant.kind !== 'store' ? `${KIND_ICON[merchant.kind]} ${KINDS[merchant.kind]} · ` : '')
       + (merchant.plan === 'free' ? `مجانية ${merchant.trial_months || 3} أشهر` + (merchant.founder ? ' ⭐' : '') : 'باقة ' + planLabel(merchant.plan, merchant.billing)
-      + (merchant.plan === 'basic' ? ' · حتى 30 منتج، بدون عروض ولا توصيل' : merchant.plan === 'family' ? ' · حتى 60 منتج' : ''))
+      + (PLAN_NOTE[merchant.plan] || ''))
       + (merchant.license_verified_at ? ' · 🏅 موثّق برخصة' : '');
     renderTrial();
     renderLive();
@@ -412,6 +421,8 @@ async function openDash(id) {
     $('#trial').hidden = true;
     $('#live').hidden = true;
   }
+  renderContactCard();
+  loadLinkCard();
   // مبدّل المتاجر: متجري + المتاجر اللي أنا موظف فيها
   const sw = $('#d-switch'), opts = [];
   if (merchant) opts.push(new Option(merchant.status === 'approved' ? `متجري: ${merchant.store_name}` : `متجري (${STATUS[merchant.status]})`, merchant.id));
@@ -460,6 +471,7 @@ function renderTrial() {
   if (!t) return;
   box.classList.toggle('ended', t.state === 'ended');
   $$('#trial-next [data-kind]').forEach(o => { o.hidden = o.disabled = (merchant.kind || 'store') === 'store'; });
+  $$('#trial-next [data-basic]').forEach(o => { o.hidden = o.disabled = merchant.kind === 'mobile'; });
   $('#trial-next').value = (merchant.next_plan || 'basic') + (merchant.billing === 'yearly' && merchant.next_plan !== 'basic' ? ':yearly' : '');
   $('.t-pick', box).hidden = t.state === 'ended';
   if (t.state === 'waiting') {
@@ -492,9 +504,22 @@ async function loadProducts() {
   render();
 }
 
+function renderLimit() {
+  const el = $('#limit-hint');
+  if (!el) return;
+  const lim = ctx?.owner && merchant ? PLAN_LIMITS[merchant.plan] : null;
+  const used = products.filter(p => p.is_active).length;
+  el.hidden = !lim || used < lim * 0.8;
+  if (el.hidden) return;
+  el.textContent = used >= lim
+    ? `وصلت حد باقتك: ${used} من ${lim} منتج ظاهر. لإضافة المزيد رقّ باقتك أو أخفِ بعض المنتجات.`
+    : `عندك ${used} من ${lim} منتج ظاهر، وتقترب من حد باقتك.`;
+}
+
 const mk = (tag, cls, text) => Object.assign(document.createElement(tag), cls ? { className: cls } : {}, text != null ? { textContent: text } : {});
 
 function render() {
+  renderLimit();
   const q = $('#q').value.trim().toLowerCase();
   const list = products.filter(p => !q || p.name.toLowerCase().includes(q) || (p.barcode || '').includes(q) || (p.category || '').toLowerCase().includes(q));
   $('#s-total').textContent = products.length;
@@ -1113,36 +1138,129 @@ fset.addEventListener('submit', async e => {
   toast('تم حفظ إعدادات التوصيل والاستلام ✓');
 });
 
-// ---------------- الموقع المباشر للعربات ----------------
+// ---------------- إتاحة المتنقلين: متاح / مشغول / خارج الخدمة ----------------
+const LIVE_HOURS = 3;       // مدة الظهور الافتراضية بعد كل ضغطة
+const LIVE_WARN_MIN = 15;   // ننبّه التاجر قبل الانتهاء بهذي المدة
+let liveTimer = null;
+
+function liveInfo() {
+  const until = merchant?.live_until ? new Date(merchant.live_until) : null;
+  const active = !!until && until > new Date() && ['available', 'busy'].includes(merchant.availability);
+  const expired = !active && !!until && merchant.availability !== 'off';
+  return { active, expired, mode: active ? merchant.availability : 'off', left: active ? until - Date.now() : 0 };
+}
+const leftText = ms => {
+  const m = Math.max(1, Math.ceil(ms / 60000)), h = Math.floor(m / 60), mm = m % 60;
+  return h ? `${h} ساعة` + (mm ? ` و${mm} دقيقة` : '') : `${mm} دقيقة`;
+};
+
 function renderLive() {
   const box = $('#live');
+  clearInterval(liveTimer); liveTimer = null;
   box.hidden = !(ctx?.owner && merchant?.kind === 'mobile');
   if (box.hidden) return;
-  const st = $('#live-state');
+  const st = $('#live-state'), here = $('#live-here'), busy = $('#live-busy'), off = $('#live-off'), ext = $('#live-extend');
+  if (!busy || !ext) { box.hidden = true; return; }
   if (merchant.plan === 'basic') {
-    st.textContent = 'الموقع المباشر متاح في باقة «أسر ومتجولين» بـ 29 ر.س. حاليًا يظهر مكان وقوفك المعتاد.';
-    $('#live-here').disabled = $('#live-off').disabled = true; return;
+    st.textContent = 'الظهور للزبائن على الخريطة (متاح ومشغول) متاح في باقة «أسر ومتجولين» بـ 29 ر.س. حاليًا لا تظهر للزبائن.';
+    box.style.borderColor = 'var(--line)';
+    here.disabled = busy.disabled = off.disabled = true; ext.hidden = true;
+    return;
   }
-  $('#live-here').disabled = false; $('#live-off').disabled = !merchant.live_at;
-  st.textContent = merchant.live_at ? `ظاهر للزبائن الحين · آخر تحديث ${new Date(merchant.live_at).toLocaleTimeString('ar-SA-u-nu-latn', { hour: 'numeric', minute: '2-digit' })}`
-    : 'غير ظاهر بموقع مباشر. اضغط «أنا هنا الآن» لما توقف عشان يلقاك الزبائن القريبين.';
+  const { active, expired, mode, left } = liveInfo();
+  here.disabled = busy.disabled = false; off.disabled = !active;
+  here.className = 'btn sm ' + (mode === 'available' ? 'primary' : 'ghost');
+  busy.className = 'btn sm ' + (mode === 'busy' ? 'primary' : 'ghost');
+  const warn = active && left <= LIVE_WARN_MIN * 60000;
+  ext.hidden = !active;
+  ext.className = 'btn sm ' + (warn ? 'primary' : 'ghost');
+  box.style.borderColor = !active ? 'var(--line)' : warn || mode === 'busy' ? 'var(--warn)' : 'var(--brand)';
+  if (active) {
+    st.textContent = (mode === 'busy' ? '🟠 مشغول الآن · يظهر للزبائن بعلامة «مشغول»' : '🟢 متاح الآن · ظاهر للزبائن بموقعك الحي')
+      + ` · ينتهي ظهورك بعد ${leftText(left)}` + (warn ? ' ⚠️ قارب الانتهاء، اضغط «تمديد» عشان تبقى ظاهر.' : '');
+    liveTimer = setInterval(renderLive, 30000);
+  } else if (expired) {
+    st.textContent = '⚫ انتهت مدة ظهورك وصرت خارج الخدمة. اضغط «متاح الآن» لتظهر من جديد.';
+  } else {
+    st.textContent = '⚫ خارج الخدمة · غير ظاهر للزبائن. اضغط «متاح الآن» لما تكون جاهز للشغل.';
+  }
 }
-$('#live-here').addEventListener('click', e => {
-  const btn = e.currentTarget;
+
+async function setAvailability(mode, btn) {
+  if (mode === 'off') {
+    setBusy(btn, true);
+    const { error } = await sb.rpc('set_availability', { st: 'off' });
+    setBusy(btn, false);
+    if (error) return toast(friendlyError(error));
+    Object.assign(merchant, { availability: 'off', live_until: null, live_at: null, live_lat: null, live_lng: null });
+    renderLive(); toast('صرت خارج الخدمة، وما تظهر للزبائن.');
+    return;
+  }
   if (!navigator.geolocation) return toast('جهازك ما يدعم تحديد الموقع.');
   setBusy(btn, true, 'جارِ تحديد موقعك…');
   navigator.geolocation.getCurrentPosition(async p => {
-    const { data, error } = await sb.rpc('set_live_location', { la: p.coords.latitude, ln: p.coords.longitude });
+    const { data, error } = await sb.rpc('set_availability', { st: mode, la: p.coords.latitude, ln: p.coords.longitude, hrs: LIVE_HOURS });
     setBusy(btn, false);
     if (error) return toast(friendlyError(error));
-    merchant.live_at = data; merchant.live_lat = p.coords.latitude; merchant.live_lng = p.coords.longitude;
-    renderLive(); toast('تم ✓ الزبائن القريبين يشوفون موقعك الحين.');
+    Object.assign(merchant, { availability: data.availability, live_until: data.live_until, live_at: data.live_at, live_lat: p.coords.latitude, live_lng: p.coords.longitude });
+    renderLive();
+    toast(mode === 'busy' ? 'تم ✓ تظهر للزبائن بعلامة «مشغول».' : 'تم ✓ أنت متاح، والزبائن القريبين يشوفون موقعك.');
   }, () => { setBusy(btn, false); toast('ما قدرنا نحدد موقعك. اسمح للمتصفح بالوصول للموقع.'); }, { enableHighAccuracy: true, timeout: 15000 });
-});
-$('#live-off').addEventListener('click', async e => {
-  const btn = e.currentTarget; setBusy(btn, true);
-  const { error } = await sb.rpc('set_live_location', { la: null, ln: null });
+}
+$('#live-here')?.addEventListener('click', e => setAvailability('available', e.currentTarget));
+$('#live-busy')?.addEventListener('click', e => setAvailability('busy', e.currentTarget));
+$('#live-off')?.addEventListener('click', e => setAvailability('off', e.currentTarget));
+$('#live-extend')?.addEventListener('click', e => setAvailability(liveInfo().mode === 'busy' ? 'busy' : 'available', e.currentTarget));
+
+
+// ---------------- اربط متجرك الإلكتروني (اهتمام مبدئي) ----------------
+const LINK_PLATFORMS = { salla: 'سلة', zid: 'زد', shopify: 'شوبيفاي', custom: 'موقع أو تطبيق خاص' };
+async function loadLinkCard() {
+  const box = $('#link-card'), f = $('#f-link');
+  if (!box || !f) return;
+  box.hidden = !(ctx?.owner && merchant?.kind === 'store');
+  if (box.hidden) return;
+  const { data } = await sb.from('store_link_requests').select('platform, store_url').eq('merchant_id', ctx.mid).maybeSingle();
+  f.platform.value = data?.platform || 'salla';
+  f.store_url.value = data?.store_url || '';
+  $('#link-save').textContent = data ? 'تحديث' : 'سجّل اهتمامي';
+  const st = $('#link-state'); st.dataset.def ||= st.textContent;
+  st.textContent = data ? `✓ سجّلنا اهتمامك بربط متجرك على ${LINK_PLATFORMS[data.platform] || data.platform}. بنتواصل معك أول ما تفتح الميزة.` : st.dataset.def;
+}
+$('#f-link')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target, btn = $('#link-save'), url = f.store_url.value.trim();
+  if (url && !/^https?:\/\/\S+\.\S+/.test(url)) return toast('اكتب رابطًا صحيحًا يبدأ بـ https://');
+  setBusy(btn, true);
+  const { error } = await sb.from('store_link_requests').upsert({ merchant_id: ctx.mid, platform: f.platform.value, store_url: url || null });
   setBusy(btn, false);
   if (error) return toast(friendlyError(error));
-  merchant.live_at = null; renderLive(); toast('أوقفنا ظهور موقعك المباشر.');
+  toast('تم ✓ سجّلنا اهتمامك.');
+  loadLinkCard();
+});
+
+
+// ---------------- رقم واتساب التواصل مع المشترين ----------------
+function renderContactCard() {
+  const box = $('#contact-card'), f = $('#f-contact');
+  if (!box || !f) return;
+  box.hidden = !(ctx?.owner && merchant);
+  if (box.hidden) return;
+  f.contact_phone.value = merchant.contact_phone || '';
+  $('#contact-state').textContent = merchant.contact_phone
+    ? 'هذا الرقم هو اللي يتواصل عليه المشترون واتساب، وهو الوحيد اللي يظهر لهم.'
+    : '⚠️ ما أضفت رقم واتساب للمشترين بعد، فما يقدرون يتواصلون معك. تقدر تكتب نفس جوالك أو رقماً غيره.';
+}
+$('#f-contact')?.addEventListener('input', e => { e.target.value = digits(e.target.value).replace(/\D/g, ''); });
+$('#f-contact')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target, btn = $('#contact-save'), p = digits(f.contact_phone.value).trim();
+  if (!valid.phone(p)) return toast('الرقم يبدأ بـ 05 ومكوّن من 10 أرقام.');
+  setBusy(btn, true);
+  const { error } = await sb.rpc('set_contact_phone', { p });
+  setBusy(btn, false);
+  if (error) return toast(friendlyError(error));
+  merchant.contact_phone = p;
+  renderContactCard();
+  toast('تم ✓ حفظنا رقم التواصل مع المشترين.');
 });

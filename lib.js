@@ -82,12 +82,15 @@ export function friendlyError(e) {
   if (/change_not_found/.test(m)) return 'هذا الطلب تمت مراجعته من قبل.';
   if (/not_staff|no_permission|not_allowed|row-level security/i.test(m)) return 'ما عندك صلاحية لهذا الإجراء.';
   if (/product_not_found/.test(m)) return 'المنتج ما عاد موجود.';
-  if (/plan_basic_products/.test(m)) return 'الباقة الأساسية تسمح بـ 30 منتج ظاهر. رقّ باقتك لـ«تاجر» عشان تضيف أكثر.';
+  if (/plan_basic_products/.test(m)) return 'الباقة الأساسية تسمح بـ 10 منتجات ظاهرة. رقّ باقتك عشان تضيف أكثر.';
+  if (/bad_contact_phone|merchants_contact_phone_check/.test(m)) return 'رقم واتساب التواصل يبدأ بـ 05 ومكوّن من 10 أرقام.';
+  if (/plan_mobile_basic/.test(m)) return 'الباقة المجانية غير متاحة للباعة المتجولين. اختر «أسر ومتجولين».';
   if (/plan_basic_offers/.test(m)) return 'العروض متاحة في باقة «تاجر» و«مميز».';
   if (/plan_basic_delivery/.test(m)) return 'التوصيل متاح في باقة «تاجر» و«مميز». الأساسية فيها الاستلام من المحل فقط.';
   if (/plan_basic_staff/.test(m)) return 'إضافة الموظفين متاحة في باقة «تاجر» و«مميز».';
   if (/plan_basic_preorder/.test(m)) return 'الطلب المسبق متاح في باقة «أسر ومتجولين» و«تاجر» و«مميز».';
-  if (/plan_family_products/.test(m)) return 'باقة «أسر ومتجولين» تسمح بـ 60 منتج ظاهر. رقّ باقتك لـ«تاجر» عشان تضيف أكثر.';
+  if (/plan_family_products/.test(m)) return 'باقة «أسر ومتجولين» تسمح بـ 100 منتج ظاهر. رقّ باقتك لـ«تاجر» عشان تضيف أكثر.';
+  if (/plan_trader_products/.test(m)) return 'باقة «تاجر» تسمح بـ 500 منتج ظاهر. رقّ باقتك لـ«مميز» عشان تضيف بلا حد.';
   if (/plan_basic_live/.test(m)) return 'الموقع المباشر متاح في باقة «أسر ومتجولين» وما فوق.';
   if (/live_mobile_only/.test(m)) return 'الموقع المباشر للباعة المتجولين والعربات فقط.';
   if (/plan_family_kind/.test(m)) return 'باقة «أسر ومتجولين» خاصة بالأسر المنتجة والباعة المتجولين.';
