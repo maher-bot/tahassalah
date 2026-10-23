@@ -1,5 +1,6 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/+esm';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
+import * as CFG from './config.js';   // IS_DEMO اختياري: لا يتعطل الموقع لو لم يُرفع config.js الجديد
 
 export const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 export const $ = (s, el = document) => el.querySelector(s);
@@ -73,6 +74,8 @@ export function friendlyError(e) {
   if (/already registered|already been registered/i.test(m)) return 'هذا الإيميل مسجل من قبل. سجّل دخول بدلًا من ذلك.';
   if (/Password should be/i.test(m)) return 'كلمة المرور لازم تكون 8 أحرف على الأقل.';
   if (/rate limit|too many/i.test(m)) return 'محاولات كثيرة. انتظر دقيقة وحاول مرة ثانية.';
+  const wait = m.match(/only request this after (\d+) second/i);
+  if (wait) return 'من أجل الأمان، انتظر ' + wait[1] + ' ثانية ثم حاول مرة ثانية.';
   if (/exceeded the maximum allowed size|Payload too large/i.test(m)) return 'حجم الملف أكبر من المسموح.';
   if (/mime type/i.test(m)) return 'نوع الملف غير مقبول. ارفع PDF أو صورة.';
   if (/merchant_staff_merchant_id_email_key|duplicate key.*merchant_staff/i.test(m)) return 'هذا الإيميل مضاف للفريق من قبل.';
@@ -189,4 +192,20 @@ export async function rememberLogin(email, password) {
 if (typeof document !== 'undefined') {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => enhancePasswords());
   else enhancePasswords();
+}
+
+// شريط «نسخة تجريبية» — يظهر فقط لما نفتح الموقع بـ ?demo=1
+if (typeof document !== 'undefined' && CFG.IS_DEMO) {
+  const addBanner = () => {
+    const b = document.createElement('div');
+    b.setAttribute('role', 'status');
+    b.style.cssText = 'position:sticky;top:0;z-index:9999;background:#b45309;color:#fff;text-align:center;padding:8px 12px;font:600 13px/1.5 system-ui,sans-serif';
+    b.append('🧪 نسخة تجريبية للتدريب: البيانات وهمية ولا تؤثر على المنصة الحقيقية. ');
+    const a = document.createElement('a');
+    a.href = location.pathname + '?demo=0'; a.textContent = 'الخروج من التجربة';
+    a.style.cssText = 'color:#fff;text-decoration:underline;margin-inline-start:8px';
+    b.append(a);
+    document.body.prepend(b);
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', addBanner); else addBanner();
 }
