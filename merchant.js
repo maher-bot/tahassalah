@@ -465,25 +465,61 @@ function selectTab(name) {
 }
 $$('#d-tabs [role=tab]').forEach(b => b.addEventListener('click', () => selectTab(b.dataset.tab)));
 
+const WA_NUMBER = '966555606635';
+// مراحل الباقة: waiting / trial / trial_ended / basic / lapsed / paid (تاريخ النهاية الفاضي = بلا نهاية)
+function planStage(m) {
+  const now = new Date();
+  if (m.plan === 'free') {
+    const t = trialInfo(m);
+    return { stage: t.state === 'waiting' ? 'waiting' : t.state === 'active' ? 'trial' : 'trial_ended', t };
+  }
+  if (m.plan === 'basic') {
+    const until = m.basic_until ? new Date(m.basic_until) : null;
+    return !until || until > now ? { stage: 'basic', until } : { stage: 'lapsed' };
+  }
+  const until = m.paid_until ? new Date(m.paid_until) : null;
+  return !until || until > now ? { stage: 'paid', until } : { stage: 'lapsed' };
+}
+const daysLeft = d => Math.max(0, Math.ceil((d - Date.now()) / 864e5));
+
 function renderTrial() {
-  const t = trialInfo(merchant), box = $('#trial');
-  box.hidden = !t;
-  if (!t) return;
-  box.classList.toggle('ended', t.state === 'ended');
+  const box = $('#trial'), st = planStage(merchant), stage = st.stage, mobile = merchant.kind === 'mobile';
+  box.hidden = false;
+  box.classList.toggle('ended', stage === 'lapsed' || stage === 'trial_ended');
   $$('#trial-next [data-kind]').forEach(o => { o.hidden = o.disabled = (merchant.kind || 'store') === 'store'; });
-  $$('#trial-next [data-basic]').forEach(o => { o.hidden = o.disabled = merchant.kind === 'mobile'; });
+  $$('#trial-next [data-basic]').forEach(o => { o.hidden = o.disabled = mobile; });
   $('#trial-next').value = (merchant.next_plan || 'basic') + (merchant.billing === 'yearly' && merchant.next_plan !== 'basic' ? ':yearly' : '');
-  $('.t-pick', box).hidden = t.state === 'ended';
-  if (t.state === 'waiting') {
+  $('.t-pick', box).hidden = stage === 'paid';
+  const after = mobile ? 'اشتراك «أسر ومتجولين»' : '3 أشهر على الباقة الأساسية (10 منتجات) ثم اشتراك';
+  const title = $('#trial-title'), sub = $('#trial-sub');
+  if (stage === 'waiting') {
     const n = merchant.trial_months || 3, months = n === 3 ? '3 أشهر' : n === 6 ? '6 أشهر' : n + ' أشهر';
-    $('#trial-title').textContent = `باقتك مجانية ${months}` + (merchant.founder ? ' ⭐ عرض المؤسسين' : '');
-    $('#trial-sub').textContent = `المدة المجانية تبدأ من يوم إطلاق التطبيق للمشترين، وقبلها كل شيء مجاني. أضف منتجاتك الحين عشان تكون جاهز من أول يوم.`;
-  } else if (t.state === 'active') {
-    $('#trial-title').textContent = `باقي ${t.days} يوم على الفترة المجانية`;
-    $('#trial-sub').textContent = `تنتهي ${fmtDay(t.end)}، وبعدها يتفعّل حسابك كامل على الباقة اللي تختارها.`;
+    title.textContent = `${months} مفتوحة بكل المزايا` + (merchant.founder ? ' ⭐ عرض المؤسسين' : '');
+    sub.textContent = `تبدأ من يوم إطلاق التطبيق للمشترين، وقبلها كل شيء مجاني. بعدها ${after}. أضف منتجاتك الحين عشان تكون جاهز من أول يوم.`;
+  } else if (stage === 'trial') {
+    title.textContent = `باقي ${st.t.days} يوم على الفترة المفتوحة`;
+    sub.textContent = `تنتهي ${fmtDay(st.t.end)}. بعدها ${after}.`;
+  } else if (stage === 'trial_ended') {
+    title.textContent = 'انتهت الفترة المفتوحة';
+    sub.textContent = 'ننقل حسابك للمرحلة التالية خلال يوم.';
+  } else if (stage === 'basic') {
+    title.textContent = 'أنت في الفترة الأساسية المجانية';
+    sub.textContent = '10 منتجات، بدون عروض أو توصيل أو موظفين.' + (st.until
+      ? ` تنتهي ${fmtDay(st.until)} (باقي ${daysLeft(st.until)} يوم)، وبعدها لازم الاشتراك عشان يستمر ظهور متجرك.` : '');
+  } else if (stage === 'lapsed') {
+    title.textContent = 'انتهت فترتك المجانية';
+    sub.textContent = 'متجرك غير ظاهر للمشترين حاليًا، ومنتجاتك وبياناتك محفوظة. تفعيل الاشتراك يرجعه فورًا.';
   } else {
-    $('#trial-title').textContent = 'انتهت الفترة المجانية';
-    $('#trial-sub').textContent = `يتحوّل حسابك إلى باقة ${planLabel(merchant.next_plan, merchant.billing)} خلال يوم.`;
+    title.textContent = `باقتك ${planLabel(merchant.plan, merchant.billing)} مفعّلة`;
+    sub.textContent = st.until ? `حتى ${fmtDay(st.until)} (باقي ${daysLeft(st.until)} يوم).` : 'بدون تاريخ انتهاء محدد.';
+  }
+  const badge = $('#d-badge');
+  if (badge && stage === 'lapsed') { badge.textContent = 'غير ظاهر للمشترين'; badge.className = 'badge rejected'; }
+  const wa = $('#trial-wa');
+  if (wa) {
+    wa.hidden = !['basic', 'lapsed', 'trial_ended'].includes(stage);
+    const planName = merchant.next_plan && merchant.next_plan !== 'basic' ? 'باقة ' + planLabel(merchant.next_plan, merchant.billing) + ' ' : '';
+    wa.href = `https://wa.me/${WA_NUMBER}?text=` + encodeURIComponent(`السلام عليكم، أبغى أفعّل اشتراك ${planName}لمتجري «${merchant.store_name}» في تحصّله.`);
   }
 }
 $('#trial-save').addEventListener('click', async e => {
@@ -493,7 +529,7 @@ $('#trial-save').addEventListener('click', async e => {
   const { error } = await sb.rpc('set_plan_choice', { p: plan, b: cycle || 'monthly' });
   setBusy(btn, false);
   if (error) return toast(friendlyError(error));
-  merchant.next_plan = plan; merchant.billing = cycle || 'monthly'; toast('تم حفظ باقتك القادمة: ' + planLabel(plan, merchant.billing));
+  merchant.next_plan = plan; merchant.billing = cycle || 'monthly'; renderTrial(); toast('تم حفظ اشتراكك المختار: ' + planLabel(plan, merchant.billing));
 });
 
 async function loadProducts() {
