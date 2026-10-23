@@ -64,6 +64,50 @@
   </form>
 </dialog>
 
+<dialog id="dlg-edit">
+  <form method="dialog" id="f-edit" novalidate style="max-height:90vh;overflow:auto">
+    <h2 style="font-size:1.2rem" id="edit-title">تعديل بيانات التاجر</h2>
+    <p class="hint" id="e-locked"></p>
+    <div class="row2">
+      <label>المالك<input name="owner_name" maxlength="80"></label>
+      <label>اسم المتجر أو المشروع<input name="store_name" maxlength="80"></label>
+    </div>
+    <div class="row2">
+      <label>النشاط<input name="activity" maxlength="40"></label>
+      <label>المدينة<input name="city"></label>
+    </div>
+    <div class="row2">
+      <label>الحي<input name="district"></label>
+      <label>العنوان الوطني<input name="national_address" dir="ltr" maxlength="8" placeholder="RRRD2929"></label>
+    </div>
+    <div class="row2">
+      <label>الجوال (خاص بيننا)<input name="phone" inputmode="numeric" dir="ltr" maxlength="10" placeholder="05XXXXXXXX"></label>
+      <label>واتساب المشترين<input name="contact_phone" inputmode="numeric" dir="ltr" maxlength="10" placeholder="05XXXXXXXX"></label>
+    </div>
+    <label>الإيميل (يتغيّر معه إيميل الدخول)<input type="email" name="email" dir="ltr"></label>
+    <div class="row2">
+      <label>البنك<input name="bank_name"></label>
+      <label>الآيبان<input name="iban" dir="ltr" maxlength="29" placeholder="SA…"></label>
+    </div>
+    <div class="row2">
+      <label>خط العرض (lat)<input name="lat" inputmode="decimal" dir="ltr" placeholder="21.4225"></label>
+      <label>خط الطول (lng)<input name="lng" inputmode="decimal" dir="ltr" placeholder="39.8262"></label>
+    </div>
+    <div class="row2" id="e-vat">
+      <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" name="vat_registered"> مسجّل في ضريبة القيمة المضافة</label>
+      <label>الرقم الضريبي<input name="vat_number" inputmode="numeric" dir="ltr" maxlength="15"></label>
+    </div>
+    <label id="e-license">وثيقة العمل الحر / الرخصة<input name="license_number"></label>
+    <label>سبب التعديل (يُحفظ في السجل، اختياري)<input name="note" maxlength="200"></label>
+    <p class="err" role="alert"></p>
+    <div class="foot">
+      <button class="btn danger sm" type="button" id="edit-delete" style="margin-inline-end:auto">حذف حساب التاجر نهائيًا</button>
+      <button class="btn ghost" type="button" id="edit-cancel">إلغاء</button>
+      <button class="btn primary" type="submit" id="edit-save">حفظ التعديلات</button>
+    </div>
+  </form>
+</dialog>
+
 <script type="module" src="admin.js"></script>
 </body>
 </html>

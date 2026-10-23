@@ -1,4 +1,4 @@
-import { rememberLogin, hidePasswords, sb, $, $$, toast, PLANS, planLabel, KINDS, KIND_ICON, STATUS, friendlyError, setBusy, trialInfo, fmtDay } from './lib.js';
+import { rememberLogin, hidePasswords, sb, $, $$, toast, PLANS, planLabel, KINDS, KIND_ICON, STATUS, friendlyError, setBusy, trialInfo, fmtDay, valid, clean, digits } from './lib.js';
 
 const VIEWS = ['v-loading', 'v-login', 'v-denied', 'v-list'];
 const show = id => VIEWS.forEach(v => { $('#' + v).hidden = v !== id; });
@@ -149,6 +149,7 @@ function card(m) {
   if (person) act(m.license_verified_at ? 'سحب شارة «موثّق برخصة»' : '🏅 منح شارة «موثّق برخصة»', 'ghost', b => verifyLicense(m, !m.license_verified_at, b));
   if (m.status === 'pending') act('رفض / طلب تعديل', 'danger', () => askNote(m, 'rejected'));
   if (m.status === 'approved') act('إيقاف مؤقت', 'danger', () => askNote(m, 'suspended'));
+  act('✏️ تعديل البيانات', 'ghost', () => openEdit(m));
   const wa = t('a', 'واتساب التاجر', 'btn ghost sm'); wa.href = 'https://wa.me/966' + m.phone.slice(1); wa.target = '_blank'; wa.rel = 'noopener';
   acts.append(wa);
   parts.push(acts);
@@ -229,6 +230,108 @@ fn.addEventListener('submit', async e => {
   if (pending.status === 'rejected' && note.length < 5) { $('.err', fn).textContent = 'اكتب للتاجر وش المطلوب يعدّل.'; return; }
   dn.close();
   await setStatus(pending.m, pending.status, note || null, null);
+});
+
+// ---------------- تعديل بيانات التاجر ----------------
+// رقم السجل التجاري (والهوية للأفراد) ثابت: يظهر هنا للعرض فقط، والقاعدة نفسها ترفض تغييره. لتغييره: حذف الحساب.
+const dlgEdit = $('#dlg-edit'), formEdit = $('#f-edit');
+let editingM = null;
+const EDIT_TEXT = ['owner_name', 'store_name', 'activity', 'city', 'bank_name'];
+
+function openEdit(m) {
+  editingM = m; formEdit.reset(); $('.err', formEdit).textContent = '';
+  const person = !!(m.kind && m.kind !== 'store');
+  $('#edit-title').textContent = `تعديل: ${m.store_name}`;
+  for (const k of [...EDIT_TEXT, 'district', 'national_address', 'phone', 'contact_phone', 'license_number']) formEdit[k].value = m[k] ?? '';
+  formEdit.email.value = m.email ?? '';
+  formEdit.iban.value = (m.iban || '').replace(/(.{4})/g, '$1 ').trim();
+  formEdit.lat.value = m.lat ?? ''; formEdit.lng.value = m.lng ?? '';
+  formEdit.vat_registered.checked = !!m.vat_registered; formEdit.vat_number.value = m.vat_number ?? '';
+  $('#e-vat').hidden = person; $('#e-license').hidden = !person;
+  $('#e-locked').textContent = `🔒 ${person ? 'رقم الهوية' : 'السجل التجاري'}: ${(person ? m.id_number : m.cr_number) || '—'} — ثابت ولا يتغيّر. لتغييره احذف حساب التاجر وليسجّل من جديد.`;
+  dlgEdit.showModal();
+}
+$('#edit-cancel').addEventListener('click', () => dlgEdit.close());
+
+formEdit.addEventListener('submit', async e => {
+  e.preventDefault();
+  const m = editingM, err = $('.err', formEdit), btn = $('#edit-save'), person = !!(m.kind && m.kind !== 'store');
+  const v = n => formEdit[n].value.trim();
+  const patch = {};
+  const put = (k, val) => { if ((m[k] ?? null) !== (val ?? null)) patch[k] = val; };
+  for (const k of EDIT_TEXT) put(k, v(k));
+  put('district', v('district') || null);
+  put('national_address', clean(v('national_address')) || null);
+  put('phone', digits(v('phone')));
+  put('contact_phone', digits(v('contact_phone')) || null);
+  put('iban', clean(formEdit.iban.value));
+  if (person) put('license_number', v('license_number') || null);
+  else {
+    const on = formEdit.vat_registered.checked;
+    put('vat_registered', on); put('vat_number', on ? digits(v('vat_number')) : null);
+  }
+  const la = digits(v('lat')), ln = digits(v('lng'));
+  if (!la && !ln) { put('lat', null); put('lng', null); }
+  else {
+    const a = Number(la), b = Number(ln);
+    if (!Number.isFinite(a) || !Number.isFinite(b) || !la || !ln) { err.textContent = 'اكتب خط العرض وخط الطول معًا، أو اتركهما فاضيين.'; return; }
+    if (a < 16 || a > 33 || b < 34 || b > 56) { err.textContent = 'الإحداثيات خارج السعودية، راجع الأرقام.'; return; }
+    put('lat', a); put('lng', b);
+  }
+  const problems = [];
+  if ('owner_name' in patch && patch.owner_name.length < 2) problems.push('اسم المالك حرفان على الأقل.');
+  if ('store_name' in patch && patch.store_name.length < 2) problems.push('اسم المتجر حرفان على الأقل.');
+  if ('activity' in patch && !patch.activity) problems.push('اكتب النشاط.');
+  if ('city' in patch && !patch.city) problems.push('اكتب المدينة.');
+  if ('phone' in patch && !valid.phone(patch.phone)) problems.push('الجوال يبدأ بـ 05 ومكوّن من 10 أرقام.');
+  if (patch.contact_phone && !valid.phone(patch.contact_phone)) problems.push('رقم واتساب المشترين يبدأ بـ 05 ومكوّن من 10 أرقام.');
+  if (patch.national_address && !valid.nationalAddress(patch.national_address)) problems.push('العنوان الوطني 4 حروف إنجليزية و4 أرقام.');
+  if ('iban' in patch && !valid.iban(patch.iban)) problems.push('رقم الآيبان غير صحيح.');
+  if ('bank_name' in patch && !patch.bank_name) problems.push('اكتب اسم البنك.');
+  if (!person && formEdit.vat_registered.checked && !valid.vat(digits(v('vat_number')))) problems.push('الرقم الضريبي 15 رقم يبدأ وينتهي بـ 3.');
+  const newEmail = v('email').toLowerCase(), emailChanged = newEmail !== (m.email || '').toLowerCase();
+  if (emailChanged && !/^\S+@\S+\.\S+$/.test(newEmail)) problems.push('اكتب إيميل صحيح.');
+  if (problems.length) { err.textContent = problems.join(' '); return; }
+  if (!Object.keys(patch).length && !emailChanged) { err.textContent = 'ما فيه تغييرات للحفظ.'; return; }
+  if (emailChanged && !confirm(`تغيير إيميل «${m.store_name}» من ${m.email} إلى ${newEmail}؟\nيتغيّر معه إيميل الدخول، وتوصله التنبيهات على الجديد.`)) return;
+
+  err.textContent = ''; setBusy(btn, true, 'جارِ الحفظ…');
+  try {
+    if (emailChanged) {
+      const { error } = await sb.rpc('admin_set_merchant_email', { mid: m.id, new_email: newEmail });
+      if (error) throw error;
+    }
+    if (Object.keys(patch).length) {
+      const { error } = await sb.rpc('admin_edit_merchant', { mid: m.id, patch, note: v('note') || null });
+      if (error) throw error;
+    }
+    dlgEdit.close();
+    toast('تم حفظ التعديلات ✓');
+    await load();
+  } catch (ex) { err.textContent = friendlyError(ex); }
+  finally { setBusy(btn, false); }
+});
+
+// حذف حساب التاجر نهائيًا: المتجر ومنتجاته وفريقه ومستنداته. يبقى إيميل الدخول فقط، فيقدر صاحبه يسجّل من جديد.
+$('#edit-delete').addEventListener('click', async () => {
+  const m = editingM, btn = $('#edit-delete');
+  const typed = prompt(`حذف حساب «${m.store_name}» نهائيًا؟\nيُحذف المتجر ومنتجاته وفريقه ومستنداته، ولا يمكن التراجع.\nيبقى إيميل الدخول فقط، ويقدر صاحبه يسجّل من جديد.\n\nللتأكيد اكتب اسم المتجر بالضبط:`, '');
+  if (typed === null) return;
+  if (typed.trim() !== m.store_name.trim()) return toast('الاسم ما يطابق. ما انحذف شي.');
+  setBusy(btn, true, 'جارِ الحذف…');
+  try {
+    const docs = [m.cr_path, m.id_path, m.vat_path, m.iban_path, ...(m.extra_docs || [])].filter(Boolean);
+    const { data: prods } = await sb.from('products').select('image_path').eq('merchant_id', m.id).not('image_path', 'is', null);
+    const imgs = (prods || []).map(p => p.image_path);
+    if (docs.length) { const { error } = await sb.storage.from('merchant-docs').remove(docs); if (error) throw error; }
+    if (imgs.length) { const { error } = await sb.storage.from('product-images').remove(imgs); if (error) throw error; }
+    const { error } = await sb.rpc('admin_delete_merchant', { mid: m.id });
+    if (error) throw error;
+    dlgEdit.close();
+    toast('تم حذف حساب التاجر.');
+    await load();
+  } catch (ex) { toast(friendlyError(ex)); }
+  finally { setBusy(btn, false); }
 });
 
 // ---------------- لوحة الإطلاق ----------------

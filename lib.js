@@ -86,6 +86,18 @@ export function friendlyError(e) {
   if (/not_staff|no_permission|not_allowed|row-level security/i.test(m)) return 'ما عندك صلاحية لهذا الإجراء.';
   if (/product_not_found/.test(m)) return 'المنتج ما عاد موجود.';
   if (/plan_basic_products/.test(m)) return 'الباقة الأساسية تسمح بـ 10 منتجات ظاهرة. رقّ باقتك عشان تضيف أكثر.';
+  if (/immutable_identity/.test(m)) return 'رقم السجل التجاري أو الهوية ثابت ولا يتغيّر. لتغييره احذف حساب التاجر وليسجّل من جديد.';
+  if (/field_not_editable/.test(m)) return 'هذا الحقل غير قابل للتعديل من هنا.';
+  if (/empty_patch/.test(m)) return 'ما فيه تغييرات للحفظ.';
+  if (/not_admin/.test(m)) return 'هذه العملية للمشرفين فقط.';
+  if (/email_in_use/.test(m)) return 'هذا الإيميل مستخدم لحساب آخر.';
+  if (/bad_email/.test(m)) return 'اكتب إيميل صحيح.';
+  if (/merchant_not_found/.test(m)) return 'ما لقينا هذا التاجر، يمكن انحذف. حدّث الصفحة.';
+  if (/merchants_phone_check/.test(m)) return 'الجوال يبدأ بـ 05 ومكوّن من 10 أرقام.';
+  if (/merchants_iban_check/.test(m)) return 'رقم الآيبان غير صحيح.';
+  if (/vat_required|merchants_vat_number_check/.test(m)) return 'التسجيل الضريبي يحتاج الرقم الضريبي (15 رقم) والشهادة المرفوعة.';
+  if (/merchants_national_address_check/.test(m)) return 'العنوان الوطني 4 حروف إنجليزية و4 أرقام.';
+  if (/merchants_(owner|store)_name_check/.test(m)) return 'الاسم من حرفين إلى 80 حرفًا.';
   if (/bad_contact_phone|merchants_contact_phone_check/.test(m)) return 'رقم واتساب التواصل يبدأ بـ 05 ومكوّن من 10 أرقام.';
   if (/plan_mobile_basic/.test(m)) return 'الباقة المجانية غير متاحة للباعة المتجولين. اختر «أسر ومتجولين».';
   if (/plan_basic_offers/.test(m)) return 'العروض متاحة في باقة «تاجر» و«مميز».';
