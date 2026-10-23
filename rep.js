@@ -173,6 +173,14 @@ function statusChips(box, name, onChange) {
 }
 const fn = $('#f-new'), fv = $('#f-visit');
 fn.activity.append(...ACTIVITIES.map(a => new Option(a, a)));
+// اختار «أخرى»: تظهر خانة يكتب فيها المسوّق اسم نشاط المحل بدل ما تنحفظ كلمة «أخرى»
+const syncOther = () => {
+  if (!fn.activity_other) return;
+  const on = fn.activity.value === 'أخرى';
+  fn.activity_other.hidden = !on;
+  if (on) fn.activity_other.focus(); else fn.activity_other.value = '';
+};
+fn.activity.addEventListener('change', syncOther);
 for (const sel of [fn.problem, fv.problem]) sel.append(new Option('اختر', ''), ...FIELD_PROBLEMS.map(p => new Option(p, p)));
 // جوال المحل مطلوب لما يكون المحل مهتم أو سجّل، عشان نربطه بحسابه ونرسل له رابط التسجيل
 const NEED_PHONE = ['registered', 'interested', 'follow_up'];
@@ -207,7 +215,7 @@ fn.photo.addEventListener('change', () => {
 const dlgNew = $('#dlg-new');
 let dupConfirmed = false;
 $('#new').addEventListener('click', () => {
-  fn.reset(); dupConfirmed = false;
+  fn.reset(); dupConfirmed = false; syncOther();
   $('#new-prev').hidden = true; $('#dup').hidden = true; $('.err', fn).textContent = '';
   const ds = [...rep.districts, ...MAKKAH_DISTRICTS.filter(d => !rep.districts.includes(d))];
   fn.district.replaceChildren(new Option('اختر الحي', ''), ...ds.map(d => new Option(d, d)));
@@ -226,6 +234,8 @@ fn.addEventListener('submit', async e => {
   if (!photo) return (err.textContent = 'صوّر واجهة المحل أول.');
   if (fn.store_name.value.trim().length < 2) return (err.textContent = 'اكتب اسم المحل.');
   if (!fn.district.value) return (err.textContent = 'اختر الحي.');
+  const activity = fn.activity.value === 'أخرى' ? (fn.activity_other?.value.trim() || '') : fn.activity.value;
+  if (fn.activity.value === 'أخرى' && activity.length < 2) { fn.activity_other?.focus(); return (err.textContent = 'اكتب اسم نشاط المحل، مثل: ورشة سيارات.'); }
   if (phone && !valid.phone(phone)) return (err.textContent = 'رقم الجوال يبدأ بـ 05 ومكوّن من 10 أرقام.');
   const na = fn.national_address.value.trim() || null;
   if (na && !valid.nationalAddress(na)) return (err.textContent = 'العنوان الوطني المختصر 4 حروف إنجليزية و4 أرقام، مثل RRRD2929.');
@@ -267,7 +277,7 @@ fn.addEventListener('submit', async e => {
     if (up.error) throw up.error;
     btn.textContent = 'جارِ الحفظ…';
     const row = {
-      store_name: fn.store_name.value.trim(), activity: fn.activity.value || null, district: fn.district.value,
+      store_name: fn.store_name.value.trim(), activity: activity || null, district: fn.district.value,
       contact_name: fn.contact_name.value.trim() || null, phone, national_address: na,
       lat: coords?.lat ?? null, lng: coords?.lng ?? null, accuracy_m: coords?.acc ?? null, photo_path: path,
       status, problem: status === 'problem' ? fn.problem.value : null,
