@@ -1146,7 +1146,12 @@ fp.sale_price.addEventListener('input', syncOffer);
 
 // ---------------- التوصيل والاستلام ----------------
 const fset = $('#f-settings');
-const syncDelivery = () => { $('#delivery-box').hidden = !fset.delivers.checked; };
+const syncDelivery = () => {
+  $('#delivery-box').hidden = !fset.delivers.checked;
+  // «بالبطاقة للمندوب» ما يصير إلا لو التوصيل شغّال
+  const row = $('#pay-card-delivery-row');
+  if (row) { row.hidden = !fset.delivers.checked; if (!fset.delivers.checked && fset.pay_card_delivery) fset.pay_card_delivery.checked = false; }
+};
 fset.delivers.addEventListener('change', syncDelivery);
 async function loadSettings() {
   if (!ctx?.owner) return;
@@ -1159,6 +1164,7 @@ async function loadSettings() {
   fset.min_order.value = d.min_order ?? 0;
   fset.delivery_from.value = (d.delivery_from || '').slice(0, 5); fset.delivery_to.value = (d.delivery_to || '').slice(0, 5);
   fset.prep_minutes.value = String(d.prep_minutes ?? 15); fset.note.value = d.note ?? '';
+  if (fset.pay_cash) { fset.pay_cash.checked = d.pay_cash ?? true; fset.pay_card.checked = d.pay_card ?? false; fset.pay_card_delivery.checked = d.pay_card_delivery ?? false; }
   if (![...fset.prep_minutes.options].some(o => o.value === fset.prep_minutes.value)) fset.prep_minutes.value = '15';
   syncDelivery();
 }
@@ -1166,6 +1172,8 @@ fset.addEventListener('submit', async e => {
   e.preventDefault();
   const err = $('.err', fset), btn = $('#settings-save');
   if (!fset.pickup.checked && !fset.delivers.checked) return (err.textContent = 'اختر الاستلام أو التوصيل أو الاثنين.');
+  const cardDelivery = fset.delivers.checked && fset.pay_card_delivery.checked;
+  if (!fset.pay_cash.checked && !fset.pay_card.checked && !cardDelivery) return (err.textContent = 'اختر طريقة دفع واحدة على الأقل.');
   const fee = num(fset.delivery_fee.value) ?? 0, over = num(fset.free_delivery_over.value), min = num(fset.min_order.value) ?? 0;
   if (!(fee >= 0 && fee <= 100)) return (err.textContent = 'رسوم التوصيل من 0 إلى 100 ريال.');
   if (over != null && !(over >= 0)) return (err.textContent = 'اكتب مبلغ صحيح للتوصيل المجاني.');
@@ -1176,6 +1184,7 @@ fset.addEventListener('submit', async e => {
     delivery_radius_m: Number(fset.delivery_radius_m.value), delivery_fee: fee, free_delivery_over: over, min_order: min,
     delivery_from: fset.delivery_from.value || null, delivery_to: fset.delivery_to.value || null,
     prep_minutes: Number(fset.prep_minutes.value), note: fset.note.value.trim() || null,
+    pay_cash: fset.pay_cash.checked, pay_card: fset.pay_card.checked, pay_card_delivery: cardDelivery,
   };
   const { error } = await sb.from('store_settings').upsert(row);
   setBusy(btn, false);

@@ -91,6 +91,7 @@ export function friendlyError(e) {
   if (/rep_has_records/.test(m)) return 'للمسوّق محلات أو زيارات مسجّلة. انقلها لمسوّق ثاني أو أوقفه بدل الحذف.';
   if (/bad_transfer_target/.test(m)) return 'اختر مسوّقًا آخر لنقل السجلات إليه.';
   if (/rep_not_found/.test(m)) return 'ما لقينا هذا المسوّق، حدّث الصفحة.';
+  if (/store_settings_pay_chk/.test(m)) return 'اختر طريقة دفع واحدة على الأقل.';
   if (/immutable_identity/.test(m)) return 'رقم السجل التجاري أو الهوية ثابت ولا يتغيّر. لتغييره احذف حساب التاجر وليسجّل من جديد.';
   if (/field_not_editable/.test(m)) return 'هذا الحقل غير قابل للتعديل من هنا.';
   if (/empty_patch/.test(m)) return 'ما فيه تغييرات للحفظ.';
