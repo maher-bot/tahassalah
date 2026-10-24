@@ -104,7 +104,16 @@ function render() {
     const links = mk('div'); links.style.cssText = 'display:flex;gap:10px;font-size:.85rem';
     const e = mk('a', '', 'تعديل'); e.href = '#'; e.onclick = ev => { ev.preventDefault(); openRep(r); };
     const v = mk('a', '', 'محلاته'); v.href = '#'; v.onclick = ev => { ev.preventDefault(); $('#f-rep').value = r.id; renderStores(); $('#stores').scrollIntoView({ behavior: 'smooth' }); };
-    links.append(e, v); who.append(links);
+    const tg = mk('a', '', r.active ? 'إيقاف' : 'تفعيل'); tg.href = '#';
+    tg.onclick = async ev => {
+      ev.preventDefault();
+      if (r.active && !confirm(`إيقاف «${r.name}»؟ ما يقدر يدخل ولا يسجّل زيارات، وسجله يبقى محفوظ.`)) return;
+      const { error } = await sb.from('reps').update({ active: !r.active }).eq('id', r.id);
+      if (error) return toast(friendlyError(error));
+      toast(r.active ? 'تم الإيقاف.' : 'تم التفعيل.');
+      load();
+    };
+    links.append(e, v, tg); who.append(links);
     td(who); td(r.districts.join('، ') || '—');
     td(vis.length, 'num');
     const tgt = mk('div'); tgt.append(mk('span', 'num', `${todayN} / ${r.daily_target}`));
@@ -198,6 +207,7 @@ $('#d-del').addEventListener('click', async () => {
 const fr = $('#f-rep-edit'), dlgRep = $('#dlg-rep');
 function openRep(r) {
   editing = r; fr.reset(); $('.err', fr).textContent = '';
+  $('#rep-delete').hidden = !r;
   $('#rep-title').textContent = r ? 'تعديل المسوّق' : 'إضافة مسوّق';
   const taken = new Map(reps.filter(x => x !== r).flatMap(x => x.districts.map(d => [d, x.name.split(' ')[0]])));
   const all = [...new Set([...MAKKAH_DISTRICTS, ...(r?.districts || [])])];
@@ -242,5 +252,58 @@ fr.addEventListener('submit', async e => {
   }
   dlgRep.close();
   toast(editing ? 'تم الحفظ.' : `تمت إضافة ${row.name}. أرسل له رابط tahassalah.com/rep.html`, 6000);
+  load();
+});
+
+// ---------------- حذف مسوّق ----------------
+// بدون سجلات: يُحذف مباشرة. له محلات أو زيارات: ننقلها لمسوّق ثاني أول (وتصير باسمه)، أو نوقفه بدل الحذف عشان يبقى سجله كما هو.
+const dlgRepDel = $('#dlg-rep-del'), frd = $('#f-rep-del');
+let deleting = null;
+$('#rep-delete').addEventListener('click', () => { const r = editing; if (!r) return; dlgRep.close(); openRepDelete(r); });
+$('#rd-cancel').addEventListener('click', () => dlgRepDel.close());
+
+async function openRepDelete(r) {
+  deleting = r; $('.err', frd).textContent = '';
+  $('#rd-title').textContent = `حذف المسوّق: ${r.name}`;
+  $('#rd-text').textContent = 'جارِ فحص سجلاته…';
+  $('#rd-wrap').hidden = true; $('#rd-suspend').hidden = true; $('#rd-ok').disabled = true;
+  dlgRepDel.showModal();
+  const [a, b] = await Promise.all([
+    sb.from('field_stores').select('id', { count: 'exact', head: true }).eq('rep_id', r.id),
+    sb.from('field_visits').select('id', { count: 'exact', head: true }).eq('rep_id', r.id),
+  ]);
+  if (a.error || b.error) { $('.err', frd).textContent = friendlyError(a.error || b.error); return; }
+  const ns = a.count || 0, nv = b.count || 0, others = reps.filter(x => x.id !== r.id);
+  if (!ns && !nv) {
+    $('#rd-text').textContent = 'هذا المسوّق ما له محلات ولا زيارات مسجّلة، فيُحذف نهائيًا. (إيميل دخوله يبقى، لكنه ما يقدر يدخل كمسوّق.)';
+    $('#rd-ok').disabled = false;
+    return;
+  }
+  $('#rd-text').textContent = `للمسوّق ${ns} محل و${nv} زيارة. الحذف يتطلب نقلها لمسوّق ثاني، وتصير باسمه. وإذا تبغى تحتفظ بسجله كما هو، أوقفه بدل الحذف.`;
+  $('#rd-wrap').hidden = false; $('#rd-suspend').hidden = !r.active;
+  frd.to.replaceChildren(...others.map(x => new Option(`${x.name} (${x.code})`, x.id)));
+  $('#rd-ok').disabled = !others.length;
+  if (!others.length) $('.err', frd).textContent = 'ما فيه مسوّق ثاني تنقل له السجلات. أوقفه بدل الحذف.';
+}
+
+frd.addEventListener('submit', async e => {
+  e.preventDefault();
+  const r = deleting, err = $('.err', frd), btn = $('#rd-ok');
+  const to = $('#rd-wrap').hidden ? null : (frd.to.value || null);
+  err.textContent = ''; setBusy(btn, true, 'جارِ الحذف…');
+  const { data, error } = await sb.rpc('admin_delete_rep', { rid: r.id, transfer_to: to });
+  setBusy(btn, false);
+  if (error) { err.textContent = friendlyError(error); return; }
+  dlgRepDel.close();
+  toast((data?.moved_stores || data?.moved_visits) ? `تم حذف ${r.name} ونقل ${data.moved_stores} محل و${data.moved_visits} زيارة.` : `تم حذف ${r.name}.`, 5000);
+  load();
+});
+
+$('#rd-suspend').addEventListener('click', async () => {
+  const r = deleting;
+  const { error } = await sb.from('reps').update({ active: false }).eq('id', r.id);
+  if (error) { $('.err', frd).textContent = friendlyError(error); return; }
+  dlgRepDel.close();
+  toast(`تم إيقاف ${r.name}. سجله محفوظ.`);
   load();
 });

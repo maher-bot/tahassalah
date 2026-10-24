@@ -98,7 +98,22 @@
     <label class="check"><input type="checkbox" name="active" checked> نشط (يقدر يدخل ويسجّل زيارات)</label>
     <p class="hint">بعد الحفظ أرسل له الرابط <b dir="ltr">tahassalah.com/rep.html</b> يدخل منه بنفس الإيميل.</p>
     <p class="err" role="alert"></p>
-    <div class="foot"><span style="flex:1"></span><button class="btn ghost" type="button" id="rep-cancel">إلغاء</button><button class="btn primary" type="submit" id="rep-save">حفظ</button></div>
+    <div class="foot"><button class="btn danger sm" type="button" id="rep-delete" hidden>🗑️ حذف المسوّق</button><span style="flex:1"></span><button class="btn ghost" type="button" id="rep-cancel">إلغاء</button><button class="btn primary" type="submit" id="rep-save">حفظ</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlg-rep-del">
+  <form id="f-rep-del" method="dialog" novalidate>
+    <h2 style="font-size:1.25rem" id="rd-title">حذف مسوّق</h2>
+    <p class="hint" id="rd-text"></p>
+    <label id="rd-wrap" hidden>انقل محلاته وزياراته إلى<select name="to"></select></label>
+    <p class="err" role="alert"></p>
+    <div class="foot">
+      <button class="btn ghost sm" type="button" id="rd-suspend" hidden>⏸️ أوقفه بدل الحذف</button>
+      <span style="flex:1"></span>
+      <button class="btn ghost" type="button" id="rd-cancel">إلغاء</button>
+      <button class="btn danger" type="submit" id="rd-ok" disabled>حذف المسوّق نهائيًا</button>
+    </div>
   </form>
 </dialog>
 

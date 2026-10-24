@@ -183,11 +183,12 @@ function showStatus() {
 const fa = $('#f-apply');
 // اقتراحات النشاط: القائمة الثابتة + الأنشطة اللي سجّلها تجار معتمدون من نفس النوع
 const learned = {};
+const OTHER_ACTIVITY = 'أنشطة أخرى (اكتب نشاطك)';   // خيار في القائمة: يفرّغ الخانة ويطلب من التاجر يكتب نشاطه
 function fillActivities(k) {
   const all = [...new Set([...ACTIVITIES_BY_KIND[k], ...(learned[k] || [])])];
   const dl = $('#activity-list');
   if (dl) {
-    dl.replaceChildren(...all.filter(a => a !== 'أخرى').map(a => Object.assign(document.createElement('option'), { value: a })));
+    dl.replaceChildren(...[...all.filter(a => a !== 'أخرى' && a !== 'أنشطة أخرى'), OTHER_ACTIVITY].map(a => Object.assign(document.createElement('option'), { value: a })));
   } else {   // صفحة قديمة (قائمة منسدلة): نفس السلوك السابق
     const keep = fa.activity.value;
     fa.activity.replaceChildren(new Option('اختر', ''), ...all.map(a => new Option(a, a)));
@@ -233,6 +234,10 @@ fa.iban.addEventListener('input', () => {
   fa.iban.value = v.replace(/(.{4})/g, '$1 ').trim();
 });
 fa.national_address.addEventListener('input', () => { fa.national_address.value = clean(fa.national_address.value).replace(/[^A-Z0-9]/g, '').slice(0, 8); });
+// اختار «أخرى (اكتب نشاطك)»: نفرّغ الخانة وننبّهه يكتب اسم نشاطه بنفسه
+fa.activity?.addEventListener('input', () => {
+  if (fa.activity.value === OTHER_ACTIVITY) { fa.activity.value = ''; fa.activity.focus(); toast('اكتب اسم نشاطك في الخانة، مثل: ورشة سيارات'); }
+});
 $('#same-phone')?.addEventListener('click', () => { if (fa.contact_phone) fa.contact_phone.value = fa.phone.value; });
 for (const n of ['phone', 'contact_phone', 'cr_number', 'vat_number', 'id_number']) fa[n]?.addEventListener('input', () => { fa[n].value = digits(fa[n].value).replace(/\D/g, ''); });
 
@@ -314,6 +319,7 @@ fa.addEventListener('submit', async e => {
   if (v('owner_name').length < 2) problems.push('اكتب اسمك الكامل.');
   if (v('store_name').length < 2) problems.push(person ? 'اكتب اسم مشروعك.' : 'اكتب اسم المحل.');
   if (v('activity').length < 2 || v('activity').length > 40) problems.push('اكتب نشاطك (من حرفين إلى 40 حرف).');
+  else if (['أخرى', 'أنشطة أخرى', OTHER_ACTIVITY].includes(v('activity'))) problems.push('اكتب اسم نشاطك الفعلي بدل «أنشطة أخرى»، مثل: ورشة سيارات.');
   if (!valid.phone(v('phone'))) problems.push('رقم الجوال يبدأ بـ 05 ومكوّن من 10 أرقام.');
   if (fa.contact_phone && !valid.phone(v('contact_phone'))) problems.push('رقم واتساب التواصل مع المشترين يبدأ بـ 05 ومكوّن من 10 أرقام.');
   if (!v('city')) problems.push('اكتب المدينة.');
