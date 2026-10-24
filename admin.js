@@ -84,6 +84,7 @@ function card(m) {
   if (person) head.append(t('span', `${KIND_ICON[m.kind]} ${KINDS[m.kind]}`, 'kind-chip'));
   if (person) head.append(t('span', m.site_verified_at ? '✔ تمت المعاينة' : '⚠️ بدون معاينة ميدانية', 'badge ' + (m.site_verified_at ? 'approved' : 'pending')));
   if (m.license_verified_at) head.append(t('span', '🏅 موثّق برخصة', 'badge approved'));
+  if (m.iban_verified_at) head.append(t('span', '✔ الآيبان مطابق ' + (person ? 'للهوية' : 'للسجل'), 'badge approved'));
   if (!person && m.cr_check) {
     const c = m.cr_check, good = c.found && c.active && c.owner_match !== false;
     head.append(t('span', c.error ? '⚠️ واثق: تعذر التحقق' : !c.found ? '❌ واثق: السجل غير موجود' : good ? '✔ واثق: السجل ساري ومطابق' : !c.active ? '❌ واثق: السجل غير ساري' : '⚠️ واثق: اسم المالك مختلف',
@@ -96,6 +97,7 @@ function card(m) {
   add('المالك', m.owner_name); add('النشاط', m.activity); add('المدينة', [m.city, m.district].filter(Boolean).join(' — '));
   add('العنوان الوطني', m.national_address, true);
   add('الجوال', m.phone, true); add('الإيميل', m.email, true);
+  if (m.iban_verified_at) add('مطابقة الآيبان', fmtDate(m.iban_verified_at) + (m.iban_verified_note ? ' — ' + m.iban_verified_note : ''));
   if (person) {
     add('رقم الهوية', m.id_number, true);
     add('وثيقة العمل الحر / رخصة', m.license_number, !!m.license_number);
@@ -150,6 +152,7 @@ function card(m) {
   if (person && !m.site_verified_at) act('✔ تمت المعاينة الميدانية', 'ghost', b => verifySite(m, b));
   if (WATHQ_ON && !person && m.cr_number) act(m.cr_check ? '🔎 أعد التحقق من واثق' : '🔎 تحقق من واثق', 'ghost', b => checkWathq(m, b));
   if (person) act(m.license_verified_at ? 'سحب شارة «موثّق برخصة»' : '🏅 منح شارة «موثّق برخصة»', 'ghost', b => verifyLicense(m, !m.license_verified_at, b));
+  act(m.iban_verified_at ? 'سحب علامة «الآيبان مطابق»' : person ? '✔ الآيبان مطابق للهوية' : '✔ الآيبان مطابق للسجل', 'ghost', b => verifyIban(m, !m.iban_verified_at, b));
   if (m.status === 'pending') act('رفض / طلب تعديل', 'danger', () => askNote(m, 'rejected'));
   if (m.status === 'approved') act('إيقاف مؤقت', 'danger', () => askNote(m, 'suspended'));
   act('✏️ تعديل البيانات', 'ghost', () => openEdit(m));
@@ -205,6 +208,22 @@ async function verifyLicense(m, on, btn) {
   setBusy(btn, false);
   if (error) return toast(friendlyError(error));
   toast(on ? 'تم منح الشارة 🏅' : 'تم سحب الشارة.'); await load();
+}
+
+// علامة «الآيبان مطابق»: تعتمدها بعد ما تقارن شهادة الآيبان (اسم صاحب الحساب) بالسجل التجاري أو الهوية.
+// تنسحب تلقائيًا لو تغيّر الآيبان أو شهادته.
+async function verifyIban(m, on, btn) {
+  const person = !!(m.kind && m.kind !== 'store');
+  let note = null;
+  if (on) {
+    note = prompt(`اعتماد مطابقة الآيبان لـ«${m.store_name}»\nاعتمدها بعد ما تفتح شهادة الآيبان وتتأكد أن اسم صاحب الحساب يطابق ${person ? 'اسم صاحب الهوية' : 'اسم المنشأة في السجل التجاري'}.\n\nملاحظة قصيرة (اختياري، مثل: الاسم مطابق):`, '');
+    if (note === null) return;
+  } else if (!confirm(`سحب علامة «الآيبان مطابق» من «${m.store_name}»؟`)) return;
+  setBusy(btn, true);
+  const { error } = await sb.rpc('set_iban_verified', { mid: m.id, verified: on, note });
+  setBusy(btn, false);
+  if (error) return toast(friendlyError(error));
+  toast(on ? 'تم اعتماد مطابقة الآيبان ✓' : 'تم سحب العلامة.'); await load();
 }
 
 // نافذة سبب الرفض / الإيقاف
