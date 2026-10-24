@@ -99,7 +99,10 @@ async function route(session) {
   routedFor = user?.id ?? null;
   $('#who').textContent = user?.email ?? '';
   $('#logout').hidden = !user;
+  { const ta = $('#to-admin'); if (ta) ta.hidden = true; }
   if (!user) return show('v-auth');
+  // حساب الإدارة (اللي له متجر أيضًا) يشوف رابط لوحة الإدارة
+  sb.rpc('is_admin').then(({ data }) => { const ta = $('#to-admin'); if (ta) ta.hidden = !data; });
 
   show('v-loading');
   const [m, inv, st] = await Promise.all([

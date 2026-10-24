@@ -29,12 +29,15 @@ async function route(session) {
   const user = session?.user;
   $('#who').textContent = user?.email ?? '';
   $('#logout').hidden = !user;
+  { const ts = $('#to-store'); if (ts) ts.hidden = true; }
   if (!user) return show('v-login');
   show('v-loading');
   const { data: isAdmin, error } = await sb.rpc('is_admin');
   if (error) { $('#v-loading').textContent = friendlyError(error); return; }
   if (!isAdmin) return show('v-denied');
   show('v-list');
+  // الأدمن اللي له متجر يشوف رابط «متجري»
+  sb.from('merchants').select('id').eq('id', user.id).maybeSingle().then(({ data }) => { const ts = $('#to-store'); if (ts) ts.hidden = !data; });
   await load();
 }
 
