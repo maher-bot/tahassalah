@@ -135,7 +135,7 @@
       </fieldset>
 
       <fieldset>
-        <legend>الحساب البنكي لتحويل مستحقاتك</legend>
+        <legend>الحساب البنكي</legend>
         <div class="row2">
           <label>اسم البنك<input name="bank_name" required list="banks"></label>
           <label>رقم الآيبان<input name="iban" dir="ltr" maxlength="29" placeholder="SA00 0000 0000 0000 0000 0000" required></label>
@@ -299,8 +299,9 @@
         <fieldset id="pay-box"><legend>الدفع عند الاستلام</legend>
           <p class="hint">المشتري يدفع لما يستلم طلبه، في المحل أو للمندوب. المنصة ما تستلم أي فلوس ولا تحتاج بوابة دفع. اختر اللي تقبله.</p>
           <label class="check"><input type="checkbox" name="pay_cash" checked> <span><b>نقدًا</b></span></label>
-          <label class="check"><input type="checkbox" name="pay_card"> <span><b>بالبطاقة في المحل</b><br><span class="hint">جهاز نقاط بيع في المحل (مدى وغيرها).</span></span></label>
+          <label class="check" id="pay-card-row"><input type="checkbox" name="pay_card"> <span><b>بالبطاقة في المحل</b><br><span class="hint">جهاز نقاط بيع في المحل (مدى وغيرها).</span></span></label>
           <label class="check" id="pay-card-delivery-row" hidden><input type="checkbox" name="pay_card_delivery"> <span><b>بالبطاقة للمندوب</b><br><span class="hint">مع المندوب جهاز نقاط بيع، أو SoftPOS على جواله.</span></span></label>
+          <label class="check" id="pay-transfer-row" hidden><input type="checkbox" name="pay_transfer"> <span><b>تحويل على الحساب</b><br><span class="hint">آيبانك المسجّل عندنا يظهر للمشتري بعد ما توافق على طلبه فقط، ليحوّل لك (لما ينطلق التطبيق).</span></span></label>
         </fieldset>
         <label>وقت تجهيز الطلب
           <select name="prep_minutes"><option value="5">5 دقايق</option><option value="10">10 دقايق</option><option value="15" selected>15 دقيقة</option><option value="30">30 دقيقة</option><option value="60">ساعة</option></select></label>

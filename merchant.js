@@ -222,7 +222,9 @@ function syncKind() {
     : '🚚 بعد التفعيل تتحكم بظهورك من لوحتك: متاح الآن، أو مشغول، أو خارج الخدمة.';
   $('#na-hint').textContent = person ? '4 حروف و4 أرقام. تلقاه في تطبيق «سبل» أو «توكلنا»، في عنوانك الوطني الشخصي.'
     : '4 حروف و4 أرقام. تلقاه في تطبيق «سبل» أو موقع splonline.com.sa، في خانة العنوان الوطني للمنشأة.';
-  $('#bank-hint').textContent = person ? 'حسابك الشخصي يكفي، بشرط يكون باسمك نفس اسم الهوية.' : 'الحساب لازم يكون باسم المنشأة أو صاحبها نفسه.';
+  $('#bank-hint').textContent = person
+    ? 'حسابك الشخصي يكفي، بشرط يكون باسمك نفس اسم الهوية. آيبانك يظهر للمشتري بعد موافقتك على طلبه، لو فعّلت «تحويل على الحساب».'
+    : 'الحساب لازم يكون باسم المنشأة أو صاحبها نفسه. آيبانك ما يظهر للمشترين.';
   $('#plan-family').hidden = !person; $('#yearly-family').hidden = !person;
   const pb = $('#plan-basic'); if (pb) pb.hidden = k === 'mobile';   // المتنقل ما له باقة مجانية
   if (k === 'mobile' && fa.querySelector('input[name=next_plan]:checked')?.value === 'basic') fa.querySelector('input[name=next_plan][value=family]').checked = true;
@@ -1146,12 +1148,15 @@ fp.sale_price.addEventListener('input', syncOffer);
 
 // ---------------- التوصيل والاستلام ----------------
 const fset = $('#f-settings');
-const syncDelivery = () => {
-  $('#delivery-box').hidden = !fset.delivers.checked;
-  // «بالبطاقة للمندوب» ما يصير إلا لو التوصيل شغّال
-  const row = $('#pay-card-delivery-row');
-  if (row) { row.hidden = !fset.delivers.checked; if (!fset.delivers.checked && fset.pay_card_delivery) fset.pay_card_delivery.checked = false; }
+const isPerson = () => !!(merchant?.kind && merchant.kind !== 'store');
+// الأسر والمتنقلون: نقدًا أو تحويل على الحساب. المحلات: نقدًا أو بطاقة (في المحل أو للمندوب).
+const syncPay = () => {
+  const person = isPerson(), show = (id, on) => { const el = $(id); if (el) el.hidden = !on; };
+  show('#pay-card-row', !person); show('#pay-transfer-row', person); show('#pay-card-delivery-row', !person && fset.delivers.checked);
+  if (person) { fset.pay_card.checked = false; fset.pay_card_delivery.checked = false; }
+  else { if (fset.pay_transfer) fset.pay_transfer.checked = false; if (!fset.delivers.checked) fset.pay_card_delivery.checked = false; }
 };
+const syncDelivery = () => { $('#delivery-box').hidden = !fset.delivers.checked; syncPay(); };
 fset.delivers.addEventListener('change', syncDelivery);
 async function loadSettings() {
   if (!ctx?.owner) return;
@@ -1164,7 +1169,7 @@ async function loadSettings() {
   fset.min_order.value = d.min_order ?? 0;
   fset.delivery_from.value = (d.delivery_from || '').slice(0, 5); fset.delivery_to.value = (d.delivery_to || '').slice(0, 5);
   fset.prep_minutes.value = String(d.prep_minutes ?? 15); fset.note.value = d.note ?? '';
-  if (fset.pay_cash) { fset.pay_cash.checked = d.pay_cash ?? true; fset.pay_card.checked = d.pay_card ?? false; fset.pay_card_delivery.checked = d.pay_card_delivery ?? false; }
+  if (fset.pay_cash) { fset.pay_cash.checked = d.pay_cash ?? true; fset.pay_card.checked = d.pay_card ?? false; fset.pay_card_delivery.checked = d.pay_card_delivery ?? false; if (fset.pay_transfer) fset.pay_transfer.checked = d.pay_transfer ?? false; }
   if (![...fset.prep_minutes.options].some(o => o.value === fset.prep_minutes.value)) fset.prep_minutes.value = '15';
   syncDelivery();
 }
@@ -1172,8 +1177,10 @@ fset.addEventListener('submit', async e => {
   e.preventDefault();
   const err = $('.err', fset), btn = $('#settings-save');
   if (!fset.pickup.checked && !fset.delivers.checked) return (err.textContent = 'اختر الاستلام أو التوصيل أو الاثنين.');
-  const cardDelivery = fset.delivers.checked && fset.pay_card_delivery.checked;
-  if (!fset.pay_cash.checked && !fset.pay_card.checked && !cardDelivery) return (err.textContent = 'اختر طريقة دفع واحدة على الأقل.');
+  const person = isPerson();
+  const cardDelivery = !person && fset.delivers.checked && fset.pay_card_delivery.checked;
+  const card = !person && fset.pay_card.checked, transfer = person && !!fset.pay_transfer?.checked;
+  if (!fset.pay_cash.checked && !card && !cardDelivery && !transfer) return (err.textContent = 'اختر طريقة دفع واحدة على الأقل.');
   const fee = num(fset.delivery_fee.value) ?? 0, over = num(fset.free_delivery_over.value), min = num(fset.min_order.value) ?? 0;
   if (!(fee >= 0 && fee <= 100)) return (err.textContent = 'رسوم التوصيل من 0 إلى 100 ريال.');
   if (over != null && !(over >= 0)) return (err.textContent = 'اكتب مبلغ صحيح للتوصيل المجاني.');
@@ -1184,7 +1191,7 @@ fset.addEventListener('submit', async e => {
     delivery_radius_m: Number(fset.delivery_radius_m.value), delivery_fee: fee, free_delivery_over: over, min_order: min,
     delivery_from: fset.delivery_from.value || null, delivery_to: fset.delivery_to.value || null,
     prep_minutes: Number(fset.prep_minutes.value), note: fset.note.value.trim() || null,
-    pay_cash: fset.pay_cash.checked, pay_card: fset.pay_card.checked, pay_card_delivery: cardDelivery,
+    pay_cash: fset.pay_cash.checked, pay_card: card, pay_card_delivery: cardDelivery, pay_transfer: transfer,
   };
   const { error } = await sb.from('store_settings').upsert(row);
   setBusy(btn, false);
