@@ -41,10 +41,15 @@ async function route(session) {
   await load();
 }
 
+let extraIbans = new Map();   // merchant_id -> حسابات الآيبان الإضافية
+const fmtIban = v => String(v || '').replace(/(.{4})/g, '$1 ').trim();
 async function load() {
   const { data, error } = await sb.from('merchants').select('*').order('submitted_at', { ascending: false });
   if (error) return toast(friendlyError(error));
   all = data;
+  const ib = await sb.from('merchant_ibans').select('*').order('created_at');
+  extraIbans = new Map();
+  for (const x of ib.data || []) { if (!extraIbans.has(x.merchant_id)) extraIbans.set(x.merchant_id, []); extraIbans.get(x.merchant_id).push(x); }
   if (focusId) { const m = all.find(x => x.id === focusId); if (m) tab = m.status; }
   for (const s of Object.keys(STATUS)) $(`[data-c="${s}"]`).textContent = all.filter(m => m.status === s).length;
   $$('#tabs [role=tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.s === tab)));
@@ -98,6 +103,7 @@ function card(m) {
   add('العنوان الوطني', m.national_address, true);
   add('الجوال', m.phone, true); add('الإيميل', m.email, true);
   if (m.iban_verified_at) add('مطابقة الآيبان', fmtDate(m.iban_verified_at) + (m.iban_verified_note ? ' — ' + m.iban_verified_note : ''));
+  for (const [i, x] of (extraIbans.get(m.id) || []).entries()) add(`حساب إضافي ${i + 1}`, `${x.bank_name} · ${fmtIban(x.iban)}` + (x.verified_at ? ' ✔ معتمد' + (x.verified_note ? ' — ' + x.verified_note : '') : ' · بانتظار المراجعة'), true);
   if (person) {
     add('رقم الهوية', m.id_number, true);
     add('وثيقة العمل الحر / رخصة', m.license_number, !!m.license_number);
@@ -127,7 +133,8 @@ function card(m) {
 
   const docs = document.createElement('div'); docs.className = 'docs';
   const docList = [['السجل التجاري', m.cr_path], ['صورة الهوية', m.id_path], ['الشهادة الضريبية', m.vat_path], ['شهادة الآيبان', m.iban_path],
-    ...(m.extra_docs || []).map((p, i) => [`مستند إضافي ${i + 1}`, p])];
+    ...(m.extra_docs || []).map((p, i) => [`مستند إضافي ${i + 1}`, p]),
+    ...(extraIbans.get(m.id) || []).map(x => [`شهادة آيبان ${x.bank_name}`, x.cert_path])];
   for (const [label, path] of docList) {
     if (!path) continue;
     const b = t('button', '📄 ' + label, 'btn ghost sm');
@@ -153,6 +160,7 @@ function card(m) {
   if (WATHQ_ON && !person && m.cr_number) act(m.cr_check ? '🔎 أعد التحقق من واثق' : '🔎 تحقق من واثق', 'ghost', b => checkWathq(m, b));
   if (person) act(m.license_verified_at ? 'سحب شارة «موثّق برخصة»' : '🏅 منح شارة «موثّق برخصة»', 'ghost', b => verifyLicense(m, !m.license_verified_at, b));
   act(m.iban_verified_at ? 'سحب علامة «الآيبان مطابق»' : person ? '✔ الآيبان مطابق للهوية' : '✔ الآيبان مطابق للسجل', 'ghost', b => verifyIban(m, !m.iban_verified_at, b));
+  for (const x of extraIbans.get(m.id) || []) act(x.verified_at ? `سحب اعتماد حساب …${x.iban.slice(-4)}` : `✔ اعتماد حساب ${x.bank_name} …${x.iban.slice(-4)}`, 'ghost', b => verifyExtraIban(m, x, !x.verified_at, b));
   if (m.status === 'pending') act('رفض / طلب تعديل', 'danger', () => askNote(m, 'rejected'));
   if (m.status === 'approved') act('إيقاف مؤقت', 'danger', () => askNote(m, 'suspended'));
   act('✏️ تعديل البيانات', 'ghost', () => openEdit(m));
@@ -224,6 +232,21 @@ async function verifyIban(m, on, btn) {
   setBusy(btn, false);
   if (error) return toast(friendlyError(error));
   toast(on ? 'تم اعتماد مطابقة الآيبان ✓' : 'تم سحب العلامة.'); await load();
+}
+
+// اعتماد حساب آيبان إضافي: بعد ما تقارن شهادته باسم صاحب السجل أو الهوية. ينسحب تلقائيًا لو تغيّر الآيبان أو شهادته.
+async function verifyExtraIban(m, x, on, btn) {
+  const person = !!(m.kind && m.kind !== 'store');
+  let note = null;
+  if (on) {
+    note = prompt(`اعتماد حساب ${x.bank_name} (${fmtIban(x.iban)}) لـ«${m.store_name}»\nافتح شهادته وتأكد أن اسم صاحب الحساب يطابق ${person ? 'اسم صاحب الهوية' : 'اسم المنشأة في السجل التجاري'}.\n\nملاحظة قصيرة (اختياري):`, '');
+    if (note === null) return;
+  } else if (!confirm(`سحب اعتماد الحساب …${x.iban.slice(-4)} من «${m.store_name}»؟`)) return;
+  setBusy(btn, true);
+  const { error } = await sb.rpc('set_extra_iban_verified', { iid: x.id, verified: on, note });
+  setBusy(btn, false);
+  if (error) return toast(friendlyError(error));
+  toast(on ? 'تم اعتماد الحساب ✓' : 'تم سحب الاعتماد.'); await load();
 }
 
 // نافذة سبب الرفض / الإيقاف
@@ -342,7 +365,8 @@ $('#edit-delete').addEventListener('click', async () => {
   if (typed.trim() !== m.store_name.trim()) return toast('الاسم ما يطابق. ما انحذف شي.');
   setBusy(btn, true, 'جارِ الحذف…');
   try {
-    const docs = [m.cr_path, m.id_path, m.vat_path, m.iban_path, ...(m.extra_docs || [])].filter(Boolean);
+    const { data: xs } = await sb.from('merchant_ibans').select('cert_path').eq('merchant_id', m.id);
+    const docs = [m.cr_path, m.id_path, m.vat_path, m.iban_path, ...(m.extra_docs || []), ...(xs || []).map(x => x.cert_path)].filter(Boolean);
     const { data: prods } = await sb.from('products').select('image_path').eq('merchant_id', m.id).not('image_path', 'is', null);
     const imgs = (prods || []).map(p => p.image_path);
     if (docs.length) { const { error } = await sb.storage.from('merchant-docs').remove(docs); if (error) throw error; }
