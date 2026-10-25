@@ -61,7 +61,7 @@ $('#f-login').addEventListener('submit', async e => {
   const { error } = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.password.value });
   if (!error) rememberLogin(f.email.value.trim(), f.password.value);
   setBusy(btn, false);
-  if (error) err.textContent = friendlyError(error);
+  if (error) { err.textContent = friendlyError(error); $('#resend').hidden = !(error.code === 'email_not_confirmed' || /not confirmed/i.test(error.message)); }
 });
 
 $('#forgot').addEventListener('click', async () => {
@@ -71,7 +71,30 @@ $('#forgot').addEventListener('click', async () => {
   err.textContent = '';
   toast(error ? friendlyError(error) : 'أرسلنا لك رابط تغيير كلمة المرور على الإيميل.');
 });
+// ---------------- إعادة إرسال رابط التأكيد ----------------
+let resendWait = 0;
+$('#resend').addEventListener('click', async () => {
+  const f = $('#f-login'), err = $('.err', f), email = f.email.value.trim(), btn = $('#resend');
+  if (!/^\S+@\S+\.\S+$/.test(email)) { err.textContent = 'اكتب إيميلك فوق أولًا.'; f.email.focus(); return; }
+  if (Date.now() < resendWait) { err.textContent = 'انتظر دقيقة ثم أعد المحاولة.'; return; }
+  setBusy(btn, true);
+  const { error } = await sb.auth.resend({ type: 'signup', email, options: { emailRedirectTo: here() } });
+  setBusy(btn, false);
+  if (error) return (err.textContent = friendlyError(error));
+  resendWait = Date.now() + 60000;
+  err.textContent = '';
+  toast('أرسلنا رابط تأكيد جديد. افتح آخر رسالة فقط واضغط الرابط مرة واحدة.');
+});
 
+// رابط تأكيد منتهي أو مستخدم من قبل
+(() => {
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get('error_code') !== 'otp_expired') return;
+  history.replaceState(null, '', location.pathname);
+  $('#v-auth [role=tab][data-tab=login]')?.click();
+  $('.err', $('#f-login')).textContent = 'انتهت صلاحية رابط التأكيد. اكتب إيميلك واضغط "إعادة إرسال رابط التأكيد".';
+  $('#resend').hidden = false;
+})();
 $('#f-reset').addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target, err = $('.err', f);
