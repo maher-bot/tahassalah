@@ -50,14 +50,7 @@ $('#f-signup').addEventListener('submit', async e => {
   if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
     return (err.textContent = 'هذا الإيميل مسجل من قبل. سجّل دخول بدلًا من ذلك.');
   }
-    if (typeof gtag === 'function') gtag('event', 'sign_up', { method: 'merchant' });  if (error) return (err.textContent = friendlyError(error));
-  if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
-    return (err.textContent = '.هذا الإيميل مسجل من قبل. سجّل دخول بدلًا من ذلك');
-  }
   if (typeof gtag === 'function') gtag('event', 'sign_up', { method: 'merchant' });
-  if (!data.session) { $('#sent-to').textContent = email; show('v-check-email'); }
-});
-    if (!data.session) { $('#sent-to').textContent = email; show('v-check-email'); }
   if (!data.session) { $('#sent-to').textContent = email; show('v-check-email'); }
 });
 $('#f-login').addEventListener('submit', async e => {
