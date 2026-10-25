@@ -64,12 +64,14 @@ $('#f-login').addEventListener('submit', async e => {
   if (error) { err.textContent = friendlyError(error); $('#resend').hidden = !(error.code === 'email_not_confirmed' || /not confirmed/i.test(error.message)); }
 });
 
-$('#forgot').addEventListener('click', async () => {
+const SUPPORT_WA = '966555606635'; // ← رقم واتساب الدعم
+$('#forgot').addEventListener('click', () => {
   const f = $('#f-login'), err = $('.err', f), email = f.email.value.trim();
   if (!/^\S+@\S+\.\S+$/.test(email)) { err.textContent = 'اكتب إيميلك فوق أولًا.'; f.email.focus(); return; }
-  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: here() });
+  const msg = `السلام عليكم، نسيت كلمة المرور في تحصّله.\nإيميل الحساب: ${email}`;
+  window.open(`https://wa.me/${SUPPORT_WA}?text=${encodeURIComponent(msg)}`, '_blank');
   err.textContent = '';
-  toast(error ? friendlyError(error) : 'أرسلنا لك رابط تغيير كلمة المرور على الإيميل.');
+  toast('راسلنا من نفس رقم الجوال المسجل في حسابك، ونرسل لك كلمة مرور مؤقتة.');
 });
 // ---------------- إعادة إرسال رابط التأكيد ----------------
 let resendWait = 0;
