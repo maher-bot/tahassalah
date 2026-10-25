@@ -233,6 +233,23 @@
         <button class="btn primary sm" type="submit" id="contact-save">حفظ</button>
       </form>
     </div>
+    <div class="card" id="ibans-card" hidden>
+      <div style="flex:1;min-width:220px">
+        <b>🏦 حساباتي البنكية للتحويل</b>
+        <p class="hint">يظهر للمشتري (لما ينطلق التطبيق) الحساب المعتمد من الإدارة فقط، وبعد موافقتك على طلبه. تقدر تضيف حتى 4 حسابات من بنوك ثانية (الرياض، الراجحي، الأهلي، العربي، البلاد...) عشان المشتري يحوّل من بنكه.</p>
+        <ul id="ibans-list" style="list-style:none;padding:0;margin:8px 0;display:grid;gap:6px"></ul>
+        <form id="f-iban" novalidate style="display:grid;gap:8px">
+          <div class="row2">
+            <label>البنك<input name="bank_name" list="banks" maxlength="60"></label>
+            <label>رقم الآيبان<input name="iban" dir="ltr" maxlength="29" placeholder="SA00 0000 0000 0000 0000 0000"></label>
+          </div>
+          <label>شهادة الآيبان من البنك<input type="file" name="cert" accept="application/pdf,image/*"></label>
+          <p class="err" role="alert"></p>
+          <button class="btn primary sm" type="submit" id="iban-add">إضافة حساب</button>
+        </form>
+        <p class="hint" style="margin-top:8px">⚠️ تنبيه يظهر للمشتري: لا تحوّل أي مبلغ قبل التأكد أن رقم الحساب مطابق للحساب المربوط بالنظام.</p>
+      </div>
+    </div>
     <div class="card live" id="link-card" hidden style="border-color:var(--line)">
       <div style="flex:1;min-width:200px"><b>🔗 اربط متجرك الإلكتروني <span class="badge pending">قريبًا</span></b><p class="hint" id="link-state">منتجاتك وأسعارك تتحدّث عندنا تلقائيًا من متجرك على سلة أو زد أو موقعك الخاص، بدون إدخال يدوي. الميزة قادمة لباقة «تاجر» وما فوق، وسجّل اهتمامك الحين.</p></div>
       <form id="f-link" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -295,6 +312,21 @@
             <label><span>نوصّل من الساعة <span class="opt">(اختياري)</span></span><input type="time" name="delivery_from"></label>
             <label><span>إلى الساعة <span class="opt">(اختياري)</span></span><input type="time" name="delivery_to"></label>
           </div>
+        </fieldset>
+        <label class="check"><input type="checkbox" name="ships_intercity"> <span><b>نوصّل لمدن ثانية</b><br><span class="hint">مثل من جدة لمكة أو العكس. الاتفاق على تكلفة الشحن مع المشتري يتم على الواتساب، والدفع بتحويل على آيبانك المسجّل عندنا.</span></span></label>
+        <fieldset id="intercity-box" hidden><legend>التوصيل لمدن ثانية</legend>
+          <label>رسوم الشحن
+            <select name="intercity_fee_mode">
+              <option value="negotiable">نتفق عليها مع المشتري على الواتساب</option>
+              <option value="buyer_fixed">رسوم ثابتة على المشتري</option>
+              <option value="free">الشحن علينا (مجاني للمشتري)</option>
+            </select></label>
+          <label id="intercity-fee-row" hidden>مبلغ الشحن (ر.س)<input name="intercity_fee" inputmode="decimal" dir="ltr" placeholder="مثال: 25"></label>
+          <div class="row2">
+            <label><span>مدة الوصول التقريبية <span class="opt">(اختياري)</span></span><input name="intercity_eta" maxlength="40" placeholder="مثال: 2 إلى 3 أيام"></label>
+            <label><span>ملاحظة <span class="opt">(اختياري)</span></span><input name="intercity_note" maxlength="160" placeholder="مثال: الشحن عبر شركة …"></label>
+          </div>
+          <p class="hint">لا تشحن قبل ما تتأكد من وصول المبلغ على حسابك. المنصة ما تستلم فلوس الطلب ولا الشحن.</p>
         </fieldset>
         <fieldset id="pay-box"><legend>الدفع عند الاستلام</legend>
           <p class="hint">المشتري يدفع لما يستلم طلبه، في المحل أو للمندوب. المنصة ما تستلم أي فلوس ولا تحتاج بوابة دفع. اختر اللي تقبله.</p>

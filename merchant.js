@@ -433,6 +433,7 @@ async function openDash(id) {
     $('#live').hidden = true;
   }
   renderContactCard();
+  renderIbans();
   loadLinkCard();
   // مبدّل المتاجر: متجري + المتاجر اللي أنا موظف فيها
   const sw = $('#d-switch'), opts = [];
@@ -1158,6 +1159,15 @@ const syncPay = () => {
 };
 const syncDelivery = () => { $('#delivery-box').hidden = !fset.delivers.checked; syncPay(); };
 fset.delivers.addEventListener('change', syncDelivery);
+// التوصيل لمدن ثانية: الدفع فيه بتحويل على الآيبان المسجّل، والتكلفة بالاتفاق على الواتساب أو رسوم ثابتة أو علينا
+const syncIntercity = () => {
+  if (!fset.ships_intercity) return;
+  const on = fset.ships_intercity.checked;
+  $('#intercity-box').hidden = !on;
+  $('#intercity-fee-row').hidden = !on || fset.intercity_fee_mode.value !== 'buyer_fixed';
+};
+fset.ships_intercity?.addEventListener('change', syncIntercity);
+fset.intercity_fee_mode?.addEventListener('change', syncIntercity);
 async function loadSettings() {
   if (!ctx?.owner) return;
   const { data, error } = await sb.from('store_settings').select('*').eq('merchant_id', ctx.mid).maybeSingle();
@@ -1170,17 +1180,23 @@ async function loadSettings() {
   fset.delivery_from.value = (d.delivery_from || '').slice(0, 5); fset.delivery_to.value = (d.delivery_to || '').slice(0, 5);
   fset.prep_minutes.value = String(d.prep_minutes ?? 15); fset.note.value = d.note ?? '';
   if (fset.pay_cash) { fset.pay_cash.checked = d.pay_cash ?? true; fset.pay_card.checked = d.pay_card ?? false; fset.pay_card_delivery.checked = d.pay_card_delivery ?? false; if (fset.pay_transfer) fset.pay_transfer.checked = d.pay_transfer ?? false; }
+  if (fset.ships_intercity) {
+    fset.ships_intercity.checked = d.ships_intercity ?? false; fset.intercity_fee_mode.value = d.intercity_fee_mode ?? 'negotiable';
+    fset.intercity_fee.value = d.intercity_fee ?? ''; fset.intercity_eta.value = d.intercity_eta ?? ''; fset.intercity_note.value = d.intercity_note ?? '';
+  }
   if (![...fset.prep_minutes.options].some(o => o.value === fset.prep_minutes.value)) fset.prep_minutes.value = '15';
-  syncDelivery();
+  syncDelivery(); syncIntercity();
 }
 fset.addEventListener('submit', async e => {
   e.preventDefault();
   const err = $('.err', fset), btn = $('#settings-save');
-  if (!fset.pickup.checked && !fset.delivers.checked) return (err.textContent = 'اختر الاستلام أو التوصيل أو الاثنين.');
+  if (!fset.pickup.checked && !fset.delivers.checked && !fset.ships_intercity?.checked) return (err.textContent = 'اختر الاستلام أو التوصيل (المحلي أو لمدن ثانية).');
   const person = isPerson();
   const cardDelivery = !person && fset.delivers.checked && fset.pay_card_delivery.checked;
   const card = !person && fset.pay_card.checked, transfer = person && !!fset.pay_transfer?.checked;
   if (!fset.pay_cash.checked && !card && !cardDelivery && !transfer) return (err.textContent = 'اختر طريقة دفع واحدة على الأقل.');
+  const ships = !!fset.ships_intercity?.checked, feeMode = fset.intercity_fee_mode?.value || 'negotiable', interFee = num(fset.intercity_fee?.value);
+  if (ships && feeMode === 'buyer_fixed' && (interFee === null || interFee < 0 || interFee > 2000)) return (err.textContent = 'اكتب مبلغ الشحن (من 0 إلى 2000 ريال).');
   const fee = num(fset.delivery_fee.value) ?? 0, over = num(fset.free_delivery_over.value), min = num(fset.min_order.value) ?? 0;
   if (!(fee >= 0 && fee <= 100)) return (err.textContent = 'رسوم التوصيل من 0 إلى 100 ريال.');
   if (over != null && !(over >= 0)) return (err.textContent = 'اكتب مبلغ صحيح للتوصيل المجاني.');
@@ -1192,6 +1208,8 @@ fset.addEventListener('submit', async e => {
     delivery_from: fset.delivery_from.value || null, delivery_to: fset.delivery_to.value || null,
     prep_minutes: Number(fset.prep_minutes.value), note: fset.note.value.trim() || null,
     pay_cash: fset.pay_cash.checked, pay_card: card, pay_card_delivery: cardDelivery, pay_transfer: transfer,
+    ships_intercity: ships, intercity_fee_mode: feeMode, intercity_fee: ships && feeMode === 'buyer_fixed' ? interFee : null,
+    intercity_eta: ships ? (fset.intercity_eta.value.trim() || null) : null, intercity_note: ships ? (fset.intercity_note.value.trim() || null) : null,
   };
   const { error } = await sb.from('store_settings').upsert(row);
   setBusy(btn, false);
@@ -1324,4 +1342,60 @@ $('#f-contact')?.addEventListener('submit', async e => {
   merchant.contact_phone = p;
   renderContactCard();
   toast('تم ✓ حفظنا رقم التواصل مع المشترين.');
+});
+
+// ---------------- حساباتي البنكية (آيبان إضافي لبنوك ثانية) ----------------
+// الحساب الأساسي من التسجيل. الإضافي يراجعه الإدارة ويعتمده، ولا يظهر للمشتري إلا المعتمد (لاحقًا، بعد موافقتك على طلبه).
+const fmtIban = v => String(v || '').replace(/(.{4})/g, '$1 ').trim();
+async function renderIbans() {
+  const box = $('#ibans-card'), f = $('#f-iban');
+  if (!box || !f) return;
+  box.hidden = !(ctx?.owner && merchant && merchant.kind && merchant.kind !== 'store');
+  if (box.hidden) return;
+  const list = $('#ibans-list'); list.textContent = '';
+  const li = (title, iban, ok, onRemove) => {
+    const row = document.createElement('li');
+    row.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:6px 8px;border:1px solid var(--line);border-radius:8px';
+    const txt = document.createElement('span'); txt.style.flex = '1'; txt.dir = 'ltr';
+    txt.textContent = `${fmtIban(iban)}`;
+    const name = document.createElement('b'); name.textContent = title;
+    const st = document.createElement('span'); st.className = ok ? 'badge approved' : 'badge pending'; st.textContent = ok ? '✔ معتمد' : 'بانتظار مراجعة الإدارة';
+    row.append(name, txt, st);
+    if (onRemove) { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ghost sm'; b.textContent = 'حذف'; b.onclick = onRemove; row.append(b); }
+    return row;
+  };
+  list.append(li(`${merchant.bank_name} (الأساسي)`, merchant.iban, !!merchant.iban_verified_at));
+  const { data, error } = await sb.from('merchant_ibans').select('*').eq('merchant_id', merchant.id).order('created_at');
+  if (error) return toast(friendlyError(error));
+  for (const x of data || []) list.append(li(x.bank_name, x.iban, !!x.verified_at, () => removeIban(x)));
+  f.hidden = (data || []).length >= 4;
+}
+async function removeIban(x) {
+  if (!confirm(`حذف الحساب ${fmtIban(x.iban)} (${x.bank_name})؟`)) return;
+  const { error } = await sb.from('merchant_ibans').delete().eq('id', x.id);
+  if (error) return toast(friendlyError(error));
+  if (x.cert_path) sb.storage.from('merchant-docs').remove([x.cert_path]);
+  toast('تم حذف الحساب.'); renderIbans();
+}
+$('#f-iban')?.addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target, err = $('.err', f), btn = $('#iban-add');
+  const bank = f.bank_name.value.trim(), iban = clean(f.iban.value), file = f.cert.files[0];
+  const problems = [];
+  if (bank.length < 2) problems.push('اكتب اسم البنك.');
+  if (!valid.iban(iban)) problems.push('رقم الآيبان غير صحيح. يبدأ بـ SA ومكوّن من 24 خانة.');
+  if (!file) problems.push('ارفع شهادة الآيبان من البنك.');
+  else { const p = checkFile(file, 'شهادة الآيبان'); if (p) problems.push(p); }
+  if (problems.length) { err.textContent = problems.join(' '); return; }
+  err.textContent = ''; setBusy(btn, true, 'جارِ الرفع…');
+  try {
+    const path = `${merchant.id}/iban2-${Date.now()}.${fileExt(file)}`;
+    const up = await sb.storage.from('merchant-docs').upload(path, file, { contentType: file.type || undefined, upsert: false });
+    if (up.error) throw up.error;
+    const { error } = await sb.from('merchant_ibans').insert({ merchant_id: merchant.id, bank_name: bank, iban, cert_path: path });
+    if (error) { sb.storage.from('merchant-docs').remove([path]); throw error; }
+    f.reset(); toast('تمت الإضافة. تنتظر مراجعة الإدارة قبل ما تظهر للمشتري.');
+    await renderIbans();
+  } catch (ex) { err.textContent = friendlyError(ex); }
+  finally { setBusy(btn, false); }
 });

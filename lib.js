@@ -91,7 +91,13 @@ export function friendlyError(e) {
   if (/rep_has_records/.test(m)) return 'للمسوّق محلات أو زيارات مسجّلة. انقلها لمسوّق ثاني أو أوقفه بدل الحذف.';
   if (/bad_transfer_target/.test(m)) return 'اختر مسوّقًا آخر لنقل السجلات إليه.';
   if (/rep_not_found/.test(m)) return 'ما لقينا هذا المسوّق، حدّث الصفحة.';
+  if (/store_settings_intercity_fee/.test(m)) return 'اكتب مبلغ الشحن (من 0 إلى 2000 ريال).';
   if (/store_settings_pay_chk/.test(m)) return 'اختر طريقة دفع واحدة على الأقل.';
+  if (/ibans_limit/.test(m)) return 'وصلت الحد الأقصى: 4 حسابات إضافية.';
+  if (/iban_is_primary/.test(m)) return 'هذا حسابك الأساسي المسجّل، ما يحتاج تضيفه.';
+  if (/merchant_ibans_merchant_id_iban_key/.test(m)) return 'هذا الآيبان مضاف من قبل.';
+  if (/merchant_ibans_iban_check/.test(m)) return 'رقم الآيبان غير صحيح. يبدأ بـ SA ومكوّن من 24 خانة.';
+  if (/iban_not_found/.test(m)) return 'ما لقينا هذا الحساب، حدّث الصفحة.';
   if (/immutable_identity/.test(m)) return 'رقم السجل التجاري أو الهوية ثابت ولا يتغيّر. لتغييره احذف حساب التاجر وليسجّل من جديد.';
   if (/field_not_editable/.test(m)) return 'هذا الحقل غير قابل للتعديل من هنا.';
   if (/empty_patch/.test(m)) return 'ما فيه تغييرات للحفظ.';
@@ -107,7 +113,7 @@ export function friendlyError(e) {
   if (/bad_contact_phone|merchants_contact_phone_check/.test(m)) return 'رقم واتساب التواصل يبدأ بـ 05 ومكوّن من 10 أرقام.';
   if (/plan_mobile_basic/.test(m)) return 'الباقة المجانية غير متاحة للباعة المتجولين. اختر «أسر ومتجولين».';
   if (/plan_basic_offers/.test(m)) return 'العروض متاحة في باقة «تاجر» و«مميز».';
-  if (/plan_basic_delivery/.test(m)) return 'التوصيل متاح في باقة «تاجر» و«مميز». الأساسية فيها الاستلام من المحل فقط.';
+  if (/plan_basic_delivery/.test(m)) return 'التوصيل (المحلي ولمدن ثانية) متاح في الباقات المدفوعة. الأساسية فيها الاستلام من المحل فقط.';
   if (/plan_basic_staff/.test(m)) return 'إضافة الموظفين متاحة في باقة «تاجر» و«مميز».';
   if (/plan_basic_preorder/.test(m)) return 'الطلب المسبق متاح في باقة «أسر ومتجولين» و«تاجر» و«مميز».';
   if (/plan_family_products/.test(m)) return 'باقة «أسر ومتجولين» تسمح بـ 100 منتج ظاهر. رقّ باقتك لـ«تاجر» عشان تضيف أكثر.';
