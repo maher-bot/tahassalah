@@ -59,6 +59,8 @@ a { color: var(--brand); }
 .top nav { display: flex; gap: 18px; margin-inline-start: auto; flex-wrap: wrap; }
 .top nav a { color: var(--muted); text-decoration: none; font-weight: 500; }
 .top nav a:hover { color: var(--ink); }
+.top .btn { white-space: nowrap; }
+@media (max-width: 420px) { .top .wrap { gap: 10px; } .top .btn { padding: 8px 14px; } }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 999px; padding: 10px 20px; font-weight: 600; text-decoration: none; border: 0; cursor: pointer; font: inherit; font-weight: 600; }
 .btn.primary { background: var(--brand); color: var(--on-brand); }
 .btn.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
@@ -190,6 +192,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; justify-content: 
       <a href="#about">من نحن</a>
       <a href="#faq">الأسئلة</a>
     </nav>
+    <a class="btn ghost" href="merchant.html?tab=login">دخول</a>
     <a class="btn primary" href="merchant.html">سجّل متجرك</a>
   </div>
 </header>
@@ -298,7 +301,7 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; justify-content: 
         <div class="docs-need" aria-label="المستندات المطلوبة"><span>PDF أو صورة</span><span>حتى 5 ميجا للملف</span></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <a class="btn primary" href="merchant.html">ابدأ التسجيل</a>
-          <a class="btn ghost" href="merchant.html">عندي حساب</a>
+          <a class="btn ghost" href="merchant.html?tab=login">عندي حساب</a>
         </div>
       </div>
     </div>

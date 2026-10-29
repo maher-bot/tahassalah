@@ -46,7 +46,12 @@ $$('#v-auth [role=tab]').forEach(t => t.addEventListener('click', () => {
   $$('#v-auth [role=tab]').forEach(x => x.setAttribute('aria-selected', String(x === t)));
   $('#f-signup').hidden = t.dataset.tab !== 'signup';
   $('#f-login').hidden = t.dataset.tab !== 'login';
+  const login = t.dataset.tab === 'login';
+  $('#v-auth h1').textContent = login ? 'دخول التجار' : 'سجّل متجرك في تحصّله';
+  $('#v-auth h1 + .hint').textContent = login ? 'ادخل بإيميلك وكلمة المرور لإدارة متجرك ومنتجاتك.' : 'أنشئ حسابك، ارفع مستنداتك، ونفعّل متجرك بعد المراجعة لتضيف منتجاتك وأسعارك.';
 }));
+// رابط «دخول» من الصفحة الرئيسية (?tab=login) يفتح تبويب «عندي حساب» مباشرة
+if (new URLSearchParams(location.search).get('tab') === 'login') $('#v-auth [role=tab][data-tab=login]')?.click();
 
 $('#f-signup').addEventListener('submit', async e => {
   e.preventDefault();
