@@ -9,6 +9,7 @@
   gtag('js', new Date());
   gtag('config', 'G-7Y22WDZD7P');
 </script>
+<script src="utm.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>تحصّله — اللي تبحث عنه قريب منك</title>
@@ -137,6 +138,13 @@ summary { font-weight: 600; cursor: pointer; font-size: 1.05rem; }
 details p { color: var(--muted); margin-top: 8px; }
 
 /* التذييل */
+/* فيديو تعريفي: عرضي على الشاشات الكبيرة، وطولي على الجوال */
+.promo { max-width: 860px; margin-inline: auto; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); background: var(--surface); }
+.promo video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; }
+@media (max-width: 640px) {
+  .promo { max-width: 380px; }
+  .promo video { aspect-ratio: 9 / 16; }
+}
 footer { border-top: 1px solid var(--line); padding-block: 28px 40px; color: var(--muted); font-size: .9rem; }
 footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; justify-content: space-between; }
 
@@ -220,6 +228,17 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; justify-content: 
           <div class="result"><div><div class="s">ركن الجوال</div><div class="m num">2.6 كم · <span class="ok">متوفر 3</span></div></div><div class="p num">329 ر.س</div></div>
           <div class="result"><div><div class="s">أسواق السعادة</div><div class="m num">4.1 كم · <span class="no">نفد</span></div></div><div class="p num">355 ر.س</div></div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="video" aria-labelledby="video-title">
+    <div class="wrap">
+      <div class="sec-head"><p class="eyebrow">فيديو</p><h2 id="video-title">تحصّله في 30 ثانية</h2></div>
+      <div class="promo">
+        <video id="promo" controls playsinline preload="none" poster="media/promo-16x9.jpg" aria-label="فيديو تعريفي بتحصّله">
+          <source src="media/promo-16x9.mp4" type="video/mp4">
+        </video>
       </div>
     </div>
   </section>
@@ -322,5 +341,17 @@ footer .wrap { display: flex; flex-wrap: wrap; gap: 12px 28px; justify-content: 
 </div>
 
 <script>document.getElementById('year').textContent = String(new Date().getFullYear());</script>
+<script>
+// الجوال ياخذ النسخة الطولية من الفيديو (preload=none فما ينزل شي قبل التبديل)
+(() => {
+  const v = document.getElementById('promo');
+  if (matchMedia('(max-width: 640px)').matches) {
+    v.poster = 'media/promo-9x16.jpg';
+    v.querySelector('source').src = 'media/promo-9x16.mp4';
+    v.load();
+  }
+  v.addEventListener('play', () => { if (typeof gtag === 'function') gtag('event', 'video_start', { video_title: 'promo-30s' }); }, { once: true });
+})();
+</script>
 </body>
 </html>

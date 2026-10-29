@@ -12,6 +12,19 @@ const REF = (() => {
   const r = new URLSearchParams(location.search).get('ref');
   try { if (r) localStorage.setItem('tah-ref', r.toUpperCase()); return r?.toUpperCase() || localStorage.getItem('tah-ref'); } catch { return r?.toUpperCase() || null; }
 })();
+// مصدر الحملة اللي حفظه utm.js — يُرسل مع أحداث التسجيل في Google Analytics
+const UTM = (() => {
+  try {
+    const u = JSON.parse(localStorage.getItem('tah-utm'));
+    return u && Date.now() - u.at < 30 * 864e5 ? u : null;
+  } catch { return null; }
+})();
+const utmParams = () => ({
+  campaign_source: UTM?.utm_source || '(none)',
+  campaign_medium: UTM?.utm_medium || '(none)',
+  campaign_name: UTM?.utm_campaign || '(none)',
+  campaign_content: UTM?.utm_content || '(none)',
+});
 // ctx: المتجر المفتوح حاليًا — صاحبه أو موظف فيه
 let ctx = null;
 const ROLES = { manager: 'مدير فرع', stock: 'أمين مخزون', pricing: 'موظف أسعار', cashier: 'كاشير', accountant: 'محاسب' };
@@ -50,7 +63,7 @@ $('#f-signup').addEventListener('submit', async e => {
   if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
     return (err.textContent = 'هذا الإيميل مسجل من قبل. سجّل دخول بدلًا من ذلك.');
   }
-  if (typeof gtag === 'function') gtag('event', 'sign_up', { method: 'merchant' });
+  if (typeof gtag === 'function') gtag('event', 'sign_up', { method: 'merchant', ...utmParams() });
   if (!data.session) { $('#sent-to').textContent = email; show('v-check-email'); }
 });
 $('#f-login').addEventListener('submit', async e => {
@@ -423,6 +436,8 @@ fa.addEventListener('submit', async e => {
     const q = merchant ? sb.from('merchants').update(row).eq('id', user.id) : sb.from('merchants').insert(row);
     const { error } = await q;
     if (error) throw error;
+    // طلب تسجيل تاجر مكتمل: هذا اللي نقيس عليه تكلفة التاجر المسجّل لكل حملة
+    if (!merchant && typeof gtag === 'function') gtag('event', 'merchant_application', { merchant_kind: kind, ...utmParams() });
     toast(merchant ? 'تم حفظ التعديلات وإرسالها للمراجعة.' : 'تم إرسال طلبك ✓');
     routedFor = undefined; await route();
   } catch (ex) {
