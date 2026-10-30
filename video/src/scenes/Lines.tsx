@@ -33,9 +33,11 @@ export const Offer: React.FC<{ badge: string; sub: string }> = ({ badge, sub }) 
         padding: wide ? "30px 80px" : "30px 56px", fontFamily: fonts.display, fontWeight: 700, fontSize: wide ? 100 : 84, whiteSpace: "nowrap",
         boxShadow: "0 20px 50px rgba(255,123,71,0.4)",
       }}>{badge}</div>
-      <Reveal delay={18}>
-        <div style={{ fontFamily: fonts.display, fontWeight: 700, fontSize: wide ? 60 : 64, color: colors.ink }}>{sub}</div>
-      </Reveal>
+      {sub && (
+        <Reveal delay={18}>
+          <div style={{ fontFamily: fonts.display, fontWeight: 700, fontSize: wide ? 60 : 64, color: colors.ink }}>{sub}</div>
+        </Reveal>
+      )}
     </AbsoluteFill>
   );
 };

@@ -24,11 +24,11 @@ export const Merchants: React.FC = () => {
         padding: "20px 50px", fontFamily: fonts.display, fontWeight: 700, fontSize: wide ? 48 : 52,
         boxShadow: "0 12px 30px rgba(242,122,69,0.35)",
       }}>{m.offer}</div>
-      <Reveal delay={86} style={{ marginTop: 30 }}>
+      {m.founders.before && <Reveal delay={86} style={{ marginTop: 30 }}>
         <div style={{ fontFamily: fonts.display, fontWeight: 700, fontSize: wide ? 46 : 50, color: colors.ink }}>
           {m.founders.before}<span style={{ color: colors.orange }}>{m.founders.highlight}</span>
         </div>
-      </Reveal>
+      </Reveal>}
     </AbsoluteFill>
   );
 };

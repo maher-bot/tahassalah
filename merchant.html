@@ -33,6 +33,24 @@
   <!-- الدخول وإنشاء الحساب -->
   <section id="v-auth" class="narrow" hidden>
     <div class="card">
+      <!-- فيديو تعريفي يشتغل تلقائيًا (بدون صوت) لزوار الإعلانات؛ utm_content=families يعرض فيديو الأسر -->
+      <video id="intro-video" class="intro-video" autoplay muted loop playsinline controls preload="metadata" poster="media/promo-9x16.jpg" aria-label="فيديو تعريفي بتحصّله">
+        <source src="media/promo-9x16.mp4" type="video/mp4">
+      </video>
+      <script>
+      (() => {
+        const v = document.getElementById('intro-video');
+        const p = new URLSearchParams(location.search);
+        let who = p.get('utm_content') || p.get('for');
+        try { who = who || JSON.parse(localStorage.getItem('tah-utm'))?.utm_content; } catch {}
+        if (who === 'families') {
+          v.poster = 'media/families-sharaie-9x16.jpg';
+          v.querySelector('source').src = 'media/families-sharaie-9x16.mp4';
+          v.load();
+        }
+        v.addEventListener('play', () => { if (typeof gtag === 'function') gtag('event', 'video_start', { video_title: who === 'families' ? 'families-sharaie' : 'promo-30s', page: 'merchant' }); }, { once: true });
+      })();
+      </script>
       <h1 style="font-size:1.6rem">سجّل متجرك في تحصّله</h1>
       <p class="hint" style="margin:6px 0 16px">أنشئ حسابك، ارفع مستنداتك، ونفعّل متجرك بعد المراجعة لتضيف منتجاتك وأسعارك.</p>
       <div class="tabs" role="tablist">

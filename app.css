@@ -182,3 +182,6 @@ dialog > .stack { padding: 20px; }
 .card.live{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:14px 18px;margin-bottom:14px;border:2px solid var(--brand)}
 .kinds .plan b{font-size:1.02rem}
 .kind-chip{display:inline-block;font-size:.8rem;padding:1px 9px;border-radius:999px;background:var(--brand-soft,#e3f0ea);color:var(--brand,#0f5a46);margin-inline-start:6px}
+
+/* فيديو التعريف أعلى صفحة التسجيل */
+.intro-video { display: block; width: 100%; max-height: 55vh; aspect-ratio: 9 / 16; object-fit: contain; background: #000; border-radius: var(--radius); margin: 0 auto 16px; }
