@@ -25,9 +25,11 @@ const Pin: React.FC<{ color: string }> = ({ color }) => (
   </svg>
 );
 
-const PinOnMap: React.FC<{ i: number }> = ({ i }) => {
+type MapText = { title: readonly string[]; pins: readonly { label: string; color: string }[]; caption: string };
+
+const PinOnMap: React.FC<{ i: number; pins: MapText["pins"] }> = ({ i, pins }) => {
   const s = spots[i];
-  const pin = content.map.pins[i];
+  const pin = pins[i];
   const p = usePop(18 + i * 14, 10);
   return (
     <div style={{ position: "absolute", left: s.x, top: s.y, transform: `translate(-50%, -100%) scale(${p})`, transformOrigin: "50% 100%" }}>
@@ -41,7 +43,7 @@ const PinOnMap: React.FC<{ i: number }> = ({ i }) => {
   );
 };
 
-const MapCard: React.FC = () => {
+const MapCard: React.FC<{ pins: MapText["pins"] }> = ({ pins }) => {
   const frame = useCurrentFrame();
   const routeP = interpolate(frame, [75, 110], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   const pulse = (frame % 45) / 45;
@@ -60,26 +62,26 @@ const MapCard: React.FC = () => {
         <circle cx={300} cy={360} r={20} fill="#fff" />
         <circle cx={300} cy={360} r={11} fill={colors.ink} />
       </svg>
-      {content.map.pins.map((_, i) => <PinOnMap key={i} i={i} />)}
+      {pins.map((_, i) => <PinOnMap key={i} i={i} pins={pins} />)}
     </div>
   );
 };
 
-export const MapScene: React.FC = () => {
+export const MapScene: React.FC<{ text?: MapText }> = ({ text = content.map }) => {
   const wide = useWide();
   const card = usePop(4, 16);
   const k = wide ? 1.25 : 1.55;
   const map = (
     <div style={{ width: W * k, height: H * k, display: "flex", alignItems: "center", justifyContent: "center", opacity: card }}>
       <div style={{ transform: `scale(${k * (0.9 + card * 0.1)})`, flexShrink: 0 }}>
-        <MapCard />
+        <MapCard pins={text.pins} />
       </div>
     </div>
   );
-  const title = <Reveal delay={0}><TwoTone parts={content.map.title} size={wide ? 96 : 80} /></Reveal>;
+  const title = <Reveal delay={0} style={{ textAlign: wide ? "right" : "center", maxWidth: wide ? 760 : 960 }}><TwoTone parts={text.title} size={wide ? 96 : 80} /></Reveal>;
   const caption = (
     <Reveal delay={95}>
-      <div style={{ fontSize: wide ? 44 : 48, color: colors.muted }}>{content.map.caption}</div>
+      <div style={{ fontSize: wide ? 44 : 48, color: colors.muted }}>{text.caption}</div>
     </Reveal>
   );
   if (wide) {

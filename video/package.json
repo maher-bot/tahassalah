@@ -11,7 +11,8 @@
     "still": "remotion still Promo-9x16 out/still.png --frame=60",
     "thumbs": "node tools/thumbs.mjs",
     "voice": ".venv/bin/python tools/voice.py",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "render:families": "remotion render Families-9x16 out/families-sharaie-9x16.mp4 && remotion render Families-16x9 out/families-sharaie-16x9.mp4"
   },
   "dependencies": {
     "@remotion/cli": "4.0.539",

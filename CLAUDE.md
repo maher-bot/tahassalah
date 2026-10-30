@@ -18,9 +18,11 @@
 |---|---|---|
 | الإعلان الكامل | `Promo-9x16` / `Promo-16x9` | 30ث |
 | إعلان قصير | `Ad15-9x16` / `Ad15-16x9` | 15ث |
+| الأسر المنتجة في الشرائع | `Families-9x16` / `Families-16x9` | 24ث |
 | تعريف بتاجر | `Merchant-<id>-9x16` / `-16x9` | حسب عدد الصور |
 
 - **نصوص الإعلان** في `video/src/content.ts`، والمشاهد في `video/src/scenes/`، وترتيبها ومددها (للكامل والقصير) في `video/src/Promo.tsx`.
+- **إعلانات موجّهة** (مثل `families`): نصوصها في `content.ts` تحت مفتاحها، ومشاهدها في `variants` داخل `Promo.tsx` (المشاهد تقبل نصوصها كـ props).
 - **التجّار** في `video/src/merchants.ts` (المدخل `example` تجريبي، أسماؤه وهمية). صورهم في `video/public/merchants/<id>/`. القالب في `video/src/templates/Merchant.tsx`.
 - **الألوان والخطوط** في `video/src/theme.ts`. الألوان `#105E51` و`#FF7B47`. أيقونة الشعار `LogoIcon` (`video/src/ui.tsx`) تقرأ `video/public/brand/icon.svg` (نسخة من `brand/icon.svg`). الخطوط محفوظة في `video/public/fonts`.
 - **الموسيقى** `video/public/music.m4a`.

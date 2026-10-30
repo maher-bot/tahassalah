@@ -6,6 +6,8 @@ import { Hook } from "./scenes/Hook";
 import { MapScene } from "./scenes/MapScene";
 import { Merchants } from "./scenes/Merchants";
 import { Why } from "./scenes/Why";
+import { Lines, Offer } from "./scenes/Lines";
+import { content } from "./content";
 import { sec } from "./theme";
 import { Background, Scene } from "./ui";
 
@@ -18,6 +20,15 @@ export const variants = {
     { C: Why, s: 6 },
     { C: Merchants, s: 4.5 },
     { C: End, s: 4.5 },
+  ],
+  // إعلان الأسر المنتجة في الشرائع
+  families: [
+    { C: () => <Hook text={content.families.hook} />, s: 3 },
+    { C: () => <Lines {...content.families.value} />, s: 3.5 },
+    { C: () => <MapScene text={content.families.map} />, s: 5.5 },
+    { C: () => <Why text={content.families.why} />, s: 5 },
+    { C: () => <Offer {...content.families.offer} />, s: 3 },
+    { C: () => <End button={content.families.button} />, s: 4 },
   ],
   ad15: [
     { C: Hook, s: 2.5 },

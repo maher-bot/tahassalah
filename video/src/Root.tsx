@@ -28,6 +28,8 @@ export const RemotionRoot: React.FC = () => (
           calculateMetadata={promoMeta} durationInFrames={1} fps={FPS} width={width} height={height} />
         <Composition id={`Ad15-${tag}`} component={Promo} defaultProps={{ variant: "ad15" } as PromoProps}
           calculateMetadata={promoMeta} durationInFrames={1} fps={FPS} width={width} height={height} />
+        <Composition id={`Families-${tag}`} component={Promo} defaultProps={{ variant: "families" } as PromoProps}
+          calculateMetadata={promoMeta} durationInFrames={1} fps={FPS} width={width} height={height} />
         {Object.entries(merchants).map(([id, m]) => (
           <Composition key={id} id={`Merchant-${id}-${tag}`} component={Merchant} defaultProps={m}
             calculateMetadata={merchantMeta} durationInFrames={1} fps={FPS} width={width} height={height} />

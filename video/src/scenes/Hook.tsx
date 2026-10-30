@@ -3,7 +3,7 @@ import { content } from "../content";
 import { colors } from "../theme";
 import { LogoIcon, Reveal, TwoTone, usePop, useWide } from "../ui";
 
-export const Hook: React.FC = () => {
+export const Hook: React.FC<{ text?: { line1: string; line2: string } }> = ({ text = content.hook }) => {
   const frame = useCurrentFrame();
   const wide = useWide();
   const drop = usePop(0, 11);
@@ -23,9 +23,9 @@ export const Hook: React.FC = () => {
         <LogoIcon size={wide ? 190 : 260} />
       </div>
       <div style={{ textAlign: "center" }}>
-        <Reveal delay={22}><TwoTone parts={[content.hook.line1, ""]} size={wide ? 104 : 150} /></Reveal>
+        <Reveal delay={22}><TwoTone parts={[text.line1, ""]} size={wide ? 104 : 150} /></Reveal>
         <Reveal delay={40}>
-          <TwoTone parts={["", content.hook.line2]} size={wide ? 104 : 150} style={{ marginTop: -10 }} />
+          <TwoTone parts={["", text.line2]} size={wide ? 104 : 150} style={{ marginTop: -10 }} />
         </Reveal>
       </div>
     </AbsoluteFill>

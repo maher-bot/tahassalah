@@ -3,7 +3,7 @@ import { content } from "../content";
 import { colors, fonts } from "../theme";
 import { LogoIcon, Reveal, TwoTone, usePop, useWide, Wordmark } from "../ui";
 
-export const End: React.FC = () => {
+export const End: React.FC<{ button?: string }> = ({ button = content.end.button }) => {
   const wide = useWide();
   const frame = useCurrentFrame();
   const logo = usePop(0, 12);
@@ -22,7 +22,7 @@ export const End: React.FC = () => {
         marginTop: wide ? 40 : 70, transform: `scale(${btn * breathe})`, background: colors.orange, color: "#fff",
         borderRadius: 80, padding: wide ? "18px 90px" : "26px 120px", fontFamily: fonts.display, fontWeight: 700,
         fontSize: wide ? 64 : 80, boxShadow: "0 16px 40px rgba(242,122,69,0.4)",
-      }}>{content.end.button}</div>
+      }}>{button}</div>
       <Reveal delay={48} style={{ marginTop: wide ? 30 : 50 }}>
         <div style={{
           direction: "ltr", background: colors.ink, color: "#fff", borderRadius: 60, padding: wide ? "12px 50px" : "16px 60px",

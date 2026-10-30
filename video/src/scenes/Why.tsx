@@ -27,13 +27,15 @@ const Card: React.FC<{ icon: string; title: string; sub: string; wide: boolean }
   );
 };
 
-export const Why: React.FC = () => {
+type WhyText = { title: readonly string[]; cards: readonly { icon: string; title: string; sub: string }[] };
+
+export const Why: React.FC<{ text?: WhyText }> = ({ text = content.why }) => {
   const wide = useWide();
   return (
     <AbsoluteFill style={{ alignItems: "center", justifyContent: wide ? "center" : "flex-start", paddingTop: wide ? 0 : 330, gap: wide ? 70 : 90 }}>
-      <Reveal delay={0}><TwoTone parts={content.why.title} size={wide ? 96 : 100} /></Reveal>
+      <Reveal delay={0}><TwoTone parts={text.title} size={wide ? 96 : 100} /></Reveal>
       <div style={{ display: "flex", flexDirection: wide ? "row" : "column", gap: 44 }}>
-        {content.why.cards.map((c, i) => (
+        {text.cards.map((c, i) => (
           <Reveal key={i} delay={15 + i * 30} x={wide ? 0 : -300} y={wide ? 80 : 0}>
             <Card {...c} wide={wide} />
           </Reveal>
