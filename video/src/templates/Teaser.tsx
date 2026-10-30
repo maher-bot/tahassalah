@@ -79,7 +79,7 @@ export const Teaser: React.FC<TeaserProps> = ({ callout, photo, emoji, line1, li
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 22 }}>
           <div style={{
             background: colors.orange, color: "#fff", borderRadius: 60, padding: "16px 48px",
-            fontFamily: fonts.display, fontWeight: 700, fontSize: 52, boxShadow: "0 14px 34px rgba(255,123,71,0.35)",
+            fontFamily: fonts.display, fontWeight: 700, fontSize: 46, whiteSpace: "nowrap", boxShadow: "0 14px 34px rgba(255,123,71,0.35)",
           }}>{cta}</div>
           <div style={{ direction: "ltr", background: colors.ink, color: "#fff", borderRadius: 70, padding: "12px 52px", fontFamily: fonts.display, fontWeight: 700, fontSize: 48 }}>
             tahassalah.com
