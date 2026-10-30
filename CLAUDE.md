@@ -2,6 +2,14 @@
 
 موقع ثابت (HTML/JS) على GitHub Pages + Supabase. صاحب المشروع يتكلم عربي (لهجة خليجية) — رد عليه بالعربي وبشكل مبسط.
 
+## الهوية — `brand/`
+
+الشعار المعتمد (فكرة "حولك": رادار ودبوس برتقالي). الكلمة بخط El Messiri 700، والإنجليزي بخط Alexandria 700.
+- `logo-horizontal.*` و`logo-stacked.*` (و`-white` للخلفيات الغامقة)، `icon.svg` / `icon-*.png`
+- `icon-small.svg`: نسخة مبسطة للمقاسات الصغيرة (منها `favicon.ico`)
+- `apple-touch-icon.png`، `social-avatar.png`، و`preview.png` (معاينة كل النسخ)
+- في الموقع: الأيقونة مضمّنة كـ SVG داخل `.mark` في كل صفحة HTML (تستخدم متغيرات الألوان عشان الوضع الغامق)، والفافيكون من `brand/`.
+
 ## الفيديو — `video/`
 
 مشروع Remotion. الـ SessionStart hook يثبّت حزمه وأداة الصوت تلقائيًا.
@@ -14,7 +22,7 @@
 
 - **نصوص الإعلان** في `video/src/content.ts`، والمشاهد في `video/src/scenes/`، وترتيبها ومددها (للكامل والقصير) في `video/src/Promo.tsx`.
 - **التجّار** في `video/src/merchants.ts` (المدخل `example` تجريبي، أسماؤه وهمية). صورهم في `video/public/merchants/<id>/`. القالب في `video/src/templates/Merchant.tsx`.
-- **الألوان والخطوط** في `video/src/theme.ts`. الألوان مأخوذة من ملف الشعار الرسمي (`#105E51` و`#FF7B47`)، والدبوس في `PinLogo` (`video/src/ui.tsx`) مرسوم بنفس نسب الشعار. الخطوط محفوظة في `video/public/fonts`.
+- **الألوان والخطوط** في `video/src/theme.ts`. الألوان `#105E51` و`#FF7B47`. أيقونة الشعار `LogoIcon` (`video/src/ui.tsx`) تقرأ `video/public/brand/icon.svg` (نسخة من `brand/icon.svg`). الخطوط محفوظة في `video/public/fonts`.
 - **الموسيقى** `video/public/music.m4a`.
 
 ```bash

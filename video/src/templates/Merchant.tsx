@@ -1,7 +1,7 @@
 import { AbsoluteFill, Audio, Img, interpolate, Sequence, staticFile, useCurrentFrame } from "remotion";
 import { Captions, Word } from "../Captions";
 import { colors, fonts, sec } from "../theme";
-import { Background, PinLogo, Reveal, Scene, TwoTone, usePop, useWide } from "../ui";
+import { Background, LogoIcon, Reveal, Scene, TwoTone, usePop, useWide } from "../ui";
 
 // قالب فيديو يعرّف بتاجر — غيّر البيانات وطلّع فيديو جديد
 export type MerchantProps = {
@@ -69,7 +69,7 @@ const Place: React.FC<MerchantProps> = ({ area }) => {
     <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", gap: 50 }}>
       <div style={{ position: "relative", display: "grid", placeItems: "center", width: 360, height: 360 }}>
         <div style={{ position: "absolute", width: 360, height: 360, borderRadius: "50%", background: colors.orange, opacity: 0.18 * (1 - pulse), transform: `scale(${0.5 + pulse * 0.6})` }} />
-        <div style={{ transform: `translateY(${(1 - pin) * -300}px)` }}><PinLogo size={170} /></div>
+        <div style={{ transform: `translateY(${(1 - pin) * -300}px)` }}><LogoIcon size={200} /></div>
       </div>
       <Reveal delay={14} style={{ textAlign: "center" }}>
         <TwoTone parts={["قريب منك في", ""]} size={wide ? 84 : 90} />

@@ -10,6 +10,8 @@ for (const f of files) {
 export const fonts = {
   display: "'Readex Pro', 'IBM Plex Sans Arabic', sans-serif",
   body: "'IBM Plex Sans Arabic', sans-serif",
+  // خط كلمة "تحصّله" في الشعار
+  logo: "'El Messiri', 'Readex Pro', sans-serif",
 };
 
 export const colors = {

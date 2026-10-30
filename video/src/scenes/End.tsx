@@ -1,7 +1,7 @@
 import { AbsoluteFill, useCurrentFrame } from "remotion";
 import { content } from "../content";
 import { colors, fonts } from "../theme";
-import { PinLogo, Reveal, TwoTone, usePop, useWide, Wordmark } from "../ui";
+import { LogoIcon, Reveal, TwoTone, usePop, useWide, Wordmark } from "../ui";
 
 export const End: React.FC = () => {
   const wide = useWide();
@@ -12,7 +12,7 @@ export const End: React.FC = () => {
   return (
     <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, opacity: logo, transform: `scale(${0.85 + logo * 0.15})` }}>
-        <PinLogo size={wide ? 110 : 160} />
+        <LogoIcon size={wide ? 150 : 210} />
         <Wordmark scale={wide ? 0.75 : 1} />
       </div>
       <Reveal delay={12} style={{ marginTop: 30 }}>

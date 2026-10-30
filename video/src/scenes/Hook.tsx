@@ -1,7 +1,7 @@
 import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
 import { content } from "../content";
 import { colors } from "../theme";
-import { PinLogo, Reveal, TwoTone, usePop, useWide } from "../ui";
+import { LogoIcon, Reveal, TwoTone, usePop, useWide } from "../ui";
 
 export const Hook: React.FC = () => {
   const frame = useCurrentFrame();
@@ -16,11 +16,11 @@ export const Hook: React.FC = () => {
       <div style={{ position: "relative", transform: `translateY(${(1 - drop) * -500}px)` }}>
         {[14, 34].map((s) => (
           <div key={s} style={{
-            position: "absolute", left: "50%", bottom: -60, width: 180, height: 180, marginLeft: -90,
+            position: "absolute", left: "50%", top: "50%", width: 260, height: 260, marginLeft: -130, marginTop: -130,
             borderRadius: "50%", border: `5px solid ${colors.orange}`, ...ring(s),
           }} />
         ))}
-        <PinLogo size={wide ? 150 : 230} />
+        <LogoIcon size={wide ? 190 : 260} />
       </div>
       <div style={{ textAlign: "center" }}>
         <Reveal delay={22}><TwoTone parts={[content.hook.line1, ""]} size={wide ? 104 : 150} /></Reveal>

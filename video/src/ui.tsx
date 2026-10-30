@@ -1,5 +1,5 @@
 import React from "react";
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { colors, fonts } from "./theme";
 
 export const useWide = () => {
@@ -47,15 +47,9 @@ export const Background: React.FC = () => {
   );
 };
 
-// شعار الدبوس مع العدسة — مأخوذ من ملف الشعار الرسمي (نفس النسب والألوان)
-export const PinLogo: React.FC<{ size: number }> = ({ size }) => (
-  <svg width={size} height={(size * 518) / 390} viewBox="0 0 390 518">
-    <path d="M195 518C125 449 0 316 0 193a195 195 0 0 1 390 0c0 123-125 256-195 325z" fill={colors.orange} />
-    <line x1="232" y1="232" x2="300" y2="300" stroke="#fff" strokeWidth="38" strokeLinecap="round" />
-    <circle cx="186" cy="185" r="109" fill="#fff" />
-    <circle cx="186" cy="185" r="67" fill={colors.orange} />
-    <circle cx="186" cy="185" r="32" fill={colors.ink} />
-  </svg>
+// أيقونة الشعار (الرادار) — نفس ملف brand/icon.svg
+export const LogoIcon: React.FC<{ size: number }> = ({ size }) => (
+  <Img src={staticFile("brand/icon.svg")} style={{ width: size, height: size, display: "block" }} />
 );
 
 // سطر بجزئين: الثاني ملوّن
@@ -69,10 +63,10 @@ export const TwoTone: React.FC<{ parts: readonly string[]; size: number; accent?
 
 export const Wordmark: React.FC<{ scale?: number }> = ({ scale = 1 }) => (
   <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-    <div style={{ fontFamily: fonts.display, fontWeight: 700, fontSize: 250 * scale, color: colors.ink, lineHeight: 1.1 }}>
+    <div style={{ fontFamily: fonts.logo, fontWeight: 700, fontSize: 250 * scale, color: colors.ink, lineHeight: 1.15 }}>
       تحصّله
     </div>
-    <div style={{ direction: "ltr", fontFamily: fonts.body, fontWeight: 500, fontSize: 40 * scale, letterSpacing: 16 * scale, color: colors.ink, marginTop: 6 * scale }}>
+    <div style={{ direction: "ltr", fontFamily: fonts.display, fontWeight: 700, fontSize: 40 * scale, letterSpacing: 16 * scale, color: colors.ink, marginTop: 6 * scale }}>
       TAHASSALAH
     </div>
   </div>
