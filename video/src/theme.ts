@@ -13,10 +13,10 @@ export const fonts = {
 };
 
 export const colors = {
-  ink: "#0B4F43",
-  orange: "#F27A45",
+  ink: "#105E51",
+  orange: "#FF7B47",
   yellow: "#E9B10C",
-  green: "#0D5C4E",
+  green: "#105E51",
   muted: "#6B7F7A",
   map: "#E3EEEA",
   mapBlock: "#D2E3DD",

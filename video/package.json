@@ -5,8 +5,12 @@
     "studio": "remotion studio",
     "render:9x16": "remotion render Promo-9x16 out/promo-9x16.mp4",
     "render:16x9": "remotion render Promo-16x9 out/promo-16x9.mp4",
-    "render": "npm run render:9x16 && npm run render:16x9",
+    "render": "remotion render Promo-9x16 out/promo-9x16.mp4 && remotion render Promo-16x9 out/promo-16x9.mp4",
+    "render:ad15": "remotion render Ad15-9x16 out/ad15-9x16.mp4 && remotion render Ad15-16x9 out/ad15-16x9.mp4",
+    "list": "remotion compositions",
     "still": "remotion still Promo-9x16 out/still.png --frame=60",
+    "thumbs": "node tools/thumbs.mjs",
+    "voice": ".venv/bin/python tools/voice.py",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

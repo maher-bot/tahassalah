@@ -47,14 +47,14 @@ export const Background: React.FC = () => {
   );
 };
 
-// شعار الدبوس مع العدسة
+// شعار الدبوس مع العدسة — مأخوذ من ملف الشعار الرسمي (نفس النسب والألوان)
 export const PinLogo: React.FC<{ size: number }> = ({ size }) => (
-  <svg width={size} height={size * 1.25} viewBox="0 0 100 125">
-    <path d="M50 0C22.4 0 0 22.4 0 50c0 34 50 75 50 75s50-41 50-75C100 22.4 77.6 0 50 0z" fill={colors.orange} />
-    <circle cx="48" cy="46" r="21" fill="#fff" />
-    <circle cx="48" cy="46" r="9" fill={colors.ink} />
-    <circle cx="48" cy="46" r="13.5" fill="none" stroke={colors.orange} strokeWidth="3" />
-    <line x1="62" y1="60" x2="76" y2="74" stroke="#fff" strokeWidth="9" strokeLinecap="round" />
+  <svg width={size} height={(size * 518) / 390} viewBox="0 0 390 518">
+    <path d="M195 518C125 449 0 316 0 193a195 195 0 0 1 390 0c0 123-125 256-195 325z" fill={colors.orange} />
+    <line x1="232" y1="232" x2="300" y2="300" stroke="#fff" strokeWidth="38" strokeLinecap="round" />
+    <circle cx="186" cy="185" r="109" fill="#fff" />
+    <circle cx="186" cy="185" r="67" fill={colors.orange} />
+    <circle cx="186" cy="185" r="32" fill={colors.ink} />
   </svg>
 );
 

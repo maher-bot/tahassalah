@@ -4,22 +4,39 @@
 
 ## الفيديو — `video/`
 
-مشروع Remotion للفيديو الإعلاني (30 ثانية، نسختين: 9x16 و16x9).
-الـ SessionStart hook يثبّت حزمه تلقائيًا، فهو جاهز من أول الجلسة.
+مشروع Remotion. الـ SessionStart hook يثبّت حزمه وأداة الصوت تلقائيًا.
 
-- **النصوص كلها** في `video/src/content.ts` — أي تعديل على الكلام يصير هناك.
-- **المشاهد** في `video/src/scenes/` وترتيبها ومدتها في `video/src/Promo.tsx`.
-- **الألوان والخطوط** في `video/src/theme.ts` (نفس خطوط الموقع، محفوظة في `video/public/fonts` عشان الريندر ما يحتاج إنترنت).
+| الفيديو | الـ Composition | المدة |
+|---|---|---|
+| الإعلان الكامل | `Promo-9x16` / `Promo-16x9` | 30ث |
+| إعلان قصير | `Ad15-9x16` / `Ad15-16x9` | 15ث |
+| تعريف بتاجر | `Merchant-<id>-9x16` / `-16x9` | حسب عدد الصور |
+
+- **نصوص الإعلان** في `video/src/content.ts`، والمشاهد في `video/src/scenes/`، وترتيبها ومددها (للكامل والقصير) في `video/src/Promo.tsx`.
+- **التجّار** في `video/src/merchants.ts` (المدخل `example` تجريبي، أسماؤه وهمية). صورهم في `video/public/merchants/<id>/`. القالب في `video/src/templates/Merchant.tsx`.
+- **الألوان والخطوط** في `video/src/theme.ts`. الألوان مأخوذة من ملف الشعار الرسمي (`#105E51` و`#FF7B47`)، والدبوس في `PinLogo` (`video/src/ui.tsx`) مرسوم بنفس نسب الشعار. الخطوط محفوظة في `video/public/fonts`.
 - **الموسيقى** `video/public/music.m4a`.
 
 ```bash
 cd video
-npm run still          # صورة سريعة للمعاينة → out/still.png
-npm run render:9x16    # → out/promo-9x16.mp4
-npm run render:16x9    # → out/promo-16x9.mp4
+npm run list           # كل الفيديوهات المتاحة
+npm run still          # صورة سريعة للمعاينة
+npm run render         # الإعلان الكامل بالمقاسين → out/
+npm run render:ad15    # الإعلان القصير بالمقاسين
+npx remotion render Merchant-example-9x16 out/merchant-example-9x16.mp4
+npm run thumbs         # صورة غلاف JPG لكل فيديو → out/
 ```
 
-لنشر نسخة جديدة على الموقع: انسخ الملف من `video/out/` إلى `media/` بنفس الاسم (الموقع يقرأ `media/promo-*.mp4` و`media/promo-*.jpg` كصورة غلاف).
+### تعليق صوتي + كابشن
+```bash
+npm run voice -- intro "تدوّر شي قريب منك؟ تحصّله!"   # → public/voice/intro.mp3 + intro.json
+npm run voice -- --voices                               # الأصوات العربية
+```
+بعدها مرّر `voice` للفيديو: `npx remotion render Ad15-9x16 out/x.mp4 --props='{"variant":"ad15","voice":"intro"}'`
+(أو `"voice": "intro"` في بيانات التاجر). الكابشن يطلع تلقائيًا من توقيت الكلمات، والموسيقى تخف تحت الصوت.
+أداة الصوت تحتاج إن البيئة تسمح بالدومين `speech.platform.bing.com`. لو مو مسموح، الطلب يفشل بخطأ اتصال.
+
+للنشر على الموقع: انسخ الملف من `video/out/` إلى `media/` (الموقع يقرأ `media/promo-*.mp4` و`media/promo-*.jpg`).
 
 ## أدوات الذكاء الاصطناعي الإضافية
 
