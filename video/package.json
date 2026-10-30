@@ -1,0 +1,23 @@
+{
+  "name": "tahassalah-video",
+  "private": true,
+  "scripts": {
+    "studio": "remotion studio",
+    "render:9x16": "remotion render Promo-9x16 out/promo-9x16.mp4",
+    "render:16x9": "remotion render Promo-16x9 out/promo-16x9.mp4",
+    "render": "npm run render:9x16 && npm run render:16x9",
+    "still": "remotion still Promo-9x16 out/still.png --frame=60",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.539",
+    "@remotion/fonts": "^4.0.539",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "remotion": "4.0.539"
+  },
+  "devDependencies": {
+    "@types/react": "19.1.8",
+    "typescript": "5.8.3"
+  }
+}

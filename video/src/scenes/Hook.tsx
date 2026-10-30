@@ -1,0 +1,33 @@
+import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
+import { content } from "../content";
+import { colors } from "../theme";
+import { PinLogo, Reveal, TwoTone, usePop, useWide } from "../ui";
+
+export const Hook: React.FC = () => {
+  const frame = useCurrentFrame();
+  const wide = useWide();
+  const drop = usePop(0, 11);
+  const ring = (start: number) => {
+    const t = interpolate(frame, [start, start + 30], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+    return { transform: `scale(${0.3 + t * 1.4})`, opacity: t === 0 ? 0 : 1 - t };
+  };
+  return (
+    <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", gap: wide ? 110 : 90 }}>
+      <div style={{ position: "relative", transform: `translateY(${(1 - drop) * -500}px)` }}>
+        {[14, 34].map((s) => (
+          <div key={s} style={{
+            position: "absolute", left: "50%", bottom: -60, width: 180, height: 180, marginLeft: -90,
+            borderRadius: "50%", border: `5px solid ${colors.orange}`, ...ring(s),
+          }} />
+        ))}
+        <PinLogo size={wide ? 150 : 230} />
+      </div>
+      <div style={{ textAlign: "center" }}>
+        <Reveal delay={22}><TwoTone parts={[content.hook.line1, ""]} size={wide ? 104 : 150} /></Reveal>
+        <Reveal delay={40}>
+          <TwoTone parts={["", content.hook.line2]} size={wide ? 104 : 150} style={{ marginTop: -10 }} />
+        </Reveal>
+      </div>
+    </AbsoluteFill>
+  );
+};
