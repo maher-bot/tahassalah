@@ -8,6 +8,7 @@ export type TeaserProps = {
   line1: string;
   line2: string; // يطلع بالبرتقالي
   sub: string;
+  offer: string; // شارة العرض
 };
 
 const blocks = [
@@ -41,23 +42,27 @@ const MysteryMap: React.FC<{ emoji: string; scale: number }> = ({ emoji, scale }
   </div>
 );
 
-export const Teaser: React.FC<TeaserProps> = ({ emoji, line1, line2, sub }) => {
+export const Teaser: React.FC<TeaserProps> = ({ emoji, line1, line2, sub, offer }) => {
   const story = useVideoConfig().height > 1500;
   return (
   <AbsoluteFill style={{ direction: "rtl", fontFamily: fonts.body }}>
     <Background />
-    <AbsoluteFill style={{ alignItems: "center", justifyContent: "space-between", padding: story ? "90px 70px 90px" : "60px 60px 60px" }}>
+    <AbsoluteFill style={{ alignItems: "center", justifyContent: "space-between", padding: story ? "90px 70px 400px" : "60px 60px 60px" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 18, alignSelf: "flex-start" }}>
         <LogoIcon size={72} />
         <div style={{ fontFamily: fonts.display, fontWeight: 700, fontSize: 38, color: colors.ink }}>الشرائع</div>
       </div>
-      <MysteryMap emoji={emoji} scale={story ? 1.25 : 0.68} />
+      <MysteryMap emoji={emoji} scale={story ? 1.0 : 0.6} />
       <div style={{ textAlign: "center" }}>
         <div style={{ fontFamily: fonts.display, fontWeight: 700, fontSize: 84, color: colors.ink, lineHeight: 1.3 }}>{line1}</div>
         <div style={{ fontFamily: fonts.display, fontWeight: 700, fontSize: 84, color: colors.orange, lineHeight: 1.3 }}>{line2}</div>
         <div style={{ fontSize: 42, color: colors.muted, marginTop: 24 }}>{sub}</div>
       </div>
-      <div style={{ direction: "ltr", background: colors.ink, color: "#fff", borderRadius: 70, padding: "20px 64px", fontFamily: fonts.display, fontWeight: 700, fontSize: 60 }}>
+      <div style={{
+        background: colors.orange, color: "#fff", borderRadius: 60, padding: "18px 48px",
+        fontFamily: fonts.display, fontWeight: 700, fontSize: 52, boxShadow: "0 14px 34px rgba(255,123,71,0.35)",
+      }}>{offer}</div>
+      <div style={{ direction: "ltr", background: colors.ink, color: "#fff", borderRadius: 70, padding: "16px 56px", fontFamily: fonts.display, fontWeight: 700, fontSize: 54 }}>
         tahassalah.com
       </div>
     </AbsoluteFill>

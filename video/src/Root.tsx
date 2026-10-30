@@ -28,7 +28,6 @@ export const RemotionRoot: React.FC = () => (
     <Folder name="Teasers">
       {Object.entries(content.teasers).flatMap(([id, t]) => [
         <Still key={`${id}-story`} id={`Teaser-${id}-story`} component={Teaser} defaultProps={t} width={1080} height={1920} />,
-        <Still key={`${id}-post`} id={`Teaser-${id}-post`} component={Teaser} defaultProps={t} width={1080} height={1350} />,
       ])}
     </Folder>
     {sizes.map(({ tag, width, height }) => (

@@ -19,12 +19,13 @@
 | الإعلان الكامل | `Promo-9x16` / `Promo-16x9` | 30ث |
 | إعلان قصير | `Ad15-9x16` / `Ad15-16x9` | 15ث |
 | الأسر المنتجة في الشرائع | `Families-9x16` / `Families-16x9` | 24ث |
-| إعلانات ثابتة (صورة) للشرائع | `Teaser-<families|vendors|shops>-<story|post>` | صورة؛ ونسخة MP4 ثابتة 6ث |
+| إعلانات ثابتة (صورة) للشرائع | `Teaser-<families|vendors|shops>-story` | صورة 9:16؛ ونسخة MP4 ثابتة 6ث |
 | تعريف بتاجر | `Merchant-<id>-9x16` / `-16x9` | حسب عدد الصور |
 
 - **نصوص الإعلان** في `video/src/content.ts`، والمشاهد في `video/src/scenes/`، وترتيبها ومددها (للكامل والقصير) في `video/src/Promo.tsx`.
 - **إعلانات موجّهة** (مثل `families`): نصوصها في `content.ts` تحت مفتاحها، ومشاهدها في `variants` داخل `Promo.tsx` (المشاهد تقبل نصوصها كـ props).
-- **الإعلانات الثابتة**: نصوصها في `content.teasers`، والقالب `video/src/templates/Teaser.tsx`. النسخ الجاهزة في `media/teasers/` (الـ MP4 = الصورة نفسها 6 ثواني بصوت صامت، للمنصات اللي تبي فيديو).
+- **الإعلانات الثابتة**: نصوصها في `content.teasers`، والقالب `video/src/templates/Teaser.tsx`. النسخ الجاهزة في `media/teasers/` (الـ MP4 = الصورة نفسها 6 ثواني بصوت صامت). مخصصة لسناب وتيك توك: آخر 20% من الشاشة فاضي لزر المنصة، ولا نكتب "اسحب لفوق" (المنصة تضيف زرها).
+- **العروض** لازم تطابق كلام الموقع حرفيًا: مجانًا لين إطلاق التطبيق للمشترين + 3 أشهر، و6 أشهر لأول 500 محل في المنصة. عدد منتجات باقة الأسر متعارض في الموقع (60 في index.html و100 في merchant.html)، فلا تذكره في الإعلانات لين يتأكد.
 - **التجّار** في `video/src/merchants.ts` (المدخل `example` تجريبي، أسماؤه وهمية). صورهم في `video/public/merchants/<id>/`. القالب في `video/src/templates/Merchant.tsx`.
 - **الألوان والخطوط** في `video/src/theme.ts`. الألوان `#105E51` و`#FF7B47`. أيقونة الشعار `LogoIcon` (`video/src/ui.tsx`) تقرأ `video/public/brand/icon.svg` (نسخة من `brand/icon.svg`). الخطوط محفوظة في `video/public/fonts`.
 - **الموسيقى** `video/public/music.m4a`.

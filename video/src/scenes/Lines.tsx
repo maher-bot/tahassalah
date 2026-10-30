@@ -30,7 +30,7 @@ export const Offer: React.FC<{ badge: string; sub: string }> = ({ badge, sub }) 
     <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", gap: 40 }}>
       <div style={{
         transform: `scale(${p}) rotate(${(1 - p) * -8}deg)`, background: colors.orange, color: "#fff", borderRadius: 80,
-        padding: wide ? "30px 80px" : "36px 70px", fontFamily: fonts.display, fontWeight: 700, fontSize: wide ? 100 : 104,
+        padding: wide ? "30px 80px" : "30px 56px", fontFamily: fonts.display, fontWeight: 700, fontSize: wide ? 100 : 84, whiteSpace: "nowrap",
         boxShadow: "0 20px 50px rgba(255,123,71,0.4)",
       }}>{badge}</div>
       <Reveal delay={18}>
