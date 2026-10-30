@@ -1,14 +1,16 @@
-import { AbsoluteFill, useVideoConfig } from "remotion";
+import { AbsoluteFill, Img, staticFile, useVideoConfig } from "remotion";
 import { colors, fonts } from "../theme";
 import { Background, LogoIcon } from "../ui";
 
 // إعلان ثابت (بدون حركة ولا صوت) يثير الفضول ويودّي للموقع
 export type TeaserProps = {
-  emoji: string; // الدبوس المميّز على الخريطة
+  callout: string; // النداء أعلى الصفحة
+  photo?: string; // صورة من public/ — بدونها تطلع الخريطة الغامضة
+  emoji: string; // دبوس الخريطة (لو ما فيه صورة)
   line1: string;
   line2: string; // يطلع بالبرتقالي
   sub: string;
-  offer: string; // شارة العرض
+  cta: string; // شارة الدعوة
 };
 
 const blocks = [
@@ -42,30 +44,48 @@ const MysteryMap: React.FC<{ emoji: string; scale: number }> = ({ emoji, scale }
   </div>
 );
 
-export const Teaser: React.FC<TeaserProps> = ({ emoji, line1, line2, sub, offer }) => {
+const Photo: React.FC<{ src: string; width: number; height: number }> = ({ src, width, height }) => (
+  <div style={{ position: "relative", width, height, borderRadius: 44, overflow: "hidden", boxShadow: "0 24px 60px rgba(16,94,81,0.22)" }}>
+    <Img src={staticFile(src)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+    <div style={{ position: "absolute", top: 24, left: 24, background: "#fff", borderRadius: "50%", padding: 10, boxShadow: "0 8px 20px rgba(0,0,0,0.15)" }}>
+      <LogoIcon size={64} />
+    </div>
+  </div>
+);
+
+export const Teaser: React.FC<TeaserProps> = ({ callout, photo, emoji, line1, line2, sub, cta }) => {
   const story = useVideoConfig().height > 1500;
   return (
-  <AbsoluteFill style={{ direction: "rtl", fontFamily: fonts.body }}>
-    <Background />
-    <AbsoluteFill style={{ alignItems: "center", justifyContent: "space-between", padding: story ? "90px 70px 400px" : "60px 60px 60px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 18, alignSelf: "flex-start" }}>
-        <LogoIcon size={72} />
-        <div style={{ fontFamily: fonts.display, fontWeight: 700, fontSize: 38, color: colors.ink }}>الشرائع</div>
-      </div>
-      <MysteryMap emoji={emoji} scale={story ? 1.0 : 0.6} />
-      <div style={{ textAlign: "center" }}>
-        <div style={{ fontFamily: fonts.display, fontWeight: 700, fontSize: 84, color: colors.ink, lineHeight: 1.3 }}>{line1}</div>
-        <div style={{ fontFamily: fonts.display, fontWeight: 700, fontSize: 84, color: colors.orange, lineHeight: 1.3 }}>{line2}</div>
-        <div style={{ fontSize: 42, color: colors.muted, marginTop: 24 }}>{sub}</div>
-      </div>
-      <div style={{
-        background: colors.orange, color: "#fff", borderRadius: 60, padding: "18px 48px",
-        fontFamily: fonts.display, fontWeight: 700, fontSize: 52, boxShadow: "0 14px 34px rgba(255,123,71,0.35)",
-      }}>{offer}</div>
-      <div style={{ direction: "ltr", background: colors.ink, color: "#fff", borderRadius: 70, padding: "16px 56px", fontFamily: fonts.display, fontWeight: 700, fontSize: 54 }}>
-        tahassalah.com
-      </div>
+    <AbsoluteFill style={{ direction: "rtl", fontFamily: fonts.body }}>
+      <Background />
+      {/* آخر 20% من الشاشة فاضي لزر سناب/تيك توك */}
+      <AbsoluteFill style={{ alignItems: "center", justifyContent: "space-between", padding: story ? "80px 64px 400px" : "56px 56px 56px" }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 22 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <LogoIcon size={58} />
+            <div style={{ fontFamily: fonts.logo, fontWeight: 700, fontSize: 46, color: colors.ink }}>تحصّله</div>
+            <div style={{ fontSize: 34, color: colors.muted }}>· الشرائع</div>
+          </div>
+          <div style={{ background: colors.ink, color: "#fff", borderRadius: 60, padding: "14px 44px", fontFamily: fonts.display, fontWeight: 700, fontSize: 50 }}>
+            {callout}
+          </div>
+        </div>
+        {photo ? <Photo src={photo} width={950} height={story ? 720 : 520} /> : <MysteryMap emoji={emoji} scale={story ? 0.95 : 0.6} />}
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontFamily: fonts.display, fontWeight: 700, fontSize: 76, color: colors.ink, lineHeight: 1.3 }}>{line1}</div>
+          <div style={{ fontFamily: fonts.display, fontWeight: 700, fontSize: 76, color: colors.orange, lineHeight: 1.3 }}>{line2}</div>
+          <div style={{ fontSize: 44, color: colors.muted, marginTop: 16 }}>{sub}</div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 22 }}>
+          <div style={{
+            background: colors.orange, color: "#fff", borderRadius: 60, padding: "16px 48px",
+            fontFamily: fonts.display, fontWeight: 700, fontSize: 52, boxShadow: "0 14px 34px rgba(255,123,71,0.35)",
+          }}>{cta}</div>
+          <div style={{ direction: "ltr", background: colors.ink, color: "#fff", borderRadius: 70, padding: "12px 52px", fontFamily: fonts.display, fontWeight: 700, fontSize: 48 }}>
+            tahassalah.com
+          </div>
+        </div>
+      </AbsoluteFill>
     </AbsoluteFill>
-  </AbsoluteFill>
-);
+  );
 };
