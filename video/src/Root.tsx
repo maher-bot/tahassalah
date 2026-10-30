@@ -3,6 +3,9 @@ import { loadVoice } from "./Captions";
 import { merchants } from "./merchants";
 import { Promo, promoFrames, PromoProps } from "./Promo";
 import { Merchant, merchantFrames, MerchantProps } from "./templates/Merchant";
+import { Teaser } from "./templates/Teaser";
+import { content } from "./content";
+import { Still } from "remotion";
 import { FPS } from "./theme";
 
 const sizes = [
@@ -22,6 +25,12 @@ const merchantMeta: CalculateMetadataFunction<MerchantProps> = async ({ props })
 
 export const RemotionRoot: React.FC = () => (
   <>
+    <Folder name="Teasers">
+      {Object.entries(content.teasers).flatMap(([id, t]) => [
+        <Still key={`${id}-story`} id={`Teaser-${id}-story`} component={Teaser} defaultProps={t} width={1080} height={1920} />,
+        <Still key={`${id}-post`} id={`Teaser-${id}-post`} component={Teaser} defaultProps={t} width={1080} height={1350} />,
+      ])}
+    </Folder>
     {sizes.map(({ tag, width, height }) => (
       <Folder key={tag} name={`s${tag}`}>
         <Composition id={`Promo-${tag}`} component={Promo} defaultProps={{ variant: "full" } as PromoProps}
