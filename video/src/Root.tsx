@@ -6,7 +6,7 @@ import { Merchant, merchantFrames, MerchantProps } from "./templates/Merchant";
 import { Teaser } from "./templates/Teaser";
 import { content } from "./content";
 import { Still } from "remotion";
-import { FPS } from "./theme";
+import { FPS, sec } from "./theme";
 
 const sizes = [
   { tag: "9x16", width: 1080, height: 1920 },
@@ -28,6 +28,10 @@ export const RemotionRoot: React.FC = () => (
     <Folder name="Teasers">
       {Object.entries(content.teasers).flatMap(([id, t]) => [
         <Still key={`${id}-story`} id={`Teaser-${id}-story`} component={Teaser} defaultProps={t} width={1080} height={1920} />,
+        // نسخة الفيديو: الحي ينبض، والأسر معها التعليق الصوتي
+        <Composition key={`${id}-video`} id={`TeaserVideo-${id}`} component={Teaser}
+          defaultProps={{ ...t, pulse: true, voice: id === "families" ? "families-vo" : undefined }}
+          durationInFrames={id === "families" ? sec(19.5) : sec(6)} fps={FPS} width={1080} height={1920} />,
       ])}
     </Folder>
     {sizes.map(({ tag, width, height }) => (
@@ -36,7 +40,7 @@ export const RemotionRoot: React.FC = () => (
           calculateMetadata={promoMeta} durationInFrames={1} fps={FPS} width={width} height={height} />
         <Composition id={`Ad15-${tag}`} component={Promo} defaultProps={{ variant: "ad15" } as PromoProps}
           calculateMetadata={promoMeta} durationInFrames={1} fps={FPS} width={width} height={height} />
-        <Composition id={`Families-${tag}`} component={Promo} defaultProps={{ variant: "families", voice: "families-vo", voiceSeconds: 18.2 } as PromoProps}
+        <Composition id={`Families-${tag}`} component={Promo} defaultProps={{ variant: "families" } as PromoProps}
           calculateMetadata={promoMeta} durationInFrames={1} fps={FPS} width={width} height={height} />
         {Object.entries(merchants).map(([id, m]) => (
           <Composition key={id} id={`Merchant-${id}-${tag}`} component={Merchant} defaultProps={m}

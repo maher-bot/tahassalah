@@ -1,4 +1,4 @@
-import { AbsoluteFill, Img, staticFile, useVideoConfig } from "remotion";
+import { AbsoluteFill, Audio, Img, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
 import { colors, fonts } from "../theme";
 import { Background, LogoIcon } from "../ui";
 
@@ -11,6 +11,8 @@ export type TeaserProps = {
   line2: string; // يطلع بالبرتقالي
   sub: string;
   cta: string; // شارة الدعوة
+  pulse?: boolean; // كلمة الحي تنبض مثل التنبيه (لنسخة الفيديو)
+  voice?: string; // تعليق صوتي من public/voice (بدون امتداد)
 };
 
 const blocks = [
@@ -53,18 +55,41 @@ const Photo: React.FC<{ src: string; width: number; height: number }> = ({ src, 
   </div>
 );
 
-export const Teaser: React.FC<TeaserProps> = ({ callout, photo, emoji, line1, line2, sub, cta }) => {
+// شارة الحي: تكبر وتصغر مع حلقة تتوسع، مثل التنبيه
+const Area: React.FC<{ pulse?: boolean }> = ({ pulse }) => {
+  const frame = useCurrentFrame();
+  const t = pulse ? (frame % 36) / 36 : 0; // نبضة كل 1.2 ثانية
+  const beat = pulse ? 1 + 0.14 * Math.max(0, Math.sin(t * Math.PI * 2)) : 1;
+  return (
+    <div style={{ position: "relative", display: "grid", placeItems: "center", marginInlineStart: 26 }}>
+      {pulse && (
+        <div style={{
+          position: "absolute", inset: 0, borderRadius: 60, border: `5px solid ${colors.orange}`,
+          transform: `scale(${1 + t * 0.45})`, opacity: 1 - t,
+        }} />
+      )}
+      <div style={{
+        transform: `scale(${beat})`, background: colors.orange, color: "#fff", borderRadius: 60,
+        padding: "8px 30px", fontFamily: fonts.display, fontWeight: 700, fontSize: 44,
+        boxShadow: "0 10px 26px rgba(255,123,71,0.4)",
+      }}>📍 الشرائع</div>
+    </div>
+  );
+};
+
+export const Teaser: React.FC<TeaserProps> = ({ callout, photo, emoji, line1, line2, sub, cta, pulse, voice }) => {
   const story = useVideoConfig().height > 1500;
   return (
     <AbsoluteFill style={{ direction: "rtl", fontFamily: fonts.body }}>
       <Background />
+      {voice && <Audio src={staticFile(`voice/${voice}.mp3`)} />}
       {/* آخر 20% من الشاشة فاضي لزر سناب/تيك توك */}
       <AbsoluteFill style={{ alignItems: "center", justifyContent: "space-between", padding: story ? "80px 64px 400px" : "56px 56px 56px" }}>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 22 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 6 }}>
             <LogoIcon size={58} />
             <div style={{ fontFamily: fonts.logo, fontWeight: 700, fontSize: 46, color: colors.ink }}>تحصّله</div>
-            <div style={{ fontSize: 34, color: colors.muted }}>· الشرائع</div>
+            <Area pulse={pulse} />
           </div>
           <div style={{ background: colors.ink, color: "#fff", borderRadius: 60, padding: "14px 44px", fontFamily: fonts.display, fontWeight: 700, fontSize: 50 }}>
             {callout}
