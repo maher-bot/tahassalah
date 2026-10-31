@@ -35,6 +35,7 @@ export const Captions: React.FC<{ words: Word[] }> = ({ words }) => {
 export const loadVoice = async (voice?: string): Promise<Word[]> => {
   if (!voice) return [];
   const { staticFile } = await import("remotion");
+  // ملف التوقيت اختياري: تعليق مسجّل بدون نص = صوت بدون كابشن
   const res = await fetch(staticFile(`voice/${voice}.json`));
-  return res.json();
+  return res.ok ? res.json() : [];
 };

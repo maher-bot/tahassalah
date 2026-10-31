@@ -42,17 +42,25 @@ export type PromoProps = {
   variant: keyof typeof variants;
   // اسم ملف من public/voice (بدون امتداد) — يضيف التعليق الصوتي والكابشن
   voice?: string;
+  // مدة التعليق بالثواني — بعدها ترجع الموسيقى لصوتها الطبيعي (بدونها تبقى منخفضة للآخر)
+  voiceSeconds?: number;
   words?: Word[];
 };
 
 export const promoFrames = (variant: keyof typeof variants) =>
   variants[variant].reduce((n, { s }) => n + sec(s), 0);
 
-export const Promo: React.FC<PromoProps> = ({ variant, voice, words = [] }) => {
+export const Promo: React.FC<PromoProps> = ({ variant, voice, voiceSeconds, words = [] }) => {
   const scenes = variants[variant];
   const total = promoFrames(variant);
   // الموسيقى تخف تحت الصوت، وتختفي تدريجيًا آخر ثانية
-  const music = (f: number) => (voice ? 0.25 : 1) * interpolate(f, [total - 30, total], [1, 0], { extrapolateLeft: "clamp" });
+  const duck = (f: number) => {
+    if (!voice) return 1;
+    if (!voiceSeconds) return 0.25;
+    const end = voiceSeconds * 30;
+    return interpolate(f, [end, end + 20], [0.25, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  };
+  const music = (f: number) => duck(f) * interpolate(f, [total - 30, total], [1, 0], { extrapolateLeft: "clamp" });
   let from = 0;
   return (
     <AbsoluteFill>
