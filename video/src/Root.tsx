@@ -27,6 +27,7 @@ const merchantMeta: CalculateMetadataFunction<MerchantProps> = async ({ props })
 const teaserVoices: Record<string, { voice: string; seconds: number }> = {
   families: { voice: "families-vo", seconds: 19.5 },
   vendors: { voice: "vendors-vo", seconds: 16.5 },
+  shops: { voice: "shops-vo", seconds: 16.5 },
 };
 
 export const RemotionRoot: React.FC = () => (
