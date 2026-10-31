@@ -15,7 +15,7 @@ const sizes = [
 
 // يحسب المدة ويحمّل توقيت الكلمات إذا فيه تعليق صوتي
 const promoMeta: CalculateMetadataFunction<PromoProps> = async ({ props }) => ({
-  durationInFrames: promoFrames(props.variant),
+  durationInFrames: promoFrames(props.variant, props.voiceSeconds),
   props: { ...props, words: props.voice ? await loadVoice(props.voice) : props.words ?? [] },
 });
 const merchantMeta: CalculateMetadataFunction<MerchantProps> = async ({ props }) => ({
@@ -43,7 +43,7 @@ export const RemotionRoot: React.FC = () => (
     </Folder>
     {sizes.map(({ tag, width, height }) => (
       <Folder key={tag} name={`s${tag}`}>
-        <Composition id={`Promo-${tag}`} component={Promo} defaultProps={{ variant: "full" } as PromoProps}
+        <Composition id={`Promo-${tag}`} component={Promo} defaultProps={{ variant: "full", voice: "promo-vo", voiceSeconds: 33.1 } as PromoProps}
           calculateMetadata={promoMeta} durationInFrames={1} fps={FPS} width={width} height={height} />
         <Composition id={`Ad15-${tag}`} component={Promo} defaultProps={{ variant: "ad15" } as PromoProps}
           calculateMetadata={promoMeta} durationInFrames={1} fps={FPS} width={width} height={height} />

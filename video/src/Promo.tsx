@@ -47,12 +47,21 @@ export type PromoProps = {
   words?: Word[];
 };
 
-export const promoFrames = (variant: keyof typeof variants) =>
-  variants[variant].reduce((n, { s }) => n + sec(s), 0);
+// لو التعليق أطول من الإعلان، تتمدد كل المشاهد بنفس النسبة عشان يخلص الكلام قبل النهاية بثانية ونص
+const stretch = (variant: keyof typeof variants, voiceSeconds?: number) => {
+  const base = variants[variant].reduce((n, { s }) => n + s, 0);
+  return voiceSeconds && voiceSeconds + 1.5 > base ? (voiceSeconds + 1.5) / base : 1;
+};
+
+export const promoFrames = (variant: keyof typeof variants, voiceSeconds?: number) => {
+  const k = stretch(variant, voiceSeconds);
+  return variants[variant].reduce((n, { s }) => n + sec(s * k), 0);
+};
 
 export const Promo: React.FC<PromoProps> = ({ variant, voice, voiceSeconds, words = [] }) => {
   const scenes = variants[variant];
-  const total = promoFrames(variant);
+  const k = stretch(variant, voiceSeconds);
+  const total = promoFrames(variant, voiceSeconds);
   // الموسيقى تخف تحت الصوت، وتختفي تدريجيًا آخر ثانية
   const duck = (f: number) => {
     if (!voice) return 1;
@@ -68,7 +77,7 @@ export const Promo: React.FC<PromoProps> = ({ variant, voice, voiceSeconds, word
       <Audio src={staticFile("music.m4a")} volume={music} />
       {voice && <Audio src={staticFile(`voice/${voice}.mp3`)} />}
       {scenes.map(({ C, s }, i) => {
-        const d = sec(s);
+        const d = sec(s * k);
         const el = (
           <Sequence key={i} from={from} durationInFrames={d}>
             <Scene duration={i === scenes.length - 1 ? d + 20 : d}><C /></Scene>
