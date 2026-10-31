@@ -23,6 +23,12 @@ const merchantMeta: CalculateMetadataFunction<MerchantProps> = async ({ props })
   props: { ...props, words: props.voice ? await loadVoice(props.voice) : props.words ?? [] },
 });
 
+// تعليقات صوتية مسجّلة على الإعلانات الثابتة (public/voice) — المدة = طول الصوت + ثانية تقريبًا
+const teaserVoices: Record<string, { voice: string; seconds: number }> = {
+  families: { voice: "families-vo", seconds: 19.5 },
+  vendors: { voice: "vendors-vo", seconds: 16.5 },
+};
+
 export const RemotionRoot: React.FC = () => (
   <>
     <Folder name="Teasers">
@@ -30,8 +36,8 @@ export const RemotionRoot: React.FC = () => (
         <Still key={`${id}-story`} id={`Teaser-${id}-story`} component={Teaser} defaultProps={t} width={1080} height={1920} />,
         // نسخة الفيديو: الحي ينبض، والأسر معها التعليق الصوتي
         <Composition key={`${id}-video`} id={`TeaserVideo-${id}`} component={Teaser}
-          defaultProps={{ ...t, pulse: true, voice: id === "families" ? "families-vo" : undefined }}
-          durationInFrames={id === "families" ? sec(19.5) : sec(6)} fps={FPS} width={1080} height={1920} />,
+          defaultProps={{ ...t, pulse: true, voice: teaserVoices[id]?.voice }}
+          durationInFrames={sec(teaserVoices[id]?.seconds ?? 6)} fps={FPS} width={1080} height={1920} />,
       ])}
     </Folder>
     {sizes.map(({ tag, width, height }) => (
