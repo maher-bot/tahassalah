@@ -552,7 +552,7 @@ function renderTrial() {
   $$('#trial-next [data-basic]').forEach(o => { o.hidden = o.disabled = mobile; });
   $('#trial-next').value = (merchant.next_plan || 'basic') + (merchant.billing === 'yearly' && merchant.next_plan !== 'basic' ? ':yearly' : '');
   $('.t-pick', box).hidden = stage === 'paid';
-  const after = mobile ? 'اشتراك «أسر ومتجولين»' : '3 أشهر على الباقة الأساسية (10 منتجات) ثم اشتراك';
+  const after = (merchant.kind || 'store') === 'store' ? 'اشتراك «تاجر» أو «مميز» ليستمر ظهور متجرك' : 'اشتراك «أسر ومتجولين» ليستمر ظهورك';
   const title = $('#trial-title'), sub = $('#trial-sub');
   if (stage === 'waiting') {
     const n = merchant.trial_months || 3, months = n === 3 ? '3 أشهر' : n === 6 ? '6 أشهر' : n + ' أشهر';
