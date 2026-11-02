@@ -42,12 +42,12 @@ export const ACTIVITIES_BY_KIND = {
   family: ['أطباق وأكل بيتي', 'حلويات ومخبوزات', 'قهوة وعصائر ومشروبات', 'مقبلات ومخللات وتوابل', 'عطور وبخور', 'خياطة وتطريز', 'أشغال يدوية وإكسسوارات', 'أنشطة أخرى'],
     mobile: ['فود ترك', 'آيسكريم', 'قهوة متنقلة', 'خضار وفواكه', 'ذرة وبليلة وأكلات شعبية', 'سطحة', 'فني صيانة', 'فني ميكانيكا', 'فني كهرباء', 'فني سباكة', 'فني تكييف', 'فني دهانات', 'غسيل سيارات متنقل', 'نقل أثاث', 'بائع متجول'],
 };
-export const PLANS = { free: 'الفترة المجانية', basic: 'أساسي (مجاني)', family: 'أسر ومتجولين', trader: 'تاجر', pro: 'مميز' };
+export const PLANS = { free: 'الفترة المجانية', basic: 'لم يحدد بعد', family: 'أسر ومتجولين', trader: 'تاجر', pro: 'مميز' };
 export const PLAN_PRICE = { basic: { monthly: 0, yearly: 0 }, family: { monthly: 29, yearly: 290 }, trader: { monthly: 59, yearly: 590 }, pro: { monthly: 119, yearly: 1190 } };
 // نوع الحساب
 export const KINDS = { store: 'محل', family: 'أسرة منتجة', mobile: 'بائع متجول أو عربة' };
 export const KIND_ICON = { store: '🏪', family: '🏠', mobile: '🚚' };
-export const planLabel = (p, b = 'monthly') => p === 'basic' ? 'أساسي (مجاني)' : p === 'free' ? 'الفترة المجانية'
+export const planLabel = (p, b = 'monthly') => p === 'basic' ? 'لم يحدد بعد (تاجر للمحلات، وأسر ومتجولين للأسر والعربات)' : p === 'free' ? 'الفترة المجانية'
   : `${PLANS[p] || p} · ${PLAN_PRICE[p]?.[b] ?? ''} ر.س ${b === 'yearly' ? 'سنويًا' : 'شهريًا'}`;
 export const STATUS = { pending: 'قيد المراجعة', approved: 'مفعّل', rejected: 'يحتاج تعديل', suspended: 'موقوف' };
 
