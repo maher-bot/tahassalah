@@ -387,6 +387,15 @@
           <label>نوع الرابط<select name="provider"><option value="">اختر</option><option value="tap">Tap</option><option value="moyasar">Moyasar</option><option value="hyperpay">HyperPay</option><option value="paytabs">PayTabs</option><option value="geidea">Geidea</option><option value="stcpay">STC Pay</option><option value="salla">متجري في سلة</option><option value="zid">متجري في زد</option><option value="other">أخرى</option></select></label>
           <label>الرابط<input name="link" type="url" dir="ltr" maxlength="300" placeholder="https://"></label>
         </div>
+        <details class="hint"><summary>ما عندك بوابة دفع؟</summary>
+          <p>تسجّل بنفسك في أي بوابة دفع بسجلك التجاري وآيبانك، وبعد ما يتفعّل حسابك تاخذ منهم «رابط دفع» وتحطه هنا. من البوابات المعروفة في السعودية:
+            <a href="https://www.tap.company" target="_blank" rel="noopener">Tap</a> ·
+            <a href="https://moyasar.com" target="_blank" rel="noopener">Moyasar</a> ·
+            <a href="https://www.hyperpay.com" target="_blank" rel="noopener">HyperPay</a> ·
+            <a href="https://www.paytabs.com" target="_blank" rel="noopener">PayTabs</a> ·
+            <a href="https://www.geidea.net" target="_blank" rel="noopener">Geidea</a>.
+            وإذا عندك متجر في سلة أو زد، تقدر تحط رابط متجرك.</p>
+        </details>
         <p class="hint" id="paylink-state"></p>
         <p class="err" role="alert"></p>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary sm" type="submit" id="paylink-save">حفظ الرابط</button><button class="btn ghost sm" type="button" id="paylink-clear" hidden>حذف الرابط</button></div>
