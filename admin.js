@@ -90,6 +90,7 @@ function card(m) {
   if (person) head.append(t('span', m.site_verified_at ? '✔ تمت المعاينة' : '⚠️ بدون معاينة ميدانية', 'badge ' + (m.site_verified_at ? 'approved' : 'pending')));
   if (m.license_verified_at) head.append(t('span', '🏅 موثّق برخصة', 'badge approved'));
   if (m.iban_verified_at) head.append(t('span', '✔ الآيبان مطابق ' + (person ? 'للهوية' : 'للسجل'), 'badge approved'));
+  if (m.pay_link) head.append(t('span', m.pay_link_verified_at ? '💳 رابط دفع معتمد' : '💳 رابط دفع بانتظار المراجعة', 'badge ' + (m.pay_link_verified_at ? 'approved' : 'pending')));
   if (!person && m.cr_check) {
     const c = m.cr_check, good = c.found && c.active && c.owner_match !== false;
     head.append(t('span', c.error ? '⚠️ واثق: تعذر التحقق' : !c.found ? '❌ واثق: السجل غير موجود' : good ? '✔ واثق: السجل ساري ومطابق' : !c.active ? '❌ واثق: السجل غير ساري' : '⚠️ واثق: اسم المالك مختلف',
@@ -103,6 +104,14 @@ function card(m) {
   add('العنوان الوطني', m.national_address, true);
   add('الجوال', m.phone, true); add('الإيميل', m.email, true);
   if (m.iban_verified_at) add('مطابقة الآيبان', fmtDate(m.iban_verified_at) + (m.iban_verified_note ? ' — ' + m.iban_verified_note : ''));
+  if (m.bnpl?.length) add('التقسيط في المحل (وقت التسجيل)', m.bnpl.map(b => ({ tabby: 'تابي', tamara: 'تمارا' })[b] || b).join('، '));
+  if (m.pay_link) {
+    const d = document.createElement('div'); d.append(t('span', 'رابط الدفع' + (PAY_PROVIDERS[m.pay_link_provider] ? ' · ' + PAY_PROVIDERS[m.pay_link_provider] : '')));
+    let host = m.pay_link; try { host = new URL(m.pay_link).host; } catch {}
+    const a = t('a', host); a.href = m.pay_link; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.dir = 'ltr';
+    const b = document.createElement('b'); b.append(a, m.pay_link_verified_at ? ' ✔ معتمد' + (m.pay_link_verified_note ? ' — ' + m.pay_link_verified_note : '') : ' · بانتظار المراجعة');
+    d.append(b); kv.append(d);
+  }
   for (const [i, x] of (extraIbans.get(m.id) || []).entries()) add(`حساب إضافي ${i + 1}`, `${x.bank_name} · ${fmtIban(x.iban)}` + (x.verified_at ? ' ✔ معتمد' + (x.verified_note ? ' — ' + x.verified_note : '') : ' · بانتظار المراجعة'), true);
   if (person) {
     add('رقم الهوية', m.id_number, true);
@@ -160,6 +169,7 @@ function card(m) {
   if (WATHQ_ON && !person && m.cr_number) act(m.cr_check ? '🔎 أعد التحقق من واثق' : '🔎 تحقق من واثق', 'ghost', b => checkWathq(m, b));
   if (person) act(m.license_verified_at ? 'سحب شارة «موثّق برخصة»' : '🏅 منح شارة «موثّق برخصة»', 'ghost', b => verifyLicense(m, !m.license_verified_at, b));
   act(m.iban_verified_at ? 'سحب علامة «الآيبان مطابق»' : person ? '✔ الآيبان مطابق للهوية' : '✔ الآيبان مطابق للسجل', 'ghost', b => verifyIban(m, !m.iban_verified_at, b));
+  if (m.pay_link) act(m.pay_link_verified_at ? 'سحب اعتماد رابط الدفع' : '💳 اعتماد رابط الدفع', 'ghost', b => verifyPayLink(m, !m.pay_link_verified_at, b));
   for (const x of extraIbans.get(m.id) || []) act(x.verified_at ? `سحب اعتماد حساب …${x.iban.slice(-4)}` : `✔ اعتماد حساب ${x.bank_name} …${x.iban.slice(-4)}`, 'ghost', b => verifyExtraIban(m, x, !x.verified_at, b));
   if (m.status === 'pending') act('رفض / طلب تعديل', 'danger', () => askNote(m, 'rejected'));
   if (m.status === 'approved') act('إيقاف مؤقت', 'danger', () => askNote(m, 'suspended'));
@@ -232,6 +242,22 @@ async function verifyIban(m, on, btn) {
   setBusy(btn, false);
   if (error) return toast(friendlyError(error));
   toast(on ? 'تم اعتماد مطابقة الآيبان ✓' : 'تم سحب العلامة.'); await load();
+}
+
+// رابط الدفع الإلكتروني الخاص بالتاجر: افتحه وتأكد أن اسم المستفيد في صفحة الدفع هو اسم المحل أو صاحبه، وأنه موقع بوابة دفع معروفة.
+// ينسحب الاعتماد تلقائيًا لو غيّر التاجر الرابط.
+const PAY_PROVIDERS = { tap: 'Tap', moyasar: 'Moyasar', hyperpay: 'HyperPay', paytabs: 'PayTabs', geidea: 'Geidea', stcpay: 'STC Pay', salla: 'سلة', zid: 'زد', other: 'أخرى' };
+async function verifyPayLink(m, on, btn) {
+  let note = null;
+  if (on) {
+    note = prompt(`اعتماد رابط الدفع لـ«${m.store_name}»\nافتح الرابط أول، وتأكد أنه موقع بوابة دفع أو متجر معروف، وأن اسم المستفيد هو اسم المحل أو صاحبه.\n\nملاحظة قصيرة (اختياري):`, '');
+    if (note === null) return;
+  } else if (!confirm(`سحب اعتماد رابط الدفع من «${m.store_name}»؟`)) return;
+  setBusy(btn, true);
+  const { error } = await sb.rpc('set_pay_link_verified', { mid: m.id, verified: on, note });
+  setBusy(btn, false);
+  if (error) return toast(friendlyError(error));
+  toast(on ? 'تم اعتماد رابط الدفع ✓' : 'تم سحب الاعتماد.'); await load();
 }
 
 // اعتماد حساب آيبان إضافي: بعد ما تقارن شهادته باسم صاحب السجل أو الهوية. ينسحب تلقائيًا لو تغيّر الآيبان أو شهادته.

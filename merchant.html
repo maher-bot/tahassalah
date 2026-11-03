@@ -176,6 +176,11 @@
         <p class="hint" id="bank-hint">الحساب لازم يكون باسم المنشأة أو صاحبها نفسه.</p>
         <div class="file" data-file="iban"><label>شهادة الآيبان من البنك<input type="file" name="iban_file" accept="application/pdf,image/*"></label><span class="cur"></span></div>
       </fieldset>
+      <fieldset id="bnpl-box"><legend>التقسيط في المحل <span class="opt">(اختياري)</span></legend>
+        <p class="hint">عندك حساب تاجر في تابي أو تمارا وتقسّط لزبائنك في المحل؟ اختره هنا، ويظهر للمشترين إن محلك يقسّط. تقدر تغيّره بعدين من لوحتك.</p>
+        <label class="check"><input type="checkbox" name="signup_tabby"> <span><b>تابي</b></span></label>
+        <label class="check"><input type="checkbox" name="signup_tamara"> <span><b>تمارا</b></span></label>
+      </fieldset>
 
       <fieldset>
         <legend>الباقة</legend>
@@ -374,6 +379,17 @@
         <label><span>ملاحظة للمشتري <span class="opt">(اختياري)</span></span><input name="note" maxlength="300" placeholder="مثال: التوصيل بعد صلاة العصر فقط"></label>
         <p class="err" role="alert"></p>
         <button class="btn primary" type="submit" id="settings-save">حفظ</button>
+      </form>
+      <form class="card" id="f-paylink" novalidate style="margin-top:16px;display:grid;gap:10px">
+        <b>💳 رابط الدفع الإلكتروني الخاص بك <span class="opt">(اختياري)</span></b>
+        <p class="hint">إذا عندك بوابة دفع باسمك أو متجر في سلة أو زد، حط رابط الدفع هنا. المشتري يدفع لك مباشرة والمنصة ما تستلم أي فلوس. الرابط يراجعه فريقنا قبل ما يظهر، ويظهر للمشتري بعد ما توافق على طلبه فقط (لما ينطلق التطبيق).</p>
+        <div class="row2">
+          <label>نوع الرابط<select name="provider"><option value="">اختر</option><option value="tap">Tap</option><option value="moyasar">Moyasar</option><option value="hyperpay">HyperPay</option><option value="paytabs">PayTabs</option><option value="geidea">Geidea</option><option value="stcpay">STC Pay</option><option value="salla">متجري في سلة</option><option value="zid">متجري في زد</option><option value="other">أخرى</option></select></label>
+          <label>الرابط<input name="link" type="url" dir="ltr" maxlength="300" placeholder="https://"></label>
+        </div>
+        <p class="hint" id="paylink-state"></p>
+        <p class="err" role="alert"></p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary sm" type="submit" id="paylink-save">حفظ الرابط</button><button class="btn ghost sm" type="button" id="paylink-clear" hidden>حذف الرابط</button></div>
       </form>
     </div>
 

@@ -274,6 +274,7 @@ function syncKind() {
     ? 'حسابك الشخصي يكفي، بشرط يكون باسمك نفس اسم الهوية. آيبانك يظهر للمشتري بعد موافقتك على طلبه، لو فعّلت «تحويل على الحساب».'
     : 'الحساب لازم يكون باسم المنشأة أو صاحبها نفسه. آيبانك ما يظهر للمشترين.';
   $('#plan-family').hidden = !person; $('#yearly-family').hidden = !person;
+  const bb = $('#bnpl-box'); if (bb) { bb.hidden = person; if (person) { fa.signup_tabby.checked = false; fa.signup_tamara.checked = false; } }
   const pb = $('#plan-basic'); if (pb) pb.hidden = k === 'mobile';   // المتنقل ما له باقة مجانية
   if (k === 'mobile' && fa.querySelector('input[name=next_plan]:checked')?.value === 'basic') fa.querySelector('input[name=next_plan][value=family]').checked = true;
   if (!person && fa.querySelector('input[name=next_plan]:checked')?.value === 'family') fa.querySelector('input[name=next_plan][value=basic]').checked = true;
@@ -344,6 +345,7 @@ function openApply(m = null) {
     fa.iban.value = (m.iban || '').replace(/(.{4})/g, '$1 ').trim();
     fa.no_vat.checked = !m.vat_registered;
     if (fa.contact_phone) fa.contact_phone.value = m.contact_phone ?? '';
+    if (fa.signup_tabby) { fa.signup_tabby.checked = (m.bnpl || []).includes('tabby'); fa.signup_tamara.checked = (m.bnpl || []).includes('tamara'); }
   }
   $('#vat-fields').hidden = fa.no_vat.checked;
   setExisting('cr', m?.cr_path); setExisting('vat', m?.vat_path); setExisting('iban', m?.iban_path);
@@ -431,6 +433,7 @@ fa.addEventListener('submit', async e => {
       extra_docs: person ? extra_docs : [],
       vat_registered: vatReg, vat_number: vatReg ? v('vat_number') : null,
       bank_name: v('bank_name'), iban,
+      bnpl: person || !fa.signup_tabby ? [] : [fa.signup_tabby.checked && 'tabby', fa.signup_tamara.checked && 'tamara'].filter(Boolean),
       next_plan: fa.querySelector('input[name=next_plan]:checked')?.value || 'basic',
       billing: fa.yearly.checked ? 'yearly' : 'monthly',
       cr_path: person ? null : (paths.cr ?? merchant?.cr_path),
@@ -1229,7 +1232,8 @@ async function loadSettings() {
   fset.min_order.value = d.min_order ?? 0;
   fset.delivery_from.value = (d.delivery_from || '').slice(0, 5); fset.delivery_to.value = (d.delivery_to || '').slice(0, 5);
   fset.prep_minutes.value = String(d.prep_minutes ?? 15); fset.note.value = d.note ?? '';
-  if (fset.pay_cash) { fset.pay_cash.checked = d.pay_cash ?? true; fset.pay_card.checked = d.pay_card ?? false; fset.pay_card_delivery.checked = d.pay_card_delivery ?? false; if (fset.pay_transfer) fset.pay_transfer.checked = d.pay_transfer ?? false; if (fset.pay_tabby) { fset.pay_tabby.checked = d.pay_tabby ?? false; fset.pay_tamara.checked = d.pay_tamara ?? false; } }
+  if (fset.pay_cash) { fset.pay_cash.checked = d.pay_cash ?? true; fset.pay_card.checked = d.pay_card ?? false; fset.pay_card_delivery.checked = d.pay_card_delivery ?? false; if (fset.pay_transfer) fset.pay_transfer.checked = d.pay_transfer ?? false; if (fset.pay_tabby) { const sb0 = merchant?.bnpl || []; fset.pay_tabby.checked = d.pay_tabby ?? sb0.includes('tabby'); fset.pay_tamara.checked = d.pay_tamara ?? sb0.includes('tamara'); } }
+  renderPayLink();
   if (fset.ships_intercity) {
     fset.ships_intercity.checked = d.ships_intercity ?? false; fset.intercity_fee_mode.value = d.intercity_fee_mode ?? 'negotiable';
     fset.intercity_fee.value = d.intercity_fee ?? ''; fset.intercity_eta.value = d.intercity_eta ?? ''; fset.intercity_note.value = d.intercity_note ?? '';
@@ -1267,6 +1271,38 @@ fset.addEventListener('submit', async e => {
   if (error) return (err.textContent = friendlyError(error));
   toast('تم حفظ إعدادات التوصيل والاستلام ✓');
 });
+
+// ---------------- رابط الدفع الإلكتروني الخاص بالتاجر ----------------
+// المشتري يدفع للتاجر مباشرة (بوابة باسمه أو متجره في سلة/زد). يعتمده الأدمن مثل الآيبان، وينسحب الاعتماد لو تغيّر.
+const fpl = $('#f-paylink');
+function renderPayLink() {
+  if (!fpl) return;
+  fpl.hidden = !(ctx?.owner && merchant);
+  if (fpl.hidden) return;
+  fpl.provider.value = merchant.pay_link_provider || ''; fpl.link.value = merchant.pay_link || '';
+  $('#paylink-clear').hidden = !merchant.pay_link;
+  $('#paylink-state').textContent = !merchant.pay_link ? ''
+    : merchant.pay_link_verified_at ? '✔ رابطك معتمد من الإدارة.' : '⏳ رابطك بانتظار مراجعة الإدارة.';
+}
+async function savePayLink(provider, link) {
+  const err = $('.err', fpl), btn = $('#paylink-save');
+  setBusy(btn, true);
+  const { error } = await sb.rpc('set_pay_link', { provider, link });
+  setBusy(btn, false);
+  if (error) return (err.textContent = friendlyError(error));
+  err.textContent = '';
+  Object.assign(merchant, { pay_link: link || null, pay_link_provider: link ? provider : null, pay_link_verified_at: null, pay_link_verified_note: null });
+  renderPayLink();
+  toast(link ? 'تم حفظ الرابط ✓ بيراجعه فريقنا قريبًا.' : 'تم حذف الرابط.');
+}
+fpl?.addEventListener('submit', e => {
+  e.preventDefault();
+  const err = $('.err', fpl), link = fpl.link.value.trim(), provider = fpl.provider.value;
+  if (!provider) return (err.textContent = 'اختر نوع الرابط.');
+  if (!/^https:\/\/[^\s\/]+\.[^\s\/]+(\/\S*)?$/.test(link) || link.length > 300) return (err.textContent = 'اكتب رابط صحيح يبدأ بـ https://');
+  savePayLink(provider, link);
+});
+$('#paylink-clear')?.addEventListener('click', () => { if (confirm('تحذف رابط الدفع؟')) savePayLink('', ''); });
 
 // ---------------- إتاحة المتنقلين: متاح / مشغول / خارج الخدمة ----------------
 const LIVE_HOURS = 3;       // مدة الظهور الافتراضية بعد كل ضغطة

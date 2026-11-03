@@ -94,6 +94,8 @@ export function friendlyError(e) {
   if (/store_settings_intercity_fee/.test(m)) return 'اكتب مبلغ الشحن (من 0 إلى 2000 ريال).';
   if (/store_settings_pay_chk/.test(m)) return 'اختر طريقة دفع واحدة على الأقل.';
   if (/ibans_limit/.test(m)) return 'وصلت الحد الأقصى: 4 حسابات إضافية.';
+  if (/merchants_pay_link_chk/.test(m)) return 'رابط الدفع لازم يبدأ بـ https:// وما يزيد عن 300 حرف.';
+  if (/no_pay_link/.test(m)) return 'التاجر ما أضاف رابط دفع.';
   if (/iban_is_primary/.test(m)) return 'هذا حسابك الأساسي المسجّل، ما يحتاج تضيفه.';
   if (/merchant_ibans_merchant_id_iban_key/.test(m)) return 'هذا الآيبان مضاف من قبل.';
   if (/merchant_ibans_iban_check/.test(m)) return 'رقم الآيبان غير صحيح. يبدأ بـ SA ومكوّن من 24 خانة.';
