@@ -1200,11 +1200,11 @@ fp.sale_price.addEventListener('input', syncOffer);
 // ---------------- التوصيل والاستلام ----------------
 const fset = $('#f-settings');
 const isPerson = () => !!(merchant?.kind && merchant.kind !== 'store');
-// الأسر والمتنقلون: نقدًا أو تحويل على الحساب. المحلات: نقدًا أو بطاقة (في المحل أو للمندوب).
+// الأسر والمتنقلون: نقدًا أو تحويل على الحساب. المحلات: نقدًا أو بطاقة (في المحل أو للمندوب)، وتقسيط تابي أو تمارا في المحل بحساب التاجر نفسه.
 const syncPay = () => {
   const person = isPerson(), show = (id, on) => { const el = $(id); if (el) el.hidden = !on; };
-  show('#pay-card-row', !person); show('#pay-transfer-row', person); show('#pay-card-delivery-row', !person && fset.delivers.checked);
-  if (person) { fset.pay_card.checked = false; fset.pay_card_delivery.checked = false; }
+  show('#pay-card-row', !person); show('#pay-tabby-row', !person); show('#pay-tamara-row', !person); show('#pay-transfer-row', person); show('#pay-card-delivery-row', !person && fset.delivers.checked);
+  if (person) { fset.pay_card.checked = false; fset.pay_card_delivery.checked = false; if (fset.pay_tabby) { fset.pay_tabby.checked = false; fset.pay_tamara.checked = false; } }
   else { if (fset.pay_transfer) fset.pay_transfer.checked = false; if (!fset.delivers.checked) fset.pay_card_delivery.checked = false; }
 };
 const syncDelivery = () => { $('#delivery-box').hidden = !fset.delivers.checked; syncPay(); };
@@ -1229,7 +1229,7 @@ async function loadSettings() {
   fset.min_order.value = d.min_order ?? 0;
   fset.delivery_from.value = (d.delivery_from || '').slice(0, 5); fset.delivery_to.value = (d.delivery_to || '').slice(0, 5);
   fset.prep_minutes.value = String(d.prep_minutes ?? 15); fset.note.value = d.note ?? '';
-  if (fset.pay_cash) { fset.pay_cash.checked = d.pay_cash ?? true; fset.pay_card.checked = d.pay_card ?? false; fset.pay_card_delivery.checked = d.pay_card_delivery ?? false; if (fset.pay_transfer) fset.pay_transfer.checked = d.pay_transfer ?? false; }
+  if (fset.pay_cash) { fset.pay_cash.checked = d.pay_cash ?? true; fset.pay_card.checked = d.pay_card ?? false; fset.pay_card_delivery.checked = d.pay_card_delivery ?? false; if (fset.pay_transfer) fset.pay_transfer.checked = d.pay_transfer ?? false; if (fset.pay_tabby) { fset.pay_tabby.checked = d.pay_tabby ?? false; fset.pay_tamara.checked = d.pay_tamara ?? false; } }
   if (fset.ships_intercity) {
     fset.ships_intercity.checked = d.ships_intercity ?? false; fset.intercity_fee_mode.value = d.intercity_fee_mode ?? 'negotiable';
     fset.intercity_fee.value = d.intercity_fee ?? ''; fset.intercity_eta.value = d.intercity_eta ?? ''; fset.intercity_note.value = d.intercity_note ?? '';
@@ -1258,6 +1258,7 @@ fset.addEventListener('submit', async e => {
     delivery_from: fset.delivery_from.value || null, delivery_to: fset.delivery_to.value || null,
     prep_minutes: Number(fset.prep_minutes.value), note: fset.note.value.trim() || null,
     pay_cash: fset.pay_cash.checked, pay_card: card, pay_card_delivery: cardDelivery, pay_transfer: transfer,
+    ...(fset.pay_tabby ? { pay_tabby: !person && fset.pay_tabby.checked, pay_tamara: !person && fset.pay_tamara.checked } : {}),
     ships_intercity: ships, intercity_fee_mode: feeMode, intercity_fee: ships && feeMode === 'buyer_fixed' ? interFee : null,
     intercity_eta: ships ? (fset.intercity_eta.value.trim() || null) : null, intercity_note: ships ? (fset.intercity_note.value.trim() || null) : null,
   };
