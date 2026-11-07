@@ -1701,20 +1701,55 @@ function orderBox(o, mode) {
     acts.append(sel);
     btn(label, 'primary', () => { if (!sel.value) return toast('اختر المندوب.'); orderAct(o, action, { staff_id: sel.value }); });
   };
-  const adjustBtn = () => btn('✏️ تعديل العدد', 'ghost', () => {
-    const items = [];
-    for (const i of o.items) {
-      const v = prompt(`${i.name}: العدد الفعلي؟ (0 = شيله)`, String(i.qty));
-      if (v == null) return;
-      const n = Number(digits(v)); if (!(n >= 0)) return toast('رقم غير صحيح.');
-      if (n !== i.qty) items.push({ id: i.id, qty: n });
+  // رفع صور (الاستلام أو التسليم) من كاميرا الجوال
+  const shoot = async (files, tag) => {
+    const photos = [];
+    for (const f of [...files].slice(0, 8)) {
+      const sm = await shrinkImage(f, 1400), path = `${user.id}/${o.number}-${tag}-${Date.now()}-${photos.length}.${fileExt(sm)}`;
+      const r = await sb.storage.from('receipts').upload(path, sm, { contentType: sm.type || undefined }); if (r.error) throw r.error;
+      photos.push(path);
     }
-    if (!items.length) return toast('ما فيه تغيير.');
-    const note = prompt('ملاحظة للزبون (اختياري):', '') ?? '';
-    orderAct(o, 'adjust', { items, note });
+    return photos;
+  };
+  const camBtn = (label, cls, tag, after) => {
+    const up = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*', multiple: true, capture: 'environment' }); up.hidden = true;
+    acts.append(up);
+    const b = btn(label, cls, () => up.click());
+    up.onchange = async () => {
+      if (!up.files.length) return;
+      setBusy(b, true);
+      try { await after(await shoot(up.files, tag)); } catch (ex) { toast(friendlyError(ex)); } finally { setBusy(b, false); }
+    };
+    return b;
+  };
+  // تعديل العدد: جدول بكل الخدمات في صفحة وحدة
+  const adjustBtn = () => btn('✏️ تعديل العدد', 'ghost', () => {
+    if (el.querySelector('.adj')) return;
+    const box = document.createElement('div'); box.className = 'adj note stack';
+    const rows = o.items.map(i => {
+      const r = document.createElement('label'); r.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px';
+      const n = Object.assign(document.createElement('input'), { type: 'number', min: 0, max: 999, value: i.qty, inputMode: 'numeric' }); n.style.width = '80px';
+      const s = document.createElement('span'); s.textContent = `${i.name} (${money(i.price)})`;
+      r.append(s, n); box.append(r); return { i, n };
+    });
+    const note = Object.assign(document.createElement('input'), { placeholder: 'ملاحظة للزبون (اختياري)', maxLength: 200 });
+    const tot = document.createElement('b');
+    const calc = () => { tot.textContent = 'المنتجات بعد التعديل: ' + money(rows.reduce((s, r) => s + r.i.price * (Number(r.n.value) || 0), 0)); };
+    rows.forEach(r => r.n.addEventListener('input', calc)); calc();
+    const save = document.createElement('button'); save.type = 'button'; save.className = 'btn primary sm'; save.textContent = 'حفظ التعديل وإرساله للزبون';
+    const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'btn ghost sm'; cancel.textContent = 'إلغاء';
+    cancel.onclick = () => box.remove();
+    save.onclick = () => {
+      const items = rows.filter(r => Number(r.n.value) !== r.i.qty).map(r => ({ id: r.i.id, qty: Math.max(0, Math.round(Number(r.n.value) || 0)) }));
+      if (!items.length) return toast('ما فيه تغيير.');
+      orderAct(o, 'adjust', { items, note: note.value });
+    };
+    const f = document.createElement('div'); f.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap'; f.append(save, cancel);
+    box.append(note, tot, f); el.insertBefore(box, acts);
   });
-  if ((o.collect_photos || []).length) btn(`📷 صور الاستلام (${o.collect_photos.length})`, 'ghost', async () => {
-    for (const p of o.collect_photos) { const { data } = await sb.storage.from('receipts').createSignedUrl(p, 300); if (data) open(data.signedUrl, '_blank'); }
+  const allPhotos = [...(o.collect_photos || []), ...(o.delivery_photos || [])];
+  if (allPhotos.length) btn(`📷 الصور (${allPhotos.length})`, 'ghost', async () => {
+    for (const p of allPhotos) { const { data } = await sb.storage.from('receipts').createSignedUrl(p, 300); if (data) open(data.signedUrl, '_blank'); }
   });
   if (o.buyer_phone) { link('📞 اتصال', 'tel:+966' + String(o.buyer_phone).replace(/\D/g, '').replace(/^(966|0)/, '')); link('💬 واتساب الزبون', waLink(o.buyer_phone)); }
   if (mode === 'orders') {
@@ -1737,29 +1772,20 @@ function orderBox(o, mode) {
     link('🗺️ موقع الزبون', mapLink(o));
     if (o.status === 'to_collect') btn('🛵 رايح أستلم', 'primary', () => orderAct(o, 'collecting'));
     adjustBtn();
-    const up = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*', multiple: true, capture: 'environment' }); up.hidden = true;
-    acts.append(up);
-    btn('📷 استلمت (صوّر الأغراض)', 'primary', () => up.click());
-    up.onchange = async () => {
-      const photos = [];
-      try {
-        for (const f of [...up.files].slice(0, 8)) {
-          const sm = await shrinkImage(f, 1400), path = `${user.id}/${o.number}-collect-${Date.now()}-${photos.length}.${fileExt(sm)}`;
-          const r = await sb.storage.from('receipts').upload(path, sm, { contentType: sm.type || undefined }); if (r.error) throw r.error;
-          photos.push(path);
-        }
-      } catch (ex) { return toast(friendlyError(ex)); }
-      orderAct(o, 'collected', { photos });
-    };
+    camBtn('📷 استلمت (صوّر الأغراض)', 'primary', 'collect', photos => orderAct(o, 'collected', { photos }));
     if (o.store_lat != null) link('🏪 موقع المحل', `https://www.google.com/maps/dir/?api=1&destination=${o.store_lat},${o.store_lng}`);
   } else {
     if (['ready'].includes(o.status) && o.store_lat != null) link('🏪 موقع المحل', `https://www.google.com/maps/dir/?api=1&destination=${o.store_lat},${o.store_lng}`);
     link('🗺️ موقع الزبون', mapLink(o));
     if (o.status === 'ready') btn('🛵 استلمت الطلب وطالع', 'primary', () => orderAct(o, 'out'));
-    if (o.status === 'out' && o.payment_status === 'paid') btn('✓ تم التسليم', 'primary', () => { if (confirm('سلّمت الطلب؟')) orderAct(o, 'delivered'); });
-    if (o.status === 'out' && o.payment_status !== 'paid') {
-      btn(`✓ سلّمت واستلمت ${money(o.total)} نقدًا`, 'primary', () => { if (confirm('سلّمت الطلب واستلمت المبلغ نقدًا؟')) orderAct(o, 'delivered', { amount: o.total, method: 'cash' }); });
-      btn('✓ سلّمت والدفع شبكة', 'ghost', () => { if (confirm('سلّمت الطلب والزبون دفع شبكة؟')) orderAct(o, 'delivered', { amount: o.total, method: 'card' }); });
+    if (o.status === 'out') {
+      // صورة التسليم تنهي التوصيل
+      if (o.payment_status === 'paid') camBtn('📷 صوّر التسليم وأنهِ', 'primary', 'delivered', photos => orderAct(o, 'delivered', { photos }));
+      else {
+        camBtn(`📷 سلّمت واستلمت ${money(o.total)} نقدًا`, 'primary', 'delivered', photos => orderAct(o, 'delivered', { amount: o.total, method: 'cash', photos }));
+        camBtn('📷 سلّمت والدفع شبكة', 'ghost', 'delivered', photos => orderAct(o, 'delivered', { amount: o.total, method: 'card', photos }));
+      }
+      const hint = document.createElement('div'); hint.className = 'hint'; hint.style.width = '100%'; hint.textContent = 'صوّر الطلب عند الزبون، وأول ما ترفع الصورة يكتمل التوصيل.'; acts.append(hint);
     }
   }
   if (acts.children.length) el.append(acts);
