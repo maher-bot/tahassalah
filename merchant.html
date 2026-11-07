@@ -28,7 +28,7 @@
     <div class="card">
       <p class="hint" style="margin-bottom:6px"><b>مين أنت؟</b></p>
       <div class="roles" role="group" aria-label="نوع الحساب">
-        <a class="role" href="index.html#buyers"><b>🛍️ مشتري</b><span>قريبًا</span></a>
+        <a class="role" href="shop.html"><b>🛍️ مشتري</b><span>تسوّق من محلات حيّك</span></a>
         <a class="role on" href="merchant.html" aria-current="page"><b>🏪 تاجر</b><span>محل، أسرة، عربة</span></a>
         <a class="role" href="rep.html"><b>🧭 مسوّق</b><span>الفريق الميداني</span></a>
       </div>
@@ -268,6 +268,8 @@
       <label class="switch" id="d-switch-wrap" hidden><span class="hint">المتجر</span><select id="d-switch"></select></label>
     </div>
     <div class="tabs" role="tablist" id="d-tabs">
+      <button role="tab" aria-selected="false" data-tab="orders" data-orders hidden>🧾 الطلبات <span class="count" id="c-orders" hidden></span></button>
+      <button role="tab" aria-selected="false" data-tab="deliveries" data-driver hidden>🛵 توصيلاتي <span class="count" id="c-deliv" hidden></span></button>
       <button role="tab" aria-selected="true" data-tab="products">المنتجات</button>
       <button role="tab" aria-selected="false" data-tab="approvals" data-owner>بانتظار موافقتك <span class="count" id="c-approvals" hidden></span></button>
       <button role="tab" aria-selected="false" data-tab="mine" data-staff>طلباتي <span class="count" id="c-mine" hidden></span></button>
@@ -343,6 +345,19 @@
     </div>
     <p class="note" id="staff-note" style="background:var(--brand-soft);margin-bottom:12px" hidden></p>
     <div class="plist" id="plist"></div>
+    </div>
+
+    <!-- طلبات المشترين (صاحب المتجر والكاشير) -->
+    <div id="p-orders" hidden>
+      <div class="toolbar"><select id="o-filter" style="width:auto"><option value="active">الطلبات الجارية</option><option value="done">المكتملة اليوم</option><option value="all">الكل</option></select>
+        <span class="hint" id="o-cash" style="margin-inline-start:auto"></span></div>
+      <div class="mlist" id="o-list"></div>
+    </div>
+
+    <!-- توصيلات المندوب -->
+    <div id="p-deliveries" hidden>
+      <p class="hint" id="dl-sum" style="margin-bottom:10px"></p>
+      <div class="mlist" id="dl-list"></div>
     </div>
 
     <!-- تعديلات الموظفين بانتظار صاحب المتجر -->
@@ -526,12 +541,16 @@
         <option value="manager">مدير فرع — المنتجات والأسعار</option>
         <option value="stock" selected>أمين مخزون — المنتجات والكميات</option>
         <option value="pricing">موظف أسعار — الأسعار فقط</option>
+        <option value="cashier">كاشير — يستقبل الطلبات ويحوّلها للمندوب</option>
+        <option value="driver">🛵 مندوب توصيل — يوصّل الطلبات اللي تتحوّل له</option>
       </select>
     </label>
     <fieldset>
       <legend>الصلاحيات</legend>
       <label class="check"><input type="checkbox" name="p_inventory" checked> إضافة المنتجات وتعديلها والكميات</label>
       <label class="check"><input type="checkbox" name="p_prices"> تعديل الأسعار والعروض</label>
+      <label class="check"><input type="checkbox" name="p_orders"> استقبال طلبات المشترين وتجهيزها وتحويلها للمندوب</label>
+      <label class="check"><input type="checkbox" name="p_delivery"> توصيل الطلبات (مندوب)</label>
     </fieldset>
     <label class="check"><input type="checkbox" name="needs_approval" checked> <span><b>تعديلاته تحتاج موافقتي</b><br><span class="hint">كل إضافة أو تعديل أو حذف يسويه ينتظر موافقتك قبل ما يظهر. شيلها لما تثق فيه.</span></span></label>
     <p class="err" role="alert"></p>
