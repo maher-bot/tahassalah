@@ -130,6 +130,9 @@ Deno.serve(async (req) => {
     if (ins.error) throw ins.error;
     const up = await admin.from("merchants").update({ status: "approved", review_note: null }).eq("id", uid);
     if (up.error) throw up.error;
+    // يطلع في محلات المسوّق في لوحة الفريق الميداني
+    const lk = await admin.rpc("link_rep_activation", { mid: uid });
+    if (lk.error) console.error("field link failed", lk.error.message);
     await admin.from("merchant_edits").insert({
       merchant_id: uid, merchant_name: row.store_name, admin_id: null, admin_email: rep.email,
       changes: { activated_by_rep: rep.name, rep_code: rep.code }, note: "تفعيل فوري عن طريق المسوّق",
