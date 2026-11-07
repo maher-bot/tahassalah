@@ -33,6 +33,7 @@
     <div class="tabs" role="tablist" id="tabs">
       <button role="tab" data-t="sum" aria-selected="true">الملخص</button>
       <button role="tab" data-t="bills" aria-selected="false">التجار والمطالبات <span class="count num" id="c-bills">0</span></button>
+      <button role="tab" data-t="svc" aria-selected="false">الخدمات</button>
       <button role="tab" data-t="reps" aria-selected="false">المسوّقين</button>
       <button role="tab" data-t="ledger" aria-selected="false">الدخل والمصروفات</button>
       <button role="tab" data-t="settings" aria-selected="false">الإعدادات</button>
@@ -68,9 +69,41 @@
     <div data-p="reps" hidden>
       <p class="hint" style="margin-bottom:10px">العدد = المحلات اللي تفعّلت بكود المسوّق في الشهر المختار. اللي فوق الهدف الشهري ينحسب له عن كل محل بالمبلغ المحدد. تقدر تعدّل الهدف والمبلغ لكل مسوّق.</p>
       <div class="table-wrap"><table>
-        <thead><tr><th>المسوّق</th><th>محلات الشهر</th><th>الهدف الشهري</th><th>لكل محل زيادة</th><th>الزيادة</th><th>المستحق</th><th></th></tr></thead>
+        <thead><tr><th>المسوّق</th><th>محلات الشهر</th><th>الهدف الشهري</th><th>لكل محل زيادة</th><th>الزيادة</th><th>مكافأة المحلات</th><th>عمولة الخدمات</th><th>المستحق</th><th></th></tr></thead>
         <tbody id="reps"></tbody>
       </table></div>
+    </div>
+
+    <div data-p="svc" hidden>
+      <form class="card" id="f-svc" novalidate style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end;margin-bottom:14px">
+        <h2 style="grid-column:1/-1;font-size:1.15rem">🧾 طلب خدمة جديد ومطالبته</h2>
+        <label style="grid-column:span 2">المتجر<input name="store" list="store-list" placeholder="اكتب اسم المتجر أو الجوال" autocomplete="off" required><datalist id="store-list"></datalist></label>
+        <label>من القائمة <span class="opt">(اختياري)</span><select name="svc"><option value="">— خدمة مخصصة —</option></select></label>
+        <label style="grid-column:span 2">الخدمة<input name="title" maxlength="120" placeholder="مثل: حملة تسويق أسبوع على سناب" required></label>
+        <label>السعر المتفق عليه (بدون الضريبة)<input name="price" inputmode="decimal" dir="ltr" required></label>
+        <label>الكمية<input name="qty" inputmode="decimal" dir="ltr" value="1"></label>
+        <label>السداد خلال (أيام)<input name="due" inputmode="numeric" dir="ltr" value="7"></label>
+        <label style="grid-column:span 2">ملاحظة داخلية <span class="opt">(اختياري)</span><input name="note" maxlength="300"></label>
+        <label>المسوّق اللي جاب الطلب <span class="opt">(اختياري)</span><select name="rep"><option value="">— بدون —</option></select></label>
+        <label>عمولة المسوّق (ر.س)<input name="commission" inputmode="decimal" dir="ltr" value="0"></label>
+        <p class="hint" style="grid-column:1/-1" id="svc-total"></p>
+        <p class="err" role="alert" style="grid-column:1/-1"></p>
+        <button class="btn primary" type="submit" id="svc-save">إصدار المطالبة وإرسالها للتاجر</button>
+      </form>
+      <div class="toolbar"><h2 style="font-size:1.15rem;margin-inline-end:auto">طلبات الخدمات</h2>
+        <select id="svc-f" style="width:auto"><option value="all">الكل</option><option value="invoiced">بانتظار السداد</option><option value="paid">مدفوع (بانتظار التنفيذ)</option><option value="done">تم التنفيذ</option><option value="cancelled">ملغي</option></select></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>التاريخ</th><th>المتجر</th><th>الخدمة</th><th>المبلغ</th><th>الحالة</th><th>المسوّق</th><th>المطالبة</th><th></th></tr></thead>
+        <tbody id="svc-list"></tbody>
+      </table></div>
+      <details class="card" style="margin-top:14px"><summary style="cursor:pointer;font-weight:600">⚙️ قائمة الخدمات وأسعارها</summary>
+        <form id="f-cat" style="display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin:10px 0" novalidate>
+          <label style="flex:1 1 220px">اسم الخدمة<input name="name" maxlength="120" required></label>
+          <label style="flex:0 1 160px">السعر المقترح<input name="price" inputmode="decimal" dir="ltr"></label>
+          <button class="btn ghost" type="submit">إضافة</button>
+        </form>
+        <div id="cat-list" style="display:grid;gap:6px"></div>
+      </details>
     </div>
 
     <div data-p="ledger" hidden>
@@ -120,6 +153,18 @@
     <p class="err" role="alert"></p>
     <div class="foot"><button class="btn ghost" type="button" id="pay-cancel">إلغاء</button><button class="btn primary" type="submit" id="pay-save">✓ تم السداد وجدّد الاشتراك</button></div>
   </form>
+</dialog>
+
+<dialog id="dlg-stmt">
+  <div class="stack" style="padding:20px">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><h2 style="font-size:1.2rem" id="stmt-title">كشف حساب</h2><button class="btn ghost sm" type="button" id="stmt-close">إغلاق</button></div>
+    <p class="hint num" id="stmt-sum"></p>
+    <div class="table-wrap"><table style="min-width:520px">
+      <thead><tr><th>التاريخ</th><th>البيان</th><th>الإجمالي</th><th>الحالة</th></tr></thead>
+      <tbody id="stmt-list"></tbody>
+    </table></div>
+    <div style="display:flex;gap:8px"><button class="btn ghost sm" type="button" id="stmt-csv">⬇️ تصدير</button></div>
+  </div>
 </dialog>
 
 <script type="module" src="accounts.js"></script>

@@ -51,8 +51,8 @@
       <p class="err" role="alert"></p>
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="submit" id="proof-save">📎 إرسال الإيصال</button><a class="btn ghost" id="wa" target="_blank" rel="noopener">أو أرسله واتساب</a></div>
     </form>
-    <p id="proof-sent" class="note no-print" hidden style="margin-top:12px">📎 وصلنا إيصالك، ونأكد السداد ونجدد اشتراكك خلال يوم عمل، ويوصلك إيصال بالإيميل.</p>
-    <p class="hint" style="margin-top:14px;font-size:.85rem">هذه مطالبة اشتراك وليست فاتورة ضريبية. الفاتورة الضريبية تصدر من المنشأة بعد السداد.</p>
+    <p id="proof-sent" class="note no-print" hidden style="margin-top:12px">📎 وصلنا إيصالك، ونأكد السداد خلال يوم عمل، ويوصلك إيصال بالإيميل.</p>
+    <p class="hint" style="margin-top:14px;font-size:.85rem">هذه مطالبة وليست فاتورة ضريبية. الفاتورة الضريبية تصدر من المنشأة بعد السداد.</p>
     <div class="no-print" style="display:flex;gap:8px;margin-top:12px"><button class="btn primary" type="button" onclick="print()">🖨️ طباعة / حفظ PDF</button></div>
   </section>
   <section id="v-none" class="narrow" hidden><div class="card status"><h2>ما قدرنا نفتح المطالبة</h2><p>سجّل دخولك بحساب المحل أو الإدارة، ثم افتح الرابط مرة ثانية. <a href="merchant.html?tab=login">دخول</a></p></div></section>
@@ -70,7 +70,8 @@ if (!inv || !s) { $('#v-none').hidden = false; }
 else {
   $('#v-inv').hidden = false;
   const paid = inv.status === 'paid';
-  $('#i-title').textContent = paid ? 'إيصال سداد اشتراك' : inv.status === 'void' ? 'مطالبة ملغاة' : 'مطالبة اشتراك';
+  const what = inv.kind === 'service' ? 'خدمة' : 'اشتراك';
+  $('#i-title').textContent = paid ? `إيصال سداد ${what}` : inv.status === 'void' ? 'مطالبة ملغاة' : `مطالبة ${what}`;
   document.title = `${inv.number} · تحصّله`;
   $('#i-number').textContent = inv.number;
   $('#c-name').textContent = `${s.brand_name} · ${s.company_name}`;
@@ -79,8 +80,13 @@ else {
   $('#m-name').textContent = inv.store_name; $('#m-owner').textContent = inv.owner_name || '';
   $('#m-vat').textContent = inv.merchant_vat ? 'الرقم الضريبي ' + inv.merchant_vat : '';
   $('#i-issued').textContent = day(inv.issued_at); $('#i-due').textContent = day(inv.due_at);
-  $('#l-desc').textContent = `اشتراك باقة «${PLAN[inv.plan]}» ${inv.billing === 'yearly' ? 'سنوي' : 'شهري'} في تحصّله`;
-  $('#l-period').textContent = `${day(inv.period_start)} — ${day(inv.period_end)}`;
+  if (inv.kind === 'service') {
+    $('#l-desc').textContent = inv.description + (Number(inv.qty) !== 1 ? ` × ${Number(inv.qty)} (${sar(inv.unit_price)} للوحدة)` : '');
+    $('#l-period').textContent = '—';
+  } else {
+    $('#l-desc').textContent = `اشتراك باقة «${PLAN[inv.plan]}» ${inv.billing === 'yearly' ? 'سنوي' : 'شهري'} في تحصّله`;
+    $('#l-period').textContent = `${day(inv.period_start)} — ${day(inv.period_end)}`;
+  }
   $('#l-amount').textContent = sar(inv.amount); $('#l-vat').textContent = sar(inv.vat); $('#l-total').textContent = sar(inv.total);
   if (paid) { $('#i-paid').hidden = false; $('#i-paid-info').textContent = `${METHOD[inv.paid_method] || ''} · ${day(inv.paid_at)}${inv.paid_ref ? ' · مرجع ' + inv.paid_ref : ''}`; }
   else if (inv.status === 'issued') {
@@ -94,7 +100,7 @@ else {
       if (inv.submitted_at) $('#proof-sent').hidden = false;
       const f = $('#f-proof'); f.hidden = false;
       if (inv.submitted_at) f.querySelector('b').textContent = 'تبي ترسل إيصال ثاني بدل اللي أرسلته؟';
-      $('#wa').href = 'https://wa.me/966555606635?text=' + encodeURIComponent(`السلام عليكم، حوّلت اشتراك «${inv.store_name}»، رقم المطالبة ${inv.number} بمبلغ ${sar(inv.total)}. مرفق الإيصال.`);
+      $('#wa').href = 'https://wa.me/966555606635?text=' + encodeURIComponent(`السلام عليكم، حوّلت ${inv.kind === 'service' ? inv.description : 'اشتراك'} «${inv.store_name}»، رقم المطالبة ${inv.number} بمبلغ ${sar(inv.total)}. مرفق الإيصال.`);
       f.addEventListener('submit', async e => {
         e.preventDefault();
         const btn = $('#proof-save'), err = $('.err', f), file = f.file.files[0];

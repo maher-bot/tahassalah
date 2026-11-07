@@ -608,13 +608,17 @@ function planStage(m) {
 async function showOpenInvoice(box) {
   box.querySelector('#trial-inv')?.remove();
   if (!merchant?.id || merchant.id !== user?.id) return;
-  const { data } = await sb.from('invoices').select('id,number,total,due_at').eq('merchant_id', merchant.id).eq('status', 'issued').maybeSingle();
-  if (!data) return;
-  const d = document.createElement('p'); d.id = 'trial-inv'; d.className = 'note'; d.style.marginTop = '10px';
-  const left = Math.ceil((new Date(data.due_at) - Date.now()) / 864e5);
-  d.append(`🧾 عندك مطالبة تجديد ${money(data.total)} (شامل الضريبة)، ${left > 0 ? `آخر موعد بعد ${left} يوم` : 'موعدها اليوم'}. حوّل وارفع الإيصال من صفحة المطالبة، أو ادفع شبكة عن طريق المسوّق. `);
-  const a = document.createElement('a'); a.href = 'invoice.html?id=' + data.id; a.target = '_blank'; a.textContent = 'عرض المطالبة وطرق السداد';
-  d.append(a); box.append(d);
+  const { data } = await sb.from('invoices').select('id,number,total,due_at,kind,description,submitted_at').eq('merchant_id', merchant.id).eq('status', 'issued').order('due_at');
+  if (!data?.length) return;
+  const d = document.createElement('div'); d.id = 'trial-inv'; d.className = 'note'; d.style.marginTop = '10px';
+  for (const inv of data) {
+    const p = document.createElement('p');
+    const left = Math.ceil((new Date(inv.due_at) - Date.now()) / 864e5);
+    p.append(`🧾 مطالبة ${inv.kind === 'service' ? inv.description : 'تجديد الاشتراك'}: ${money(inv.total)} (شامل الضريبة)، ${left > 0 ? `آخر موعد بعد ${left} يوم` : 'موعدها اليوم'}. ${inv.submitted_at ? '📎 وصلنا إيصالك وبنأكده. ' : 'حوّل وارفع الإيصال من صفحة المطالبة، أو ادفع شبكة عن طريق المسوّق. '}`);
+    const a = document.createElement('a'); a.href = 'invoice.html?id=' + inv.id; a.target = '_blank'; a.textContent = 'عرض المطالبة';
+    p.append(a); d.append(p);
+  }
+  box.append(d);
 }
 const daysLeft = d => Math.max(0, Math.ceil((d - Date.now()) / 864e5));
 

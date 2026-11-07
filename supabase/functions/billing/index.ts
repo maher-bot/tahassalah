@@ -1,6 +1,6 @@
-// تحصّله — إيميلات مطالبات الاشتراك.
+// تحصّله — إيميلات المطالبات (اشتراك وخدمات).
 // daily (يوميًا من cron عبر billing_daily): مطالبة جديدة قبل 7 أيام، تذكير قبل 3 أيام، وتذكير يوم الاستحقاق.
-// paid (من تريقر invoices): إيصال سداد للتاجر. proof: التاجر رفع إيصال ← إيميل للإدارة.
+// paid (من تريقر invoices): إيصال سداد للتاجر. proof: التاجر رفع إيصال ← إيميل للإدارة. issued: مطالبة خدمة جديدة ← إيميل للتاجر.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
@@ -38,8 +38,10 @@ function invTable(inv: any) {
   const r = (k: string, v: string) => `<tr><td style="color:#4E625D;padding:4px 0 4px 14px;white-space:nowrap">${esc(k)}</td><td style="padding:4px 0"><b>${v}</b></td></tr>`;
   return `<table style="border-collapse:collapse;font-size:14px;margin:10px 0">
     ${r("رقم المطالبة", esc(inv.number))}${r("المحل", esc(inv.store_name))}
-    ${r("الباقة", esc(`${PLAN[inv.plan] ?? inv.plan} · ${inv.billing === "yearly" ? "سنوي" : "شهري"}`))}
-    ${r("الفترة", esc(`${day(inv.period_start)} — ${day(inv.period_end)}`))}
+    ${inv.kind === "service"
+      ? r("الخدمة", esc(`${inv.description}${Number(inv.qty) !== 1 ? ` × ${Number(inv.qty)}` : ""}`))
+      : `${r("الباقة", esc(`${PLAN[inv.plan] ?? inv.plan} · ${inv.billing === "yearly" ? "سنوي" : "شهري"}`))}
+    ${r("الفترة", esc(`${day(inv.period_start)} — ${day(inv.period_end)}`))}`}
     ${r("المبلغ", esc(money(inv.amount)))}${r("ضريبة القيمة المضافة 15%", esc(money(inv.vat)))}
     ${r("الإجمالي", `<span style="color:#0D5C4E;font-size:16px">${esc(money(inv.total))}</span>`)}
     ${r("آخر موعد للسداد", esc(day(inv.due_at)))}
@@ -53,7 +55,7 @@ function howToPay(b: any, inv: any) {
       <li>شبكة (مدى أو بطاقة) أو نقدًا عن طريق مسوّق تحصّله.</li>
     </ul>
     <p style="margin:8px 0 0"><b>حوّلت؟</b> افتح المطالبة من الزر تحت وارفع صورة الإيصال، أو أرسله واتساب.</p>
-    <p style="color:#4E625D;font-size:13px">أول ما يتأكد السداد يتجدد اشتراكك تلقائيًا ويوصلك إيصال. للاستفسار واتساب ‎+966 55 560 6635.</p>`;
+    <p style="color:#4E625D;font-size:13px">أول ما يتأكد السداد ${inv.kind === "service" ? "" : "يتجدد اشتراكك تلقائيًا و"}يوصلك إيصال. للاستفسار واتساب ‎+966 55 560 6635.</p>`;
 }
 
 async function send(from: string, to: string, subject: string, html: string) {
@@ -78,7 +80,11 @@ async function daily(c: any) {
     else if (left > 0 && left <= 3 && !rem.d3) { key = "d3"; subject = `باقي ${left} ${left === 1 ? "يوم" : "أيام"} على تجديد اشتراكك · ${inv.number}`; lead = `باقي <b>${left} ${left === 1 ? "يوم" : "أيام"}</b> على نهاية اشتراكك. سدّد المطالبة عشان ما يتوقف ظهور متجرك.`; }
     else if (left > 3 && !rem.d7) { key = "d7"; subject = `مطالبة تجديد اشتراكك في تحصّله · ${inv.number}`; lead = `اشتراكك يتجدد بعد <b>${left} أيام</b>. هذي مطالبة التجديد حسب باقتك.`; }
     if (!key) continue;
-    const html = layout(c.b, "مطالبة اشتراك", `<p>أهلًا ${esc(inv.owner_name ?? "")}،</p><p>${lead}</p>${invTable(inv)}${howToPay(c.b, inv)}
+    if (inv.kind === "service") {
+      subject = key === "due" ? `اليوم آخر موعد لسداد ${inv.description} · ${inv.number}` : key === "d3" ? `تذكير: مطالبة ${inv.description} · ${inv.number}` : `مطالبة ${inv.description} · ${inv.number}`;
+      lead = key === "due" ? "اليوم آخر موعد لسداد مطالبة الخدمة." : key === "d3" ? `باقي <b>${left} ${left === 1 ? "يوم" : "أيام"}</b> على موعد سداد مطالبة الخدمة.` : "هذي مطالبة الخدمة اللي اتفقنا عليها.";
+    }
+    const html = layout(c.b, inv.kind === "service" ? "مطالبة خدمة" : "مطالبة اشتراك", `<p>أهلًا ${esc(inv.owner_name ?? "")}،</p><p>${lead}</p>${invTable(inv)}${howToPay(c.b, inv)}
       ${btn(`${c.n.site_url}/invoice.html?id=${inv.id}`, "عرض المطالبة ورفع الإيصال")}`);
     const ok = await send(c.n.from_email, inv.email, subject, html);
     // نعلّم التذكيرات اللي قبله بعد، عشان ما يوصله تذكيران متتاليان
@@ -91,10 +97,23 @@ async function daily(c: any) {
 async function paid(c: any, id: string) {
   const { data: inv } = await admin.from("invoices").select("*").eq("id", id).single();
   if (!inv || inv.status !== "paid") return false;
-  const html = layout(c.b, "تم استلام اشتراكك ✓", `<p>أهلًا ${esc(inv.owner_name ?? "")}،</p>
-    <p>استلمنا سداد اشتراك <b>${esc(inv.store_name)}</b> (${esc(METHOD[inv.paid_method] ?? inv.paid_method)})، واشتراكك ساري لين <b>${esc(day(inv.period_end))}</b>.</p>
+  const html = layout(c.b, inv.kind === "service" ? "تم استلام السداد ✓" : "تم استلام اشتراكك ✓", `<p>أهلًا ${esc(inv.owner_name ?? "")}،</p>
+    ${inv.kind === "service"
+      ? `<p>استلمنا سداد <b>${esc(inv.description)}</b> (${esc(METHOD[inv.paid_method] ?? inv.paid_method)}). شكرًا لك.</p>`
+      : `<p>استلمنا سداد اشتراك <b>${esc(inv.store_name)}</b> (${esc(METHOD[inv.paid_method] ?? inv.paid_method)})، واشتراكك ساري لين <b>${esc(day(inv.period_end))}</b>.</p>`}
     ${invTable(inv)}${btn(`${c.n.site_url}/invoice.html?id=${inv.id}`, "عرض الإيصال")}`);
-  return await send(c.n.from_email, inv.email, `إيصال سداد اشتراكك · ${inv.number}`, html);
+  return await send(c.n.from_email, inv.email, `إيصال سداد ${inv.kind === "service" ? inv.description : "اشتراكك"} · ${inv.number}`, html);
+}
+
+async function issued(c: any, id: string) {
+  const { data: inv } = await admin.from("invoices").select("*").eq("id", id).single();
+  if (!inv || inv.status !== "issued") return false;
+  const left = Math.ceil((new Date(inv.due_at).getTime() - Date.now()) / 86400000);
+  const html = layout(c.b, "مطالبة خدمة", `<p>أهلًا ${esc(inv.owner_name ?? "")}،</p><p>هذي مطالبة <b>${esc(inv.description)}</b> اللي اتفقنا عليها${left > 0 ? `، وآخر موعد للسداد بعد ${left} ${left === 1 ? "يوم" : "أيام"}` : ""}.</p>
+    ${invTable(inv)}${howToPay(c.b, inv)}${btn(`${c.n.site_url}/invoice.html?id=${inv.id}`, "عرض المطالبة ورفع الإيصال")}`);
+  const ok = await send(c.n.from_email, inv.email, `مطالبة ${inv.description} · ${inv.number}`, html);
+  if (ok || !RESEND_API_KEY) await admin.from("invoices").update({ reminders: { ...(inv.reminders ?? {}), d7: new Date().toISOString(), ...(left <= 3 ? { d3: true } : {}) } }).eq("id", inv.id);
+  return ok;
 }
 
 async function proof(c: any, id: string) {
@@ -102,7 +121,7 @@ async function proof(c: any, id: string) {
   if (!inv || inv.status !== "issued" || !inv.submitted_receipt) return false;
   const { data: u } = await admin.storage.from("receipts").createSignedUrl(inv.submitted_receipt, 60 * 60 * 24 * 7);
   const html = layout(c.b, "تاجر رفع إيصال سداد", `<p><b>${esc(inv.store_name)}</b> رفع إيصال سداد المطالبة <b>${esc(inv.number)}</b> بمبلغ <b>${esc(money(inv.total))}</b>${inv.submitted_ref ? ` (مرجع ${esc(inv.submitted_ref)})` : ""}.</p>
-    <p>تأكد إن المبلغ وصل الحساب، وبعدها اضغط «تأكيد السداد» في الحسابات، والاشتراك يتجدد تلقائيًا.</p>
+    <p>تأكد إن المبلغ وصل الحساب، وبعدها اضغط «تأكيد السداد» في الحسابات${inv.kind === "service" ? "" : "، والاشتراك يتجدد تلقائيًا"}.</p>
     ${u?.signedUrl ? btn(u.signedUrl, "عرض الإيصال") : ""}${btn(`${c.n.site_url}/accounts.html#bills`, "افتح الحسابات")}`);
   return await send(c.n.from_email, c.n.admin_email, `📎 إيصال سداد: ${inv.store_name} · ${inv.number}`, html);
 }
@@ -113,6 +132,7 @@ Deno.serve(async (req) => {
   const p = await req.json().catch(() => null);
   try {
     if (p?.type === "daily") return Response.json({ sent: await daily(c) });
+    if (p?.type === "issued" && p.invoice_id) return Response.json({ sent: await issued(c, p.invoice_id) });
     if (p?.type === "proof" && p.invoice_id) return Response.json({ sent: await proof(c, p.invoice_id) });
     if (p?.type === "paid" && p.invoice_id) return Response.json({ sent: await paid(c, p.invoice_id) });
   } catch (e) { console.error(e); return new Response("error", { status: 500 }); }

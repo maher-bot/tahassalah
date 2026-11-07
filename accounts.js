@@ -8,12 +8,12 @@ const mk = (tag, cls = '', text) => { const e = document.createElement(tag); if 
 const DAY = 86400000;
 const METHOD = { transfer: 'تحويل', pos: 'شبكة', cash: 'نقدي' };
 const CATS = {
-  income: { subscription: 'اشتراكات التجار', other_income: 'دخل آخر' },
+  income: { subscription: 'اشتراكات التجار', services: 'خدمات إضافية', other_income: 'دخل آخر' },
   expense: { salaries: 'رواتب', rep_bonus: 'مكافآت المسوّقين', rent: 'إيجار', marketing: 'تسويق وإعلانات', tech: 'تقنية واستضافة', government: 'رسوم حكومية', transport: 'مواصلات', other: 'أخرى' },
 };
 const catName = (k, c) => CATS[k]?.[c] || c;
 
-let me = null, merchants = [], invoices = [], entries = [], settings = null, tab = 'sum';
+let me = null, merchants = [], invoices = [], entries = [], settings = null, tab = 'sum', services = [], requests = [], reps = [];
 const monthEl = $('#month');
 monthEl.value = new Date().toISOString().slice(0, 7);
 const monthRange = () => { const [y, m] = monthEl.value.split('-').map(Number); return [new Date(y, m - 1, 1), new Date(y, m, 1)]; };
@@ -59,23 +59,27 @@ monthEl.addEventListener('change', () => loadAll());
 
 async function loadAll() {
   const [from, to] = monthRange();
-  const [m, i, f, s] = await Promise.all([
+  const [m, i, f, s, sv, rq, rp] = await Promise.all([
     sb.from('merchants').select('id,store_name,owner_name,phone,email,kind,status,plan,next_plan,billing,trial_started_at,trial_months,paid_until,basic_until,rep_code').eq('status', 'approved').order('store_name'),
     sb.from('invoices').select('*').order('issued_at', { ascending: false }).limit(2000),
     sb.from('finance_entries').select('*').gte('entry_date', isoDay(from)).lt('entry_date', isoDay(to)).order('entry_date', { ascending: false }),
     sb.from('billing_settings').select('*').single(),
+    sb.from('services').select('*').order('name'),
+    sb.from('service_requests').select('*').order('created_at', { ascending: false }).limit(1000),
+    sb.from('reps').select('id,name,code,active').order('code'),
   ]);
-  for (const r of [m, i, f, s]) if (r.error) return toast(friendlyError(r.error));
-  merchants = m.data; invoices = i.data; entries = f.data; settings = s.data;
+  for (const r of [m, i, f, s, sv, rq, rp]) if (r.error) return toast(friendlyError(r.error));
+  merchants = m.data; invoices = i.data; entries = f.data; settings = s.data; services = sv.data; requests = rq.data; reps = rp.data;
   render();
 }
 
 function render() {
   const open = invoices.filter(x => x.status === 'issued');
-  $('#c-bills').textContent = open.length;
+  $('#c-bills').textContent = open.filter(x => x.kind !== 'service').length;
   if (tab === 'sum') renderSum(open);
   if (tab === 'bills') renderBills();
   if (tab === 'reps') renderReps();
+  if (tab === 'svc') renderSvc();
   if (tab === 'ledger') renderLedger();
   if (tab === 'settings') renderSettings();
 }
@@ -101,9 +105,9 @@ $('#bf').addEventListener('change', () => renderBills());
 function renderBills() {
   const q = digits($('#bq').value.trim()).toLowerCase(), f = $('#bf').value, now = Date.now();
   const [from, to] = monthRange();
-  const openBy = new Map(invoices.filter(x => x.status === 'issued').map(x => [x.merchant_id, x]));
+  const openBy = new Map(invoices.filter(x => x.status === 'issued' && x.kind !== 'service').map(x => [x.merchant_id, x]));
   const lastPaid = new Map();
-  for (const x of invoices) if (x.status === 'paid' && !lastPaid.has(x.merchant_id)) lastPaid.set(x.merchant_id, x);
+  for (const x of invoices) if (x.status === 'paid' && x.kind !== 'service' && !lastPaid.has(x.merchant_id)) lastPaid.set(x.merchant_id, x);
   const rows = merchants.map(m => ({ m, due: dueOf(m), inv: openBy.get(m.id), paid: lastPaid.get(m.id) }))
     .filter(({ m, due, inv, paid }) => {
       if (q && !(m.store_name.toLowerCase().includes(q) || (m.phone || '').includes(q) || (inv?.number || '').toLowerCase().includes(q))) return false;
@@ -121,6 +125,9 @@ function renderBills() {
     const tr = document.createElement('tr');
     const td = (x, cls) => { const t = mk('td', cls || ''); if (x instanceof Node) t.append(x); else t.textContent = x; tr.append(t); return t; };
     const who = mk('div'); who.append(mk('b', '', `${KIND_ICON[m.kind] || ''} ${m.store_name}`), mk('div', 'hint num', [m.owner_name, m.phone].filter(Boolean).join(' · ')));
+    const st = mk('a', '', '📄 كشف حساب'); st.href = '#'; st.style.fontSize = '.85rem'; st.onclick = ev => { ev.preventDefault(); openStatement(m); };
+    const svcOpen = invoices.filter(x => x.merchant_id === m.id && x.kind === 'service' && x.status === 'issued').length;
+    who.append(st); if (svcOpen) who.append(mk('span', 'badge pending', ` ${svcOpen} مطالبة خدمة`));
     td(who);
     const p = billPlan(m);
     td(`${PLANS[m.plan] || m.plan}${m.plan === 'free' ? ' ← ' + PLANS[p] : ''}${m.billing === 'yearly' ? ' · سنوي' : ''}`);
@@ -230,14 +237,15 @@ async function renderReps() {
     };
     td(inp(r.monthly_target, 'monthly_target')); td(inp(r.bonus_per_store, 'bonus_per_store'));
     td(String(r.extra), 'num'); td(sar(r.bonus), 'num');
+    td(`${sar(r.services_commission)}${r.services_n ? ` (${r.services_n})` : ''}`, 'num'); td(sar(r.total), 'num');
     const act = mk('div');
     if (r.paid) act.append(mk('span', 'badge approved', `✓ انصرف ${sar(r.paid_amount)}`));
-    else if (Number(r.bonus) > 0) {
+    else if (Number(r.total) > 0) {
       const b = mk('button', 'btn primary sm', 'صرف المكافأة'); b.type = 'button';
       b.onclick = async () => {
-        if (!confirm(`تسجيل صرف ${sar(r.bonus)} لـ ${r.name} عن ${monthEl.value}؟ (تنضاف كمصروف)`)) return;
-        const { error } = await sb.from('finance_entries').insert({ kind: 'expense', category: 'rep_bonus', amount: r.bonus, entry_date: isoDay(new Date()),
-          description: `مكافأة ${r.name} (${r.code}) عن ${monthEl.value}: ${r.extra} محل × ${r.bonus_per_store}`, rep_id: r.rep_id, ref_month: isoDay(from), created_by: me.id });
+        if (!confirm(`تسجيل صرف ${sar(r.total)} لـ ${r.name} عن ${monthEl.value}؟ (تنضاف كمصروف)`)) return;
+        const { error } = await sb.from('finance_entries').insert({ kind: 'expense', category: 'rep_bonus', amount: r.total, entry_date: isoDay(new Date()),
+          description: `مكافأة ${r.name} (${r.code}) عن ${monthEl.value}: ${r.extra} محل × ${r.bonus_per_store}${Number(r.services_commission) ? ` + عمولة خدمات ${r.services_commission}` : ''}`, rep_id: r.rep_id, ref_month: isoDay(from), created_by: me.id });
         if (error) return toast(friendlyError(error));
         toast('تم التسجيل.'); loadAll();
       };
@@ -251,7 +259,7 @@ async function renderReps() {
 // ---------------- الدخل والمصروفات ----------------
 const fe = $('#f-entry');
 fe.entry_date.value = isoDay(new Date());
-const fillCats = () => { fe.category.replaceChildren(...Object.entries(CATS[fe.kind.value]).filter(([k]) => k !== 'subscription').map(([k, v]) => new Option(v, k))); };
+const fillCats = () => { fe.category.replaceChildren(...Object.entries(CATS[fe.kind.value]).filter(([k]) => k !== 'subscription' && k !== 'services').map(([k, v]) => new Option(v, k))); };
 fe.kind.addEventListener('change', fillCats); fillCats();
 fe.addEventListener('submit', async e => {
   e.preventDefault();
@@ -337,4 +345,136 @@ fs.addEventListener('submit', async e => {
   const { error } = await sb.from('billing_settings').update(row).eq('id', true);
   if (error) return ($('.err', fs).textContent = friendlyError(error));
   $('.err', fs).textContent = ''; toast('تم الحفظ.'); loadAll();
+});
+
+// ---------------- الخدمات ----------------
+const fsv = $('#f-svc');
+const storeKey = m => `${m.store_name} · ${m.phone || ''}`;
+function fillSvcForm() {
+  $('#store-list').replaceChildren(...merchants.map(m => new Option(storeKey(m))));
+  const cur = fsv.svc.value;
+  fsv.svc.replaceChildren(new Option('— خدمة مخصصة —', ''), ...services.filter(s => s.active).map(s => new Option(`${s.name}${s.default_price ? ' · ' + sar(s.default_price) : ''}`, s.id)));
+  fsv.svc.value = cur;
+  const rcur = fsv.rep.value;
+  fsv.rep.replaceChildren(new Option('— بدون —', ''), ...reps.filter(r => r.active).map(r => new Option(`${r.name} (${r.code})`, r.id)));
+  fsv.rep.value = rcur;
+}
+fsv.svc.addEventListener('change', () => {
+  const s = services.find(x => x.id === fsv.svc.value);
+  if (s) { fsv.title.value = s.name; if (s.default_price) fsv.price.value = s.default_price; }
+  svcTotal();
+});
+const num = v => Number(digits(String(v || '').trim()).replace(/,/g, ''));
+function svcTotal() {
+  const a = num(fsv.price.value) * (num(fsv.qty.value) || 1), v = Math.round(a * Number(settings?.vat_rate ?? 0.15) * 100) / 100;
+  $('#svc-total').textContent = a > 0 ? `المبلغ ${sar(a)} + الضريبة ${sar(v)} = الإجمالي ${sar(a + v)}` : '';
+}
+['price', 'qty'].forEach(n => fsv[n].addEventListener('input', svcTotal));
+fsv.addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = $('.err', fsv), btn = $('#svc-save');
+  const m = merchants.find(x => storeKey(x) === fsv.store.value.trim()) || merchants.find(x => x.store_name === fsv.store.value.trim());
+  const price = num(fsv.price.value), qty = num(fsv.qty.value) || 1, due = Math.round(num(fsv.due.value || '7')), commission = num(fsv.commission.value || '0');
+  if (!m) return (err.textContent = 'اختر المتجر من القائمة.');
+  if (fsv.title.value.trim().length < 2) return (err.textContent = 'اكتب اسم الخدمة.');
+  if (!(price > 0)) return (err.textContent = 'اكتب السعر المتفق عليه.');
+  if (!(due >= 0 && due <= 90)) return (err.textContent = 'مدة السداد من 0 إلى 90 يوم.');
+  if (!(commission >= 0)) return (err.textContent = 'العمولة رقم.');
+  if (commission > 0 && !fsv.rep.value) return (err.textContent = 'اختر المسوّق صاحب العمولة.');
+  if (!confirm(`إصدار مطالبة «${fsv.title.value.trim()}» لـ ${m.store_name}؟ توصله بالإيميل الحين.`)) return;
+  setBusy(btn, true);
+  const { data, error } = await sb.rpc('issue_service_invoice', { mid: m.id, title: fsv.title.value.trim(), unit_price: price, qty, due_days: due,
+    note: fsv.note.value, svc: fsv.svc.value || null, rep: fsv.rep.value || null, commission });
+  setBusy(btn, false);
+  if (error) return (err.textContent = friendlyError(error));
+  err.textContent = ''; fsv.reset(); fsv.qty.value = '1'; fsv.due.value = '7'; fsv.commission.value = '0'; svcTotal();
+  toast(`صدرت المطالبة ${data.number} ✓`); loadAll();
+});
+$('#svc-f').addEventListener('change', () => renderSvc());
+const REQ = { invoiced: ['بانتظار السداد', 'pending'], paid: ['مدفوع · بانتظار التنفيذ', 'approved'], done: ['تم التنفيذ ✓', 'approved'], cancelled: ['ملغي', 'suspended'] };
+function renderSvc() {
+  fillSvcForm();
+  const f = $('#svc-f').value, tb = $('#svc-list');
+  const invBy = new Map(invoices.map(x => [x.id, x])), repBy = new Map(reps.map(r => [r.id, r]));
+  const list = requests.filter(q => f === 'all' || q.status === f);
+  tb.replaceChildren(...list.map(q => {
+    const tr = document.createElement('tr');
+    const td = (x, cls) => { const t = mk('td', cls || ''); if (x instanceof Node) t.append(x); else t.textContent = x; tr.append(t); return t; };
+    td(fmtDay(q.created_at), 'num'); td(q.store_name);
+    const t = mk('div'); t.append(mk('b', '', q.title)); if (q.note) t.append(mk('div', 'hint', q.note)); td(t);
+    td(sar(q.amount), 'num');
+    td(mk('span', 'badge ' + REQ[q.status][1], REQ[q.status][0]));
+    const r = repBy.get(q.rep_id); td(r ? `${r.name}${Number(q.rep_commission) ? ' · ' + sar(q.rep_commission) : ''}` : '—');
+    const inv = invBy.get(q.invoice_id), ic = mk('div');
+    if (inv) { const a = mk('a', 'num', inv.number); a.href = 'invoice.html?id=' + inv.id; a.target = '_blank'; ic.append(a); if (inv.submitted_at && inv.status === 'issued') ic.append(mk('span', 'badge pending', '📎 إيصال')); }
+    td(ic);
+    const act = mk('div'); act.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
+    if (inv?.status === 'issued') {
+      const pay = mk('button', 'btn primary sm', inv.submitted_at ? '✓ تأكيد السداد' : '💳 تسجيل سداد'); pay.type = 'button'; pay.onclick = () => openPay(inv);
+      const v = mk('button', 'btn ghost sm', 'إلغاء'); v.type = 'button'; v.onclick = () => voidInv(inv);
+      act.append(pay, v);
+    }
+    if (q.status === 'paid') {
+      const d = mk('button', 'btn ghost sm', '✓ تم التنفيذ'); d.type = 'button';
+      d.onclick = async () => { const { error } = await sb.from('service_requests').update({ status: 'done', done_at: new Date().toISOString() }).eq('id', q.id); if (error) return toast(friendlyError(error)); loadAll(); };
+      act.append(d);
+    }
+    td(act);
+    return tr;
+  }));
+  if (!list.length) { const tr = document.createElement('tr'); const t = mk('td', 'hint', 'ما فيه طلبات.'); t.colSpan = 8; tr.append(t); tb.append(tr); }
+  renderCat();
+}
+function renderCat() {
+  $('#cat-list').replaceChildren(...services.map(s => {
+    const row = mk('div'); row.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap';
+    row.append(mk('b', '', s.name), mk('span', 'hint num', s.default_price ? sar(s.default_price) : 'بدون سعر ثابت'));
+    if (!s.active) row.append(mk('span', 'badge suspended', 'موقوفة'));
+    const tg = mk('button', 'btn ghost sm', s.active ? 'إيقاف' : 'تفعيل'); tg.type = 'button';
+    tg.onclick = async () => { const { error } = await sb.from('services').update({ active: !s.active }).eq('id', s.id); if (error) return toast(friendlyError(error)); loadAll(); };
+    row.append(tg); return row;
+  }));
+  if (!services.length) $('#cat-list').append(mk('p', 'hint', 'القائمة فاضية. أضف خدماتك وأسعارها المقترحة، أو اكتب الخدمة مباشرة في الطلب.'));
+}
+$('#f-cat').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target, name = f.name.value.trim(), price = num(f.price.value);
+  if (name.length < 2) return toast('اكتب اسم الخدمة.');
+  const { error } = await sb.from('services').insert({ name, default_price: price > 0 ? price : null });
+  if (error) return toast(friendlyError(error));
+  f.reset(); toast('تمت الإضافة.'); loadAll();
+});
+
+// ---------------- كشف حساب المتجر ----------------
+const STAT = { issued: 'غير مسدد', paid: 'مسدد ✓', void: 'ملغي' };
+let stmtRows = [], stmtName = '';
+function openStatement(m) {
+  stmtName = m.store_name;
+  stmtRows = invoices.filter(x => x.merchant_id === m.id).sort((a, b) => new Date(b.issued_at) - new Date(a.issued_at));
+  const paid = stmtRows.filter(x => x.status === 'paid').reduce((s, x) => s + Number(x.total), 0);
+  const due = stmtRows.filter(x => x.status === 'issued').reduce((s, x) => s + Number(x.total), 0);
+  $('#stmt-title').textContent = `كشف حساب: ${m.store_name}`;
+  $('#stmt-sum').textContent = `المسدد ${sar(paid)} · غير المسدد ${sar(due)} · عدد المطالبات ${stmtRows.length}`;
+  $('#stmt-list').replaceChildren(...stmtRows.map(x => {
+    const tr = document.createElement('tr');
+    const td = (v, cls) => { const t = mk('td', cls || ''); if (v instanceof Node) t.append(v); else t.textContent = v; tr.append(t); return t; };
+    td(fmtDay(x.issued_at), 'num');
+    const a = mk('a', '', x.kind === 'service' ? x.description : `اشتراك ${PLANS[x.plan] || x.plan}${x.billing === 'yearly' ? ' سنوي' : ''}`); a.href = 'invoice.html?id=' + x.id; a.target = '_blank';
+    const d = mk('div'); d.append(a, mk('div', 'hint num', x.number)); td(d);
+    td(sar(x.total), 'num');
+    td(mk('span', 'badge ' + (x.status === 'paid' ? 'approved' : x.status === 'issued' ? 'pending' : 'suspended'), STAT[x.status] + (x.status === 'paid' && x.paid_method ? ` · ${METHOD[x.paid_method]}` : '')));
+    return tr;
+  }));
+  if (!stmtRows.length) { const tr = document.createElement('tr'); const t = mk('td', 'hint', 'ما فيه مطالبات لهذا المتجر.'); t.colSpan = 4; tr.append(t); $('#stmt-list').append(tr); }
+  $('#dlg-stmt').showModal();
+}
+$('#stmt-close').addEventListener('click', () => $('#dlg-stmt').close());
+$('#stmt-csv').addEventListener('click', () => {
+  const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines = [['التاريخ', 'رقم المطالبة', 'البيان', 'المبلغ', 'الضريبة', 'الإجمالي', 'الحالة', 'طريقة السداد', 'تاريخ السداد'].map(q).join(','),
+    ...stmtRows.map(x => [x.issued_at.slice(0, 10), x.number, x.kind === 'service' ? x.description : `اشتراك ${PLANS[x.plan] || x.plan}`, x.amount, x.vat, x.total,
+      STAT[x.status], METHOD[x.paid_method] || '', x.paid_at ? x.paid_at.slice(0, 10) : ''].map(q).join(','))];
+  const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `كشف-حساب-${stmtName}.csv` });
+  a.click(); URL.revokeObjectURL(a.href);
 });
