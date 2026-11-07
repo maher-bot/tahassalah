@@ -1,13 +1,16 @@
 import { rememberLogin, hidePasswords, sb, $, $$, toast, clean, digits, valid, money, ACTIVITIES, PLANS, planLabel, STATUS, fileExt, shrinkImage, friendlyError, setBusy, trialInfo, fmtDay, OFFER_REASONS, KINDS, KIND_ICON, ACTIVITIES_BY_KIND } from './lib.js';
 import { pickLocation } from './mappick.js';
 
-const VIEWS = ['v-loading', 'v-auth', 'v-check-email', 'v-reset', 'v-apply', 'v-status', 'v-invites', 'v-dash', 'v-roles'];
+const VIEWS = ['v-loading', 'v-auth', 'v-check-email', 'v-reset', 'v-apply', 'v-status', 'v-invites', 'v-dash', 'v-roles', 'v-rep-done'];
 const show = id => { VIEWS.forEach(v => { $('#' + v).hidden = v !== id; }); window.scrollTo(0, 0); };
 const here = () => location.origin + location.pathname;
 
 let user = null, merchant = null, products = [], editing = null, recovering = false, routedFor = undefined, coords = null;
+const currentMerchant = () => merchant;   // نموذج التسجيل في وضع المسوّق يتجاهل متجر المسوّق نفسه
 let invites = [], stores = [], skipInvites = false;
 // كود المسوّق من رابط التسجيل (?ref=M01) — نحفظه لين يكمل التاجر طلبه
+const REP_MODE = new URLSearchParams(location.search).get('rep') === '1';
+let repMode = false;
 const REF = (() => {
   const r = new URLSearchParams(location.search).get('ref');
   try { if (r) localStorage.setItem('tah-ref', r.toUpperCase()); return r?.toUpperCase() || localStorage.getItem('tah-ref'); } catch { return r?.toUpperCase() || null; }
@@ -149,6 +152,13 @@ async function route(session) {
   $('#logout').hidden = !user;
   { const ta = $('#to-admin'); if (ta) ta.hidden = true; const tr = $('#to-rep'); if (tr) tr.hidden = true; }
   if (!user) return show('v-auth');
+  // وضع المسوّق: ?rep=1 يفتح نموذج التسجيل لمحل جديد باسم صاحبه (للمسوّق المصرّح له فقط)
+  if (REP_MODE) {
+    show('v-loading');
+    const { data: ok } = await sb.rpc('can_rep_activate');
+    if (ok) return openApply(null, true);
+    toast('ما عندك صلاحية تفعيل المحلات. اطلبها من الإدارة.');
+  }
   // حساب الإدارة (اللي له متجر أيضًا) يشوف رابط لوحة الإدارة
   sb.rpc('is_admin').then(({ data }) => { const ta = $('#to-admin'); if (ta) ta.hidden = !data; });
   sb.rpc('my_rep').then(({ data }) => { const tr = $('#to-rep'); if (tr) tr.hidden = !data?.[0]; });
@@ -188,6 +198,8 @@ function showRoles(isAdmin, isRep, hasStore) {
   show('v-roles');
 }
 $('#go-store').addEventListener('click', () => { try { sessionStorage.setItem('tah-role', 'merchant'); } catch {} route(); });
+
+$('#rep-another').addEventListener('click', () => openApply(null, true));
 
 // ---------------- دعوات الانضمام ----------------
 function showInvites() {
@@ -346,14 +358,17 @@ function setExisting(kind, path) {
   $('.cur', box).textContent = path ? '✓ مرفوع مسبقًا (اختر ملف جديد لاستبداله)' : '';
 }
 
-function openApply(m = null) {
+function openApply(m = null, asRep = false) {
   fa.reset();
+  repMode = asRep;
+  $('#rep-box').hidden = $('#rep-ack-row').hidden = !asRep;
+  $('#agree-row').hidden = asRep;
   $$('input[name=kind]', fa).forEach(r => { r.checked = r.value === (m?.kind || 'store'); });
   syncKind();
   coords = m?.lat != null ? { lat: m.lat, lng: m.lng } : null;
   $('#loc-state').textContent = coords ? '✓ الموقع محدد مسبقًا' : 'اضغطه وأنت داخل المحل، عشان يظهر للمشترين القريبين.';
-  $('#apply-title').textContent = m ? 'تعديل طلبك' : 'بيانات متجرك';
-  $('#apply-btn').textContent = m ? 'حفظ وإعادة الإرسال' : 'إرسال الطلب للمراجعة';
+  $('#apply-title').textContent = asRep ? 'تسجيل محل جديد' : m ? 'تعديل طلبك' : 'بيانات متجرك';
+  $('#apply-btn').textContent = asRep ? '⚡ سجّل وفعّل المحل' : m ? 'حفظ وإعادة الإرسال' : 'إرسال الطلب للمراجعة';
   const note = $('#apply-note');
   note.hidden = !(m?.status === 'rejected' && m.review_note);
   note.textContent = m?.review_note ? 'ملاحظة المراجعة: ' + m.review_note : '';
@@ -384,6 +399,7 @@ function checkFile(f, label) {
 fa.addEventListener('submit', async e => {
   e.preventDefault();
   const err = $('#apply-err'), btn = $('#apply-btn');
+  const merchant = repMode ? null : currentMerchant();
   const v = n => fa[n].value.trim();
   const kind = kindOf(), person = kind !== 'store';
   const vatReg = !person && !fa.no_vat.checked;
@@ -414,19 +430,27 @@ fa.addEventListener('submit', async e => {
   for (const [k, l] of [['cr', 'السجل التجاري'], ['vat', 'الشهادة الضريبية'], ['iban', 'شهادة الآيبان'], ['id', 'صورة الهوية']]) {
     const p = checkFile(files[k], l); if (p) problems.push(p);
   }
-  if (fa.loc_consent && kindOf() !== 'store' && !fa.loc_consent.checked) problems.push('وافق على حفظ الموقع واستخدامه، لأن عرض الأسر والعربات للمشترين يعتمد عليه.');
-  if (!fa.agree.checked) problems.push('وافق على الإقرار والشروط.');
+  if (!repMode && fa.loc_consent && kindOf() !== 'store' && !fa.loc_consent.checked) problems.push('وافق على حفظ الموقع واستخدامه، لأن عرض الأسر والعربات للمشترين يعتمد عليه.');
+  if (repMode) {
+    const oe = fa.owner_email.value.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(oe)) problems.push('اكتب إيميل صاحب المحل صحيح.');
+    else if (oe === (user.email || '').toLowerCase()) problems.push('اكتب إيميل صاحب المحل، مو إيميلك.');
+    if (!coords) problems.push('حدّد موقع المحل وأنت داخله.');
+    if (!fa.owner_ack.checked) problems.push('أكّد الإقرار: أنت عند المحل وصاحبه وافق.');
+  } else if (!fa.agree.checked) problems.push('وافق على الإقرار والشروط.');
   if (problems.length) { err.textContent = problems.join(' '); return; }
   err.textContent = '';
 
   setBusy(btn, true, 'جارِ رفع المستندات…');
   try {
     const paths = {};
+    const folder = repMode ? `rep-${user.id}` : user.id;
     for (const k of ['cr', 'vat', 'iban', 'id']) {
       const f = files[k];
       if (!f || (k === 'vat' && !vatReg)) continue;
-      const path = `${user.id}/${k}-${Date.now()}.${fileExt(f)}`;
-      const { error } = await sb.storage.from('merchant-docs').upload(path, f, { contentType: f.type || undefined, upsert: false });
+      const up = repMode ? await shrinkImage(f, 1800) : f;
+      const path = `${folder}/${k}-${Date.now()}.${fileExt(up)}`;
+      const { error } = await sb.storage.from('merchant-docs').upload(path, up, { contentType: f.type || undefined, upsert: false });
       if (error) throw error;
       paths[k] = path;
     }
@@ -434,7 +458,7 @@ fa.addEventListener('submit', async e => {
     if (extras.length) {
       extra_docs = [];
       for (const [i, f] of extras.entries()) {
-        const path = `${user.id}/extra-${Date.now()}-${i}.${fileExt(f)}`;
+        const path = `${folder}/extra-${Date.now()}-${i}.${fileExt(f)}`;
         const { error } = await sb.storage.from('merchant-docs').upload(path, f, { contentType: f.type || undefined, upsert: false });
         if (error) throw error;
         extra_docs.push(path);
@@ -463,6 +487,19 @@ fa.addEventListener('submit', async e => {
       iban_path: paths.iban ?? merchant?.iban_path,
     };
     if (!merchant && REF && /^[A-Z0-9]{2,8}$/.test(REF)) row.rep_code = REF;
+    if (repMode) {
+      const body = { ...row, email: fa.owner_email.value.trim().toLowerCase(), owner_ack: true, lat: coords.lat, lng: coords.lng };
+      delete body.id; delete body.location_consent_at; delete body.rep_code;
+      if (!paths.iban) throw new Error('ارفع شهادة الآيبان.');
+      const { data, error } = await sb.functions.invoke('rep-activate', { body });
+      if (error) {
+        let code = ''; try { code = (await error.context.json()).error; } catch {}
+        throw new Error({ merchant_exists: 'هذا الإيميل عنده متجر مسجّل من قبل.', rep_not_allowed: 'ما عندك صلاحية التفعيل.', bad_email: 'إيميل صاحب المحل غير صحيح.',
+          location_required: 'حدّد موقع المحل.', own_email: 'اكتب إيميل صاحب المحل، مو إيميلك.' }[code] || (code ? 'ما تم التفعيل: ' + code : friendlyError(error)));
+      }
+      $('#rep-done-msg').textContent = `«${row.store_name}» مفعّل الحين. ${!data?.email_sent ? '⚠️ ما انرسل الإيميل، بلّغ الإدارة.' : data?.new_account ? 'وصل لصاحب المحل إيميل يحط فيه كلمة المرور.' : 'صاحب المحل يدخل بحسابه الحالي على نفس الإيميل.'} والإدارة وصلها المستندات باسمك.`;
+      return show('v-rep-done');
+    }
     const q = merchant ? sb.from('merchants').update(row).eq('id', user.id) : sb.from('merchants').insert(row);
     const { error } = await q;
     if (error) throw error;

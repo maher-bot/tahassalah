@@ -73,6 +73,7 @@ async function route(session) {
   if (!rep) { $('#denied-email').textContent = user.email; return show('v-denied'); }
   $('#r-name').textContent = rep.name;
   $('#r-code').textContent = 'كودك ' + rep.code;
+  $('#rep-activate').hidden = !rep.can_activate;
   $('#r-districts').textContent = rep.districts.length ? 'أحياؤك: ' + rep.districts.join('، ') : '';
   show('v-app');
   await load();

@@ -88,6 +88,18 @@
     </div>
   </section>
 
+  <section id="v-rep-done" class="narrow" hidden>
+    <div class="card status">
+      <div class="icon" style="background:var(--brand-soft);color:var(--brand)">✓</div>
+      <h2>تم تفعيل المحل</h2>
+      <p id="rep-done-msg"></p>
+      <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px">
+        <button class="btn primary" type="button" id="rep-another">سجّل محل ثاني</button>
+        <a class="btn ghost" href="rep.html">رجوع لتطبيق المسوّق</a>
+      </div>
+    </div>
+  </section>
+
   <section id="v-check-email" class="narrow" hidden>
     <div class="card status">
       <div class="icon" style="background:var(--brand-soft);color:var(--brand)">✉</div>
@@ -113,6 +125,13 @@
         <p class="hint" style="margin-top:4px">نراجع المستندات خلال يوم إلى يومي عمل ونبلغك بالإيميل.</p>
       </div>
       <div class="note" id="apply-note" hidden></div>
+
+      <!-- وضع المسوّق: يسجّل المحل ويفعّله وهو عنده -->
+      <fieldset id="rep-box" hidden>
+        <legend>⚡ تسجيل وتفعيل عن طريق المسوّق</legend>
+        <label>إيميل صاحب المحل<input type="email" name="owner_email" dir="ltr" autocomplete="off" placeholder="owner@example.com"><span class="hint">يوصله على هذا الإيميل رابط يحط فيه كلمة المرور ويدخل لوحته. تأكد منه حرف حرف.</span></label>
+        <p class="hint">صوّر المستندات من الأصل وأنت عند المحل، وحدّد الموقع من داخل المحل. المحل يتفعّل مباشرة، والإدارة يوصلها كل شيء باسمك.</p>
+      </fieldset>
 
       <fieldset>
         <legend>وش نوع نشاطك؟</legend>
@@ -209,7 +228,8 @@
       </fieldset>
 
       <label class="check" id="loc-consent-row" hidden><input type="checkbox" name="loc_consent"> <span>أوافق على حفظ موقع بيتي أو عربتي واستخدامه لعرض متجري للمشترين القريبين: موقع البيت يظهر لهم تقريبيًا فقط، وموقع العربة يظهر وقت ما أضغط «متاح الآن» فقط. أقدر أسحب موافقتي من لوحتي.</span></label>
-      <label class="check"><input type="checkbox" name="agree" required> <span>أقر بصحة البيانات والمستندات، وأوافق على <a href="terms.html" target="_blank">شروط التجار</a> و<a href="privacy.html" target="_blank">سياسة الخصوصية</a>.</span></label>
+      <label class="check" id="rep-ack-row" hidden><input type="checkbox" name="owner_ack"> <span>أقر أني <b>عند المحل الآن</b>، وصوّرت المستندات من الأصل، وصاحب المحل اطّلع على <a href="terms.html" target="_blank">شروط التجار</a> و<a href="privacy.html" target="_blank">سياسة الخصوصية</a> ووافق عليها وعلى تسجيل محله.</span></label>
+      <label class="check" id="agree-row"><input type="checkbox" name="agree" required> <span>أقر بصحة البيانات والمستندات، وأوافق على <a href="terms.html" target="_blank">شروط التجار</a> و<a href="privacy.html" target="_blank">سياسة الخصوصية</a>.</span></label>
       <p class="err" role="alert" id="apply-err"></p>
       <button class="btn primary" type="submit" id="apply-btn">إرسال الطلب للمراجعة</button>
     </form>

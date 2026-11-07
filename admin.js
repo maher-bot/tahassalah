@@ -88,6 +88,7 @@ function card(m) {
   head.append(t('h3', m.store_name), t('span', STATUS[m.status], 'badge ' + m.status));
   if (person) head.append(t('span', `${KIND_ICON[m.kind]} ${KINDS[m.kind]}`, 'kind-chip'));
   if (person) head.append(t('span', m.site_verified_at ? '✔ تمت المعاينة' : '⚠️ بدون معاينة ميدانية', 'badge ' + (m.site_verified_at ? 'approved' : 'pending')));
+  if (m.activated_by_rep) head.append(t('span', '⚡ فعّله المسوّق ' + (m.rep_code || ''), 'badge pending'));
   if (m.license_verified_at) head.append(t('span', '🏅 موثّق برخصة', 'badge approved'));
   if (m.iban_verified_at) head.append(t('span', '✔ الآيبان مطابق ' + (person ? 'للهوية' : 'للسجل'), 'badge approved'));
   if (m.pay_link) head.append(t('span', m.pay_link_verified_at ? '💳 رابط دفع معتمد' : '💳 رابط دفع بانتظار المراجعة', 'badge ' + (m.pay_link_verified_at ? 'approved' : 'pending')));

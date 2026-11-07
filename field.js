@@ -100,7 +100,7 @@ function render() {
     const conv = mine.length ? Math.round(c('registered') / mine.length * 100) : 0;
     const tr = document.createElement('tr');
     const td = (x, cls) => { const t = mk('td', cls || ''); if (x instanceof Node) t.append(x); else t.textContent = x; tr.append(t); return t; };
-    const who = mk('div'); who.append(mk('b', '', r.name), mk('div', 'hint num', r.code + (r.active ? '' : ' · موقوف')));
+    const who = mk('div'); who.append(mk('b', '', r.name), mk('div', 'hint num', r.code + (r.can_activate ? ' · ⚡ يفعّل' : '') + (r.active ? '' : ' · موقوف')));
     const links = mk('div'); links.style.cssText = 'display:flex;gap:10px;font-size:.85rem';
     const e = mk('a', '', 'تعديل'); e.href = '#'; e.onclick = ev => { ev.preventDefault(); openRep(r); };
     const v = mk('a', '', 'محلاته'); v.href = '#'; v.onclick = ev => { ev.preventDefault(); $('#f-rep').value = r.id; renderStores(); $('#stores').scrollIntoView({ behavior: 'smooth' }); };
@@ -220,7 +220,7 @@ function openRep(r) {
   }));
   if (r) {
     fr.name.value = r.name; fr.email.value = r.email; fr.phone.value = r.phone || ''; fr.code.value = r.code;
-    fr.daily_target.value = r.daily_target; fr.active.checked = r.active;
+    fr.daily_target.value = r.daily_target; fr.active.checked = r.active; fr.can_activate.checked = !!r.can_activate;
   } else {
     let n = reps.length + 1; while (reps.some(x => x.code === 'M' + String(n).padStart(2, '0'))) n++;
     fr.code.value = 'M' + String(n).padStart(2, '0');
@@ -237,7 +237,7 @@ fr.addEventListener('submit', async e => {
   const row = {
     name: fr.name.value.trim(), email: fr.email.value.trim().toLowerCase(), phone: digits(fr.phone.value).replace(/\D/g, '') || null,
     code: fr.code.value.trim().toUpperCase(), daily_target: Number(digits(fr.daily_target.value)) || 0,
-    districts, active: fr.active.checked,
+    districts, active: fr.active.checked, can_activate: fr.can_activate.checked,
   };
   if (row.name.length < 2) return (err.textContent = 'اكتب اسم المسوّق.');
   if (!/^\S+@\S+\.\S+$/.test(row.email)) return (err.textContent = 'اكتب إيميل صحيح.');
