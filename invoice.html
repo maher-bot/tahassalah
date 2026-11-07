@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>مطالبة · تحصّله</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=El+Messiri:wght@700&display=swap">
+<link rel="icon" href="brand/favicon.ico" sizes="any">
+<link rel="icon" href="brand/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<style>
+  .inv { max-width: 720px; margin: 0 auto; }
+  .inv table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  .inv td, .inv th { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: start; }
+  .inv .tot td { font-weight: 700; font-size: 1.1rem; }
+  .inv .meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 14px 0; }
+  .stamp { display: inline-block; border: 2px solid var(--brand); color: var(--brand); border-radius: 10px; padding: 4px 12px; font-weight: 700; }
+  @media print { .no-print, .top { display: none !important; } body { background: #fff; } .card { border: 0; box-shadow: none; } }
+</style>
+<main>
+  <p id="v-loading" class="hint" style="text-align:center;padding:40px">جارِ التحميل…</p>
+  <section id="v-inv" class="inv card" hidden>
+    <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start">
+      <div><h1 style="font-size:1.5rem" id="i-title">مطالبة اشتراك</h1><p class="hint num" id="i-number"></p></div>
+      <div style="text-align:end"><b id="c-name"></b><div class="hint num" id="c-ids"></div><div class="hint" id="c-addr"></div></div>
+    </div>
+    <div class="meta">
+      <div><span class="hint">إلى</span><br><b id="m-name"></b><div class="hint" id="m-owner"></div><div class="hint num" id="m-vat"></div></div>
+      <div><span class="hint">تاريخ الإصدار</span><br><b class="num" id="i-issued"></b><br><span class="hint">آخر موعد للسداد</span><br><b class="num" id="i-due"></b></div>
+    </div>
+    <table>
+      <thead><tr><th>البيان</th><th>الفترة</th><th>المبلغ</th></tr></thead>
+      <tbody>
+        <tr><td id="l-desc"></td><td class="num" id="l-period"></td><td class="num" id="l-amount"></td></tr>
+        <tr><td colspan="2">ضريبة القيمة المضافة (15%)</td><td class="num" id="l-vat"></td></tr>
+        <tr class="tot"><td colspan="2">الإجمالي</td><td class="num" id="l-total"></td></tr>
+      </tbody>
+    </table>
+    <div id="i-paid" hidden><span class="stamp">✓ مدفوعة</span> <span class="hint" id="i-paid-info"></span></div>
+    <div id="i-pay" class="note" hidden></div>
+    <p class="hint" style="margin-top:14px;font-size:.85rem">هذه مطالبة اشتراك وليست فاتورة ضريبية. الفاتورة الضريبية تصدر من المنشأة بعد السداد.</p>
+    <div class="no-print" style="display:flex;gap:8px;margin-top:12px"><button class="btn primary" type="button" onclick="print()">🖨️ طباعة / حفظ PDF</button></div>
+  </section>
+  <section id="v-none" class="narrow" hidden><div class="card status"><h2>ما قدرنا نفتح المطالبة</h2><p>سجّل دخولك بحساب المحل أو الإدارة، ثم افتح الرابط مرة ثانية. <a href="merchant.html?tab=login">دخول</a></p></div></section>
+</main>
+<script type="module">
+import { sb, $ } from './lib.js';
+const sar = n => Number(n || 0).toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
+const day = d => new Date(d).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { day: 'numeric', month: 'long', year: 'numeric' });
+const PLAN = { family: 'أسر ومتجولين', trader: 'تاجر', pro: 'مميز' }, METHOD = { transfer: 'تحويل بنكي', pos: 'شبكة', cash: 'نقدي' };
+const id = new URLSearchParams(location.search).get('id');
+const [{ data: inv }, { data: s }] = await Promise.all([
+  sb.from('invoices').select('*').eq('id', id).maybeSingle(), sb.from('billing_settings').select('*').maybeSingle()]);
+$('#v-loading').hidden = true;
+if (!inv || !s) { $('#v-none').hidden = false; }
+else {
+  $('#v-inv').hidden = false;
+  const paid = inv.status === 'paid';
+  $('#i-title').textContent = paid ? 'إيصال سداد اشتراك' : inv.status === 'void' ? 'مطالبة ملغاة' : 'مطالبة اشتراك';
+  document.title = `${inv.number} · تحصّله`;
+  $('#i-number').textContent = inv.number;
+  $('#c-name').textContent = `${s.brand_name} · ${s.company_name}`;
+  $('#c-ids').textContent = `سجل تجاري ${s.cr_number} · الرقم الضريبي ${s.vat_number}`;
+  $('#c-addr').textContent = s.address;
+  $('#m-name').textContent = inv.store_name; $('#m-owner').textContent = inv.owner_name || '';
+  $('#m-vat').textContent = inv.merchant_vat ? 'الرقم الضريبي ' + inv.merchant_vat : '';
+  $('#i-issued').textContent = day(inv.issued_at); $('#i-due').textContent = day(inv.due_at);
+  $('#l-desc').textContent = `اشتراك باقة «${PLAN[inv.plan]}» ${inv.billing === 'yearly' ? 'سنوي' : 'شهري'} في تحصّله`;
+  $('#l-period').textContent = `${day(inv.period_start)} — ${day(inv.period_end)}`;
+  $('#l-amount').textContent = sar(inv.amount); $('#l-vat').textContent = sar(inv.vat); $('#l-total').textContent = sar(inv.total);
+  if (paid) { $('#i-paid').hidden = false; $('#i-paid-info').textContent = `${METHOD[inv.paid_method] || ''} · ${day(inv.paid_at)}${inv.paid_ref ? ' · مرجع ' + inv.paid_ref : ''}`; }
+  else if (inv.status === 'issued') {
+    const p = $('#i-pay'); p.hidden = false;
+    p.innerHTML = '<b>طرق السداد:</b> ';
+    const t = document.createElement('span');
+    t.textContent = (s.iban ? `تحويل إلى ${s.company_name}${s.bank_name ? ' (' + s.bank_name + ')' : ''} على الآيبان ${s.iban} واكتب رقم المطالبة ${inv.number} في الملاحظة، أو ` : '') + 'شبكة أو نقدًا عن طريق مسوّق تحصّله.';
+    p.append(t);
+  }
+}
+</script>
+</body>
+</html>

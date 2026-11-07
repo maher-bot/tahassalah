@@ -604,11 +604,24 @@ function planStage(m) {
   const until = m.paid_until ? new Date(m.paid_until) : null;
   return !until || until > now ? { stage: 'paid', until } : { stage: 'lapsed' };
 }
+// مطالبة الاشتراك المفتوحة (تطلع قبل الاستحقاق بـ 7 أيام): رابطها وطريقة السداد
+async function showOpenInvoice(box) {
+  box.querySelector('#trial-inv')?.remove();
+  if (!merchant?.id || merchant.id !== user?.id) return;
+  const { data } = await sb.from('invoices').select('id,number,total,due_at').eq('merchant_id', merchant.id).eq('status', 'issued').maybeSingle();
+  if (!data) return;
+  const d = document.createElement('p'); d.id = 'trial-inv'; d.className = 'note'; d.style.marginTop = '10px';
+  const left = Math.ceil((new Date(data.due_at) - Date.now()) / 864e5);
+  d.append(`🧾 عندك مطالبة تجديد ${money(data.total)} (شامل الضريبة)، ${left > 0 ? `آخر موعد بعد ${left} يوم` : 'موعدها اليوم'}. تدفع بالتحويل أو الشبكة عن طريق المسوّق. `);
+  const a = document.createElement('a'); a.href = 'invoice.html?id=' + data.id; a.target = '_blank'; a.textContent = 'عرض المطالبة وطرق السداد';
+  d.append(a); box.append(d);
+}
 const daysLeft = d => Math.max(0, Math.ceil((d - Date.now()) / 864e5));
 
 function renderTrial() {
   const box = $('#trial'), st = planStage(merchant), stage = st.stage, mobile = merchant.kind === 'mobile';
   box.hidden = false;
+  showOpenInvoice(box);
   box.classList.toggle('ended', stage === 'lapsed' || stage === 'trial_ended');
   $$('#trial-next [data-kind]').forEach(o => { o.hidden = o.disabled = (merchant.kind || 'store') === 'store'; });
   $$('#trial-next [data-basic]').forEach(o => { o.hidden = o.disabled = mobile; });

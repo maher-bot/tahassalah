@@ -74,6 +74,20 @@
       <span class="hint" id="r-districts"></span>
     </div>
     <a class="btn primary" id="rep-activate" href="merchant.html?rep=1" hidden style="width:100%;margin-bottom:12px">⚡ سجّل وفعّل محل الحين</a>
+    <details class="card" id="collect" style="margin-bottom:12px">
+      <summary style="cursor:pointer;font-weight:600">💳 تحصيل اشتراك محل</summary>
+      <p class="hint" style="margin:8px 0">ابحث باسم المحل أو جواله أو رقم المطالبة، وبعد ما يدفع (شبكة أو نقدي أو تحويل) سجّل السداد، والاشتراك يتجدد على طول.</p>
+      <input type="search" id="col-q" placeholder="اسم المحل أو 05XXXXXXXX أو TH-…">
+      <div id="col-list" style="display:grid;gap:8px;margin-top:10px"></div>
+      <form id="f-col" class="stack" hidden style="margin-top:10px;border-top:1px solid var(--line);padding-top:10px" novalidate>
+        <b id="col-what"></b>
+        <label>طريقة السداد<select name="method"><option value="pos">شبكة (نقاط بيع)</option><option value="cash">نقدي</option><option value="transfer">تحويل بنكي</option></select></label>
+        <label><span>رقم العملية أو الإيصال <span class="opt">(اختياري)</span></span><input name="ref" dir="ltr" maxlength="80"></label>
+        <label><span>صورة إيصال الشبكة أو التحويل <span class="opt">(مستحسن)</span></span><input name="file" type="file" accept="image/*" capture="environment"></label>
+        <p class="err" role="alert"></p>
+        <div style="display:flex;gap:8px"><button class="btn ghost" type="button" id="col-cancel">إلغاء</button><button class="btn primary" type="submit" id="col-save">✓ تم السداد</button></div>
+      </form>
+    </details>
     <div class="stats" style="grid-template-columns:repeat(4,minmax(0,1fr))">
       <div class="stat"><b class="num" id="s-today">0</b><span>زيارات اليوم</span></div>
       <div class="stat"><b class="num" id="s-reg">0</b><span>سجّلوا</span></div>

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>الحسابات · تحصّله</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=El+Messiri:wght@700&display=swap">
+<link rel="icon" href="brand/favicon.ico" sizes="any">
+<link rel="icon" href="brand/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="top"><div class="in">
+  <a class="mark" href="index.html"><svg viewBox="0 0 512 512" aria-hidden="true"><circle cx="256" cy="256" r="256" fill="var(--brand)"/><circle cx="256" cy="256" r="102.4" fill="none" stroke="var(--surface)" stroke-width="18" opacity=".9"/><circle cx="256" cy="256" r="174" fill="none" stroke="var(--surface)" stroke-width="18" opacity=".5"/><circle cx="256" cy="256" r="38.4" fill="var(--surface)"/><path d="M363.5 197.6C345.1 179.7 312.3 144.4 312.3 112.6a51.2 51.2 0 0 1 102.4 0C414.7 144.4 382 179.7 363.5 197.6z" fill="var(--pin)" stroke="var(--brand)" stroke-width="10"/><circle cx="363.5" cy="112.6" r="19.5" fill="#fff"/></svg>تحصّله · الإدارة</a>
+  <div class="sp"><a class="btn ghost sm" href="admin.html">🛠️ مراجعة التجار</a><a class="btn ghost sm" href="field.html">📍 الفريق الميداني</a><span class="who" id="who"></span><button class="btn ghost sm" id="logout" hidden>خروج</button></div>
+</div></header>
+
+<main>
+  <p id="v-loading" class="hint" style="text-align:center;padding:40px">جارِ التحميل…</p>
+  <section id="v-denied" class="narrow" hidden>
+    <div class="card status"><h2>للإدارة فقط</h2><p>ادخل بحساب الإدارة من <a href="admin.html">لوحة الإدارة</a>.</p></div>
+  </section>
+
+  <section id="v-app" hidden>
+    <div class="toolbar">
+      <h1 style="font-size:1.6rem;margin-inline-end:auto">💰 الحسابات</h1>
+      <label style="display:flex;gap:6px;align-items:center;font-weight:500">الشهر<input type="month" id="month" style="width:auto"></label>
+    </div>
+    <div class="tabs" role="tablist" id="tabs">
+      <button role="tab" data-t="sum" aria-selected="true">الملخص</button>
+      <button role="tab" data-t="bills" aria-selected="false">التجار والمطالبات <span class="count num" id="c-bills">0</span></button>
+      <button role="tab" data-t="reps" aria-selected="false">المسوّقين</button>
+      <button role="tab" data-t="ledger" aria-selected="false">الدخل والمصروفات</button>
+      <button role="tab" data-t="settings" aria-selected="false">الإعدادات</button>
+    </div>
+
+    <div data-p="sum">
+      <div class="stats" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+        <div class="stat"><b class="num" id="s-inc">0</b><span>دخل الشهر (بدون الضريبة)</span></div>
+        <div class="stat"><b class="num" id="s-exp">0</b><span>مصروفات الشهر</span></div>
+        <div class="stat"><b class="num" id="s-net">0</b><span>الصافي</span></div>
+        <div class="stat"><b class="num" id="s-vat">0</b><span>ضريبة محصّلة</span></div>
+        <div class="stat"><b class="num" id="s-open">0</b><span>مطالبات مفتوحة</span></div>
+        <div class="stat"><b class="num" id="s-late">0</b><span>متأخرة عن السداد</span></div>
+        <div class="stat"><b class="num" id="s-soon">0</b><span>تستحق خلال 7 أيام</span></div>
+      </div>
+      <p class="note" style="margin-top:14px">المطالبات تطلع تلقائيًا قبل الاستحقاق بـ 7 أيام وتنرسل للتاجر بالإيميل، وتذكير قبل 3 أيام ويوم الاستحقاق. السداد (تحويل، شبكة، نقدي) تسجّله الإدارة أو المسوّق، والاشتراك يتجدد تلقائيًا. <b>المطالبة ليست فاتورة ضريبية</b>: الفاتورة الضريبية الرسمية تصدر من نظامكم المعتمد لين نربط مع منصة «فاتورة».</p>
+    </div>
+
+    <div data-p="bills" hidden>
+      <div class="toolbar">
+        <input type="search" id="bq" placeholder="ابحث بالمحل أو الجوال أو رقم المطالبة" style="flex:1 1 220px">
+        <select id="bf" style="width:auto">
+          <option value="all">الكل</option><option value="soon">يستحق خلال 7 أيام</option><option value="late">متأخر</option>
+          <option value="open">مطالبة مفتوحة</option><option value="paid">مدفوعة هذا الشهر</option><option value="none">ما بدأ العد (قبل الإطلاق)</option>
+        </select>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>المحل</th><th>الباقة</th><th>الاستحقاق</th><th>باقي</th><th>المطالبة</th><th></th></tr></thead>
+        <tbody id="bills"></tbody>
+      </table></div>
+    </div>
+
+    <div data-p="reps" hidden>
+      <p class="hint" style="margin-bottom:10px">العدد = المحلات اللي تفعّلت بكود المسوّق في الشهر المختار. اللي فوق الهدف الشهري ينحسب له عن كل محل بالمبلغ المحدد. تقدر تعدّل الهدف والمبلغ لكل مسوّق.</p>
+      <div class="table-wrap"><table>
+        <thead><tr><th>المسوّق</th><th>محلات الشهر</th><th>الهدف الشهري</th><th>لكل محل زيادة</th><th>الزيادة</th><th>المستحق</th><th></th></tr></thead>
+        <tbody id="reps"></tbody>
+      </table></div>
+    </div>
+
+    <div data-p="ledger" hidden>
+      <form class="card" id="f-entry" novalidate style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end;margin-bottom:14px">
+        <label>النوع<select name="kind"><option value="expense">مصروف</option><option value="income">دخل</option></select></label>
+        <label>التصنيف<select name="category"></select></label>
+        <label>المبلغ (بدون الضريبة)<input name="amount" inputmode="decimal" dir="ltr" required></label>
+        <label>الضريبة<input name="vat" inputmode="decimal" dir="ltr" value="0"></label>
+        <label>التاريخ<input name="entry_date" type="date" required></label>
+        <label style="grid-column:1/-1">الوصف<input name="description" maxlength="200"></label>
+        <label>مرفق <span class="opt">(اختياري)</span><input name="file" type="file" accept="image/*,application/pdf"></label>
+        <p class="err" role="alert" style="grid-column:1/-1"></p>
+        <button class="btn primary" type="submit" id="entry-save">إضافة</button>
+      </form>
+      <div class="toolbar"><b id="l-total" class="num" style="margin-inline-end:auto"></b><button class="btn ghost sm" id="csv">⬇️ تصدير Excel (CSV)</button></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>التاريخ</th><th>النوع</th><th>التصنيف</th><th>الوصف</th><th>المبلغ</th><th>الضريبة</th><th></th></tr></thead>
+        <tbody id="ledger"></tbody>
+      </table></div>
+    </div>
+
+    <div data-p="settings" hidden>
+      <form class="card stack" id="f-settings" novalidate style="max-width:640px">
+        <h2 style="font-size:1.2rem">بيانات المنشأة في المطالبات</h2>
+        <div class="row2">
+          <label>اسم المنشأة<input name="company_name" required></label>
+          <label>السجل التجاري<input name="cr_number" dir="ltr" required></label>
+          <label>الرقم الضريبي<input name="vat_number" dir="ltr" required></label>
+          <label>العنوان<input name="address"></label>
+          <label>البنك<input name="bank_name" placeholder="مثل: مصرف الراجحي"></label>
+          <label>الآيبان (يظهر للتاجر في المطالبة)<input name="iban" dir="ltr" placeholder="SA.."></label>
+        </div>
+        <p class="err" role="alert"></p>
+        <button class="btn primary" type="submit">حفظ</button>
+      </form>
+    </div>
+  </section>
+</main>
+
+<dialog id="dlg-pay">
+  <form method="dialog" id="f-pay" novalidate>
+    <h2 style="font-size:1.2rem">تسجيل سداد</h2>
+    <p id="pay-what" class="hint"></p>
+    <label>طريقة السداد<select name="method"><option value="transfer">تحويل بنكي</option><option value="pos">شبكة (نقاط بيع)</option><option value="cash">نقدي</option></select></label>
+    <label><span>رقم العملية أو المرجع <span class="opt">(اختياري)</span></span><input name="ref" maxlength="80" dir="ltr"></label>
+    <label><span>صورة الإيصال <span class="opt">(اختياري)</span></span><input name="file" type="file" accept="image/*,application/pdf"></label>
+    <p class="err" role="alert"></p>
+    <div class="foot"><button class="btn ghost" type="button" id="pay-cancel">إلغاء</button><button class="btn primary" type="submit" id="pay-save">✓ تم السداد وجدّد الاشتراك</button></div>
+  </form>
+</dialog>
+
+<script type="module" src="accounts.js"></script>
+</body>
+</html>

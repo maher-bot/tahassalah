@@ -1,4 +1,4 @@
-import { rememberLogin, hidePasswords, sb, $, $$, toast, digits, valid, ACTIVITIES, shrinkImage, friendlyError, setBusy, fmtDay,
+import { rememberLogin, hidePasswords, sb, $, $$, toast, digits, valid, ACTIVITIES, shrinkImage, fileExt, friendlyError, setBusy, fmtDay,
   FIELD_STATUS, FIELD_BADGE, FIELD_PROBLEMS, MAKKAH_DISTRICTS, ago } from './lib.js';
 import { pickLocation } from './mappick.js';
 
@@ -362,3 +362,47 @@ fv.addEventListener('submit', async e => {
   } catch (ex) { err.textContent = friendlyError(ex); }
   finally { setBusy(btn, false); }
 });
+
+// ---------------- تحصيل الاشتراكات ----------------
+{
+  const sar = n => Number(n || 0).toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
+  const PLAN = { family: 'أسر ومتجولين', trader: 'تاجر', pro: 'مميز' };
+  const fc = $('#f-col'); let picked = null, timer = null;
+  $('#col-q').addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      const q = digits($('#col-q').value.trim()), box = $('#col-list');
+      if (q.length < 2) return box.replaceChildren();
+      const { data, error } = await sb.rpc('rep_open_invoices', { q });
+      if (error) return toast(friendlyError(error));
+      box.replaceChildren(...(data.length ? data.map(i => {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ghost'; b.style.cssText = 'justify-content:space-between;text-align:start';
+        b.textContent = `${i.store_name} · ${PLAN[i.plan] || i.plan}${i.billing === 'yearly' ? ' سنوي' : ''} · ${sar(i.total)} · ${i.number}`;
+        b.onclick = () => { picked = i; fc.reset(); $('.err', fc).textContent = ''; $('#col-what').textContent = `${i.store_name}: ${sar(i.total)} (${i.number})`; fc.hidden = false; };
+        return b;
+      }) : [Object.assign(document.createElement('p'), { className: 'hint', textContent: 'ما فيه مطالبة مفتوحة بهذا البحث.' })]));
+    }, 350);
+  });
+  $('#col-cancel').addEventListener('click', () => { fc.hidden = true; picked = null; });
+  fc.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!picked) return;
+    const btn = $('#col-save'), err = $('.err', fc);
+    if (!confirm(`تأكيد: استلمت ${sar(picked.total)} من «${picked.store_name}»؟ يتسجّل باسمك.`)) return;
+    setBusy(btn, true);
+    try {
+      let receipt = null;
+      const f = fc.file.files[0];
+      if (f) {
+        const up = await shrinkImage(f, 1600);
+        receipt = `${user.id}/${picked.number}-${Date.now()}.${fileExt(up)}`;
+        const { error } = await sb.storage.from('receipts').upload(receipt, up, { contentType: up.type || undefined });
+        if (error) throw error;
+      }
+      const { error } = await sb.rpc('pay_invoice', { inv_id: picked.id, method: fc.method.value, ref: fc.ref.value, receipt });
+      if (error) throw error;
+      toast('تم تسجيل السداد ✓ واشتراك المحل تجدّد، ويوصله إيصال بالإيميل.');
+      fc.hidden = true; picked = null; $('#col-q').value = ''; $('#col-list').replaceChildren();
+    } catch (ex) { err.textContent = friendlyError(ex); } finally { setBusy(btn, false); }
+  });
+}
