@@ -10,3 +10,20 @@ self.addEventListener('fetch', e => {
   if (e.request.mode !== 'navigate') return;
   e.respondWith(fetch(e.request).catch(() => new Response(OFFLINE, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })));
 });
+
+// إشعارات التطبيق
+self.addEventListener('push', e => {
+  let d = {}; try { d = e.data.json(); } catch { d = { title: 'تحصّله', body: e.data?.text() || '' }; }
+  e.waitUntil(self.registration.showNotification(d.title || 'تحصّله', {
+    body: d.body || '', icon: 'brand/icon-192.png', badge: 'brand/icon-192.png', tag: d.tag, renotify: true, dir: 'rtl', lang: 'ar',
+    data: { url: d.url || 'merchant.html' }, vibrate: [200, 100, 200],
+  }));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = new URL(e.notification.data?.url || 'merchant.html', self.registration.scope).href;
+  e.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+    for (const c of list) if (c.url.split('#')[0].split('?')[0] === url.split('#')[0].split('?')[0] && 'focus' in c) { c.navigate(url); return c.focus(); }
+    return clients.openWindow(url);
+  }));
+});

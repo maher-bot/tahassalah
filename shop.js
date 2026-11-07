@@ -3,7 +3,7 @@
 import { sb, $, $$, toast, digits, valid, friendlyError, setBusy, shrinkImage, fileExt } from './lib.js';
 import { IS_DEMO } from './config.js';
 import { pickLocation } from './mappick.js';
-import { showInstall } from './pwa.js';
+import { showInstall, showPushCard } from './pwa.js';
 
 const VIEWS = ['v-loading', 'v-closed', 'v-stores', 'v-store', 'v-cart', 'v-login', 'v-orders'];
 const show = id => { VIEWS.forEach(v => { $('#' + v).hidden = v !== id; }); window.scrollTo(0, 0); };
@@ -302,7 +302,7 @@ async function openOrders(silent = false) {
   if (error) { toast(friendlyError(error)); return showStores(); }
   $('#orders').replaceChildren(...data.map(o => orderCard(o, o.store_name)));
   if (!data.length) $('#orders').append(mk('p', 'hint', 'ما عندك طلبات للحين.'));
-  if (!silent) show('v-orders');
+  if (!silent) { show('v-orders'); showPushCard($('#v-orders'), sb, user.id, 'يوصلك تنبيه على جوالك مع كل تحديث لطلبك.'); }
 }
 function orderCard(o, storeName) {
   const c = mk('div', 'card stack');
