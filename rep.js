@@ -194,6 +194,7 @@ const syncNew = () => {
 const syncVisit = () => {
   const s = fv.querySelector('input[name=vstatus]:checked')?.value;
   $('#v-phone-wrap').hidden = !(current && !current.phone && NEED_PHONE.includes(s));
+  $('#v-consent-wrap').hidden = $('#v-phone-wrap').hidden;
   $('#v-problem-wrap').hidden = s !== 'problem';
   $('#v-follow-wrap').hidden = !['interested', 'follow_up', 'problem'].includes(s);
 };
@@ -244,6 +245,7 @@ fn.addEventListener('submit', async e => {
   if (!coords && !na) return (err.textContent = 'حدّد موقع المحل: من الجوال أو على الخريطة، أو اكتب العنوان الوطني.');
   if (status === 'problem' && !fn.problem.value) return (err.textContent = 'اختر وش المشكلة.');
   if (NEED_PHONE.includes(status) && !phone) { fn.phone.focus(); return (err.textContent = 'اكتب جوال المحل. مطلوب لما يكون المحل مهتم أو سجّل.'); }
+  if ((phone || fn.contact_name.value.trim()) && !fn.consent.checked) return (err.textContent = 'قبل ما تحفظ اسم صاحب المحل أو جواله، أخبره ووافق، وأشّر على الخانة.');
   err.textContent = '';
   setBusy(btn, true, 'جارِ التحقق…');
   try {
@@ -282,6 +284,7 @@ fn.addEventListener('submit', async e => {
       contact_name: fn.contact_name.value.trim() || null, phone, national_address: na,
       lat: coords?.lat ?? null, lng: coords?.lng ?? null, accuracy_m: coords?.acc ?? null, photo_path: path,
       status, problem: status === 'problem' ? fn.problem.value : null,
+      consent_at: fn.consent.checked ? new Date().toISOString() : null,
       notes: fn.notes.value.trim() || null, follow_up_on: $('#new-follow-wrap').hidden ? null : (fn.follow_up_on.value || null),
     };
     const { error } = await sb.from('field_stores').insert(row);
@@ -335,10 +338,11 @@ fv.addEventListener('submit', async e => {
   const vphone = digits(fv.phone.value).replace(/\D/g, '');
   const needPhone = !current.phone && NEED_PHONE.includes(status);
   if (needPhone && !valid.phone(vphone)) { fv.phone.focus(); return (err.textContent = 'اكتب جوال المحل صحيح: يبدأ بـ 05 ومكوّن من 10 أرقام.'); }
+  if (needPhone && !fv.consent.checked) return (err.textContent = 'قبل ما تحفظ جوال المحل، أخبر صاحبه ووافق، وأشّر على الخانة.');
   setBusy(btn, true);
   try {
     if (needPhone) {
-      const { error: pe } = await sb.from('field_stores').update({ phone: vphone }).eq('id', current.id);
+      const { error: pe } = await sb.from('field_stores').update({ phone: vphone, consent_at: new Date().toISOString() }).eq('id', current.id);
       if (pe) throw (/field_stores_phone_uq|duplicate key/i.test(pe.message) ? new Error('هذا الجوال مسجّل لمحل ثاني في الفريق.') : pe);
     }
     const { error } = await sb.from('field_visits').insert({

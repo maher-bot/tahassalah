@@ -274,6 +274,7 @@ function syncKind() {
     ? 'حسابك الشخصي يكفي، بشرط يكون باسمك نفس اسم الهوية. آيبانك يظهر للمشتري بعد موافقتك على طلبه، لو فعّلت «تحويل على الحساب».'
     : 'الحساب لازم يكون باسم المنشأة أو صاحبها نفسه. آيبانك ما يظهر للمشترين.';
   $('#plan-family').hidden = !person; $('#yearly-family').hidden = !person;
+  const lc = $('#loc-consent-row'); if (lc) { lc.hidden = !person; if (!person) fa.loc_consent.checked = false; }
   const bb = $('#bnpl-box'); if (bb) { bb.hidden = person; if (person) { fa.signup_tabby.checked = false; fa.signup_tamara.checked = false; } }
   const pb = $('#plan-basic'); if (pb) pb.hidden = k === 'mobile';   // المتنقل ما له باقة مجانية
   if (k === 'mobile' && fa.querySelector('input[name=next_plan]:checked')?.value === 'basic') fa.querySelector('input[name=next_plan][value=family]').checked = true;
@@ -345,6 +346,7 @@ function openApply(m = null) {
     fa.iban.value = (m.iban || '').replace(/(.{4})/g, '$1 ').trim();
     fa.no_vat.checked = !m.vat_registered;
     if (fa.contact_phone) fa.contact_phone.value = m.contact_phone ?? '';
+    if (fa.loc_consent) fa.loc_consent.checked = !!m.location_consent_at;
     if (fa.signup_tabby) { fa.signup_tabby.checked = (m.bnpl || []).includes('tabby'); fa.signup_tamara.checked = (m.bnpl || []).includes('tamara'); }
   }
   $('#vat-fields').hidden = fa.no_vat.checked;
@@ -394,6 +396,7 @@ fa.addEventListener('submit', async e => {
   for (const [k, l] of [['cr', 'السجل التجاري'], ['vat', 'الشهادة الضريبية'], ['iban', 'شهادة الآيبان'], ['id', 'صورة الهوية']]) {
     const p = checkFile(files[k], l); if (p) problems.push(p);
   }
+  if (fa.loc_consent && kindOf() !== 'store' && !fa.loc_consent.checked) problems.push('وافق على حفظ الموقع واستخدامه، لأن عرض الأسر والعربات للمشترين يعتمد عليه.');
   if (!fa.agree.checked) problems.push('وافق على الإقرار والشروط.');
   if (problems.length) { err.textContent = problems.join(' '); return; }
   err.textContent = '';
@@ -433,6 +436,7 @@ fa.addEventListener('submit', async e => {
       extra_docs: person ? extra_docs : [],
       vat_registered: vatReg, vat_number: vatReg ? v('vat_number') : null,
       bank_name: v('bank_name'), iban,
+      location_consent_at: person && fa.loc_consent?.checked ? (merchant?.location_consent_at || new Date().toISOString()) : null,
       bnpl: person || !fa.signup_tabby ? [] : [fa.signup_tabby.checked && 'tabby', fa.signup_tamara.checked && 'tamara'].filter(Boolean),
       next_plan: fa.querySelector('input[name=next_plan]:checked')?.value || 'basic',
       billing: fa.yearly.checked ? 'yearly' : 'monthly',
@@ -1233,7 +1237,7 @@ async function loadSettings() {
   fset.delivery_from.value = (d.delivery_from || '').slice(0, 5); fset.delivery_to.value = (d.delivery_to || '').slice(0, 5);
   fset.prep_minutes.value = String(d.prep_minutes ?? 15); fset.note.value = d.note ?? '';
   if (fset.pay_cash) { fset.pay_cash.checked = d.pay_cash ?? true; fset.pay_card.checked = d.pay_card ?? false; fset.pay_card_delivery.checked = d.pay_card_delivery ?? false; if (fset.pay_transfer) fset.pay_transfer.checked = d.pay_transfer ?? false; if (fset.pay_tabby) { const sb0 = merchant?.bnpl || []; fset.pay_tabby.checked = d.pay_tabby ?? sb0.includes('tabby'); fset.pay_tamara.checked = d.pay_tamara ?? sb0.includes('tamara'); } }
-  renderPayLink();
+  renderPayLink(); renderMyData();
   if (fset.ships_intercity) {
     fset.ships_intercity.checked = d.ships_intercity ?? false; fset.intercity_fee_mode.value = d.intercity_fee_mode ?? 'negotiable';
     fset.intercity_fee.value = d.intercity_fee ?? ''; fset.intercity_eta.value = d.intercity_eta ?? ''; fset.intercity_note.value = d.intercity_note ?? '';
@@ -1304,6 +1308,66 @@ fpl?.addEventListener('submit', e => {
 });
 $('#paylink-clear')?.addEventListener('click', () => { if (confirm('تحذف رابط الدفع؟')) savePayLink('', ''); });
 
+// ---------------- بياناتك: نسخة، موافقة الموقع، حذف الحساب (نظام حماية البيانات الشخصية) ----------------
+function renderMyData() {
+  const box = $('#my-data'); if (!box) return;
+  box.hidden = !(ctx?.owner && merchant);
+  if (box.hidden) return;
+  const person = isPerson(), st = $('#loc-consent-state'), tg = $('#loc-consent-toggle');
+  st.hidden = tg.hidden = !person;
+  if (person) {
+    st.textContent = merchant.location_consent_at ? '📍 موافق على حفظ موقعك واستخدامه لعرض متجرك.' : '📍 ما وافقت على استخدام موقعك، فما تظهر للزبائن على الخريطة.';
+    tg.textContent = merchant.location_consent_at ? 'سحب موافقة الموقع' : 'الموافقة على استخدام الموقع';
+  }
+}
+$('#loc-consent-toggle')?.addEventListener('click', async e => {
+  const agree = !merchant.location_consent_at, btn = e.currentTarget;
+  if (!agree && !confirm('سحب الموافقة يوقف ظهورك على الخريطة، ويطفّي «متاح الآن» لو كان شغّال. تكمل؟')) return;
+  setBusy(btn, true);
+  if (!agree && merchant.kind === 'mobile' && merchant.availability && merchant.availability !== 'off') await sb.rpc('set_availability', { st: 'off' });
+  const { error } = await sb.rpc('set_location_consent', { agree });
+  setBusy(btn, false);
+  if (error) return toast(friendlyError(error));
+  merchant.location_consent_at = agree ? new Date().toISOString() : null;
+  if (!agree) Object.assign(merchant, { availability: 'off', live_until: null, live_at: null });
+  renderMyData(); if (typeof renderLive === 'function') renderLive();
+  toast(agree ? 'تم ✓ وافقت على استخدام الموقع.' : 'تم سحب موافقتك على استخدام الموقع.');
+});
+$('#data-export')?.addEventListener('click', async e => {
+  const btn = e.currentTarget; setBusy(btn, true);
+  try {
+    const id = merchant.id, q = t => sb.from(t).select('*').eq('merchant_id', id);
+    const [s, p, i, t] = await Promise.all([q('store_settings'), q('products'), q('merchant_ibans'), q('merchant_staff')]);
+    const out = { exported_at: new Date().toISOString(), account: { email: user?.email }, merchant, store_settings: s.data || [], products: p.data || [], extra_ibans: i.data || [], staff: t.data || [],
+      note: 'المستندات المرفوعة (السجل والهوية وشهادات الآيبان) أسماؤها في الحقول التي تنتهي بـ _path. تقدر تطلب نسخها من فريقنا.' };
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
+    a.download = `tahassalah-my-data-${new Date().toISOString().slice(0, 10)}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast('تم تنزيل نسخة من بياناتك ✓');
+  } catch (ex) { toast(friendlyError(ex)); }
+  finally { setBusy(btn, false); }
+});
+$('#data-delete')?.addEventListener('click', async e => {
+  const m = merchant, btn = e.currentTarget;
+  const typed = prompt(`حذف حسابك نهائيًا؟\nينحذف متجرك ومنتجاتك وفريقك ومستنداتك وإيميل الدخول، ولا يمكن التراجع.\n\nللتأكيد اكتب اسم متجرك بالضبط: ${m.store_name}`, '');
+  if (typed === null) return;
+  if (typed.trim() !== m.store_name.trim()) return toast('الاسم ما يطابق. ما انحذف شي.');
+  setBusy(btn, true, 'جارِ الحذف…');
+  try {
+    const { data: xs } = await sb.from('merchant_ibans').select('cert_path').eq('merchant_id', m.id);
+    const docs = [m.cr_path, m.id_path, m.vat_path, m.iban_path, ...(m.extra_docs || []), ...(xs || []).map(x => x.cert_path)].filter(Boolean);
+    const { data: prods } = await sb.from('products').select('image_path').eq('merchant_id', m.id).not('image_path', 'is', null);
+    const imgs = (prods || []).map(p => p.image_path);
+    if (docs.length) { const { error } = await sb.storage.from('merchant-docs').remove(docs); if (error) throw error; }
+    if (imgs.length) { const { error } = await sb.storage.from('product-images').remove(imgs); if (error) throw error; }
+    const { error } = await sb.rpc('delete_my_account');
+    if (error) throw error;
+    await sb.auth.signOut();
+    alert('تم حذف حسابك وكل بياناته. شكرًا لك.');
+    location.href = 'index.html';
+  } catch (ex) { toast(friendlyError(ex)); setBusy(btn, false); }
+});
+
 // ---------------- إتاحة المتنقلين: متاح / مشغول / خارج الخدمة ----------------
 const LIVE_HOURS = 3;       // مدة الظهور الافتراضية بعد كل ضغطة
 const LIVE_WARN_MIN = 15;   // ننبّه التاجر قبل الانتهاء بهذي المدة
@@ -1353,6 +1417,12 @@ function renderLive() {
 }
 
 async function setAvailability(mode, btn) {
+  if (mode !== 'off' && !merchant.location_consent_at) {
+    if (!confirm('عشان تظهر للزبائن لازم توافق على حفظ موقعك واستخدامه وقت ما تكون «متاح» أو «مشغول» فقط.\nتقدر تسحب موافقتك من «بياناتك» في «التوصيل والاستلام».\n\nتوافق؟')) return;
+    const { error } = await sb.rpc('set_location_consent', { agree: true });
+    if (error) return toast(friendlyError(error));
+    merchant.location_consent_at = new Date().toISOString(); renderMyData();
+  }
   if (mode === 'off') {
     setBusy(btn, true);
     const { error } = await sb.rpc('set_availability', { st: 'off' });

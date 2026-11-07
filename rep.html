@@ -98,6 +98,7 @@
   <form id="f-new" method="dialog" novalidate>
     <h2 style="font-size:1.25rem">زيارة محل جديد</h2>
     <label class="btn ghost" style="display:flex">📷 صوّر واجهة المحل<input type="file" name="photo" accept="image/*" capture="environment" hidden></label>
+    <p class="hint">صوّر الواجهة واللوحة فقط، وتجنّب تصوير الأشخاص ولوحات السيارات.</p>
     <img id="new-prev" class="photo-big" alt="" hidden>
     <div style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center"><p class="hint" id="loc-state" style="flex:1;min-width:200px">📍 جارِ تحديد الموقع…</p><button class="btn ghost sm" type="button" id="map-pick">🗺️ حدّد على الخريطة</button></div>
     <label>اسم المحل<input name="store_name" maxlength="120" required></label>
@@ -110,6 +111,7 @@
       <label><span>جوال المحل <span class="opt" id="phone-opt">(اختياري)</span></span><input name="phone" inputmode="numeric" dir="ltr" maxlength="10" placeholder="05XXXXXXXX"></label>
     </div>
     <label><span>العنوان الوطني المختصر <span class="opt">(إذا ما تحدد الموقع)</span></span><input name="national_address" dir="ltr" maxlength="8" placeholder="مثال: RRRD2929" autocomplete="off"><span class="hint">مكتوب على لوحة العنوان عند باب المحل، أو في تطبيق «سبل».</span></label>
+    <label class="check" id="new-consent-wrap"><input type="checkbox" name="consent"> <span><b>أخبرت صاحب المحل ووافق</b> على حفظ اسمه وجواله وصورة الواجهة عندنا.<br><span class="hint">قل له: «نحفظ اسمك ورقمك وصورة واجهة المحل عشان نتابع معك تسجيلك في تحصّله، وما نشاركها مع أحد، وتقدر تطلب حذفها متى ما بغيت.»</span></span></label>
     <fieldset><legend>نتيجة الزيارة</legend><div class="chips" id="new-status"></div></fieldset>
     <label id="new-problem-wrap" hidden>وش المشكلة؟<select name="problem"></select></label>
     <label id="new-follow-wrap" hidden><span>موعد الزيارة الجاية <span class="opt">(اختياري)</span></span><input type="date" name="follow_up_on"></label>
@@ -132,6 +134,7 @@
     <fieldset id="visit-box"><legend>تسجيل زيارة جديدة</legend>
       <div class="chips" id="v-status"></div>
       <label id="v-phone-wrap" hidden>جوال المحل<input name="phone" inputmode="numeric" dir="ltr" maxlength="10" placeholder="05XXXXXXXX"><span class="hint">مطلوب عشان نربط المحل بحسابه لما يسجّل.</span></label>
+      <label class="check" id="v-consent-wrap"><input type="checkbox" name="consent"> <span><b>أخبرت صاحب المحل ووافق</b> على حفظ اسمه وجواله وصورة الواجهة عندنا.<br><span class="hint">قل له: «نحفظ اسمك ورقمك وصورة واجهة المحل عشان نتابع معك تسجيلك في تحصّله، وما نشاركها مع أحد، وتقدر تطلب حذفها متى ما بغيت.»</span></span></label>
       <label id="v-problem-wrap" hidden>وش المشكلة؟<select name="problem"></select></label>
       <label id="v-follow-wrap" hidden><span>موعد الزيارة الجاية <span class="opt">(اختياري)</span></span><input type="date" name="follow_up_on"></label>
       <label><span>ملاحظات <span class="opt">(اختياري)</span></span><textarea name="notes" maxlength="1000"></textarea></label>

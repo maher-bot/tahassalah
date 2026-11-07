@@ -1,14 +1,7 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-7Y22WDZD7P"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-  gtag('config', 'G-7Y22WDZD7P');
-</script>
+<script src="consent.js"></script>
 <script src="utm.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -196,6 +189,7 @@
         <p class="hint">تقدر تغيّر اختيارك من لوحتك في أي وقت قبل نهاية الفترة المجانية. تضاف ضريبة القيمة المضافة 15% على الاشتراك. ما فيه عمولة على مبيعاتك.</p>
       </fieldset>
 
+      <label class="check" id="loc-consent-row" hidden><input type="checkbox" name="loc_consent"> <span>أوافق على حفظ موقع بيتي أو عربتي واستخدامه لعرض متجري للمشترين القريبين: موقع البيت يظهر لهم تقريبيًا فقط، وموقع العربة يظهر وقت ما أضغط «متاح الآن» فقط. أقدر أسحب موافقتي من لوحتي.</span></label>
       <label class="check"><input type="checkbox" name="agree" required> <span>أقر بصحة البيانات والمستندات، وأوافق على <a href="terms.html" target="_blank">شروط التجار</a> و<a href="privacy.html" target="_blank">سياسة الخصوصية</a>.</span></label>
       <p class="err" role="alert" id="apply-err"></p>
       <button class="btn primary" type="submit" id="apply-btn">إرسال الطلب للمراجعة</button>
@@ -380,6 +374,16 @@
         <p class="err" role="alert"></p>
         <button class="btn primary" type="submit" id="settings-save">حفظ</button>
       </form>
+      <div class="card" id="my-data" style="margin-top:16px;display:grid;gap:10px">
+        <b>🔒 بياناتك</b>
+        <p class="hint">حسب نظام حماية البيانات الشخصية، تقدر تنزّل نسخة من بياناتك، أو تحذف حسابك وكل بياناته نهائيًا. التفاصيل في <a href="privacy.html" target="_blank">سياسة الخصوصية</a>.</p>
+        <p class="hint" id="loc-consent-state" hidden></p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn ghost sm" type="button" id="data-export">⬇️ تنزيل نسخة من بياناتي</button>
+          <button class="btn ghost sm" type="button" id="loc-consent-toggle" hidden></button>
+          <button class="btn danger sm" type="button" id="data-delete">حذف حسابي وبياناتي نهائيًا</button>
+        </div>
+      </div>
       <form class="card" id="f-paylink" novalidate style="margin-top:16px;display:grid;gap:10px">
         <b>💳 رابط الدفع الإلكتروني الخاص بك <span class="opt">(اختياري)</span></b>
         <p class="hint">إذا عندك بوابة دفع باسمك أو متجر في سلة أو زد، حط رابط الدفع هنا. المشتري يدفع لك مباشرة والمنصة ما تستلم أي فلوس. الرابط يراجعه فريقنا قبل ما يظهر، ويظهر للمشتري بعد ما توافق على طلبه فقط (لما ينطلق التطبيق).</p>
