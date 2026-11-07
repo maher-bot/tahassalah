@@ -3,6 +3,7 @@
 import { sb, $, $$, toast, digits, valid, friendlyError, setBusy, shrinkImage, fileExt } from './lib.js';
 import { IS_DEMO } from './config.js';
 import { pickLocation } from './mappick.js';
+import { showInstall } from './pwa.js';
 
 const VIEWS = ['v-loading', 'v-closed', 'v-stores', 'v-store', 'v-cart', 'v-login', 'v-orders'];
 const show = id => { VIEWS.forEach(v => { $('#' + v).hidden = v !== id; }); window.scrollTo(0, 0); };
@@ -65,7 +66,7 @@ $$('[data-back]').forEach(b => b.addEventListener('click', () => { if (b.dataset
 })();
 
 // ---------------- المحلات ----------------
-function showStores() { renderStores(); show('v-stores'); }
+function showStores() { renderStores(); show('v-stores'); showInstall($('#v-stores'), 'ثبّت تحصّله على جوالك، وتسوّق من محلات حيّك من أيقونته.'); }
 $('#sq').addEventListener('input', renderStores);
 function renderStores() {
   const q = $('#sq').value.trim();

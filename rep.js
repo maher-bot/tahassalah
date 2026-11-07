@@ -1,6 +1,7 @@
 import { rememberLogin, hidePasswords, sb, $, $$, toast, digits, valid, ACTIVITIES, shrinkImage, fileExt, friendlyError, setBusy, fmtDay,
   FIELD_STATUS, FIELD_BADGE, FIELD_PROBLEMS, MAKKAH_DISTRICTS, ago } from './lib.js';
 import { pickLocation } from './mappick.js';
+import { showInstall } from './pwa.js';
 
 const VIEWS = ['v-loading', 'v-auth', 'v-check', 'v-denied', 'v-app'];
 const show = id => { VIEWS.forEach(v => { $('#' + v).hidden = v !== id; }); window.scrollTo(0, 0); };
@@ -76,6 +77,7 @@ async function route(session) {
   $('#rep-activate').hidden = !rep.can_activate;
   $('#r-districts').textContent = rep.districts.length ? 'أحياؤك: ' + rep.districts.join('، ') : '';
   show('v-app');
+  showInstall($('#v-app'), 'ثبّت تطبيق المسوّق على جوالك، وافتحه من أيقونته في الميدان.');
   await load();
   locate();   // نجهّز الموقع مبكرًا
 }

@@ -1,0 +1,19 @@
+{
+  "name": "تحصّله · التجار والمناديب",
+  "short_name": "تحصّله",
+  "description": "لوحة المتجر، الطلبات، وتوصيلات المندوب",
+  "lang": "ar",
+  "dir": "rtl",
+  "id": "/merchant.html",
+  "start_url": "merchant.html?app=1",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F3F6F5",
+  "theme_color": "#105E51",
+  "icons": [
+    { "src": "brand/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "brand/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "brand/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

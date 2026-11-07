@@ -1,5 +1,6 @@
 import { rememberLogin, hidePasswords, sb, $, $$, toast, clean, digits, valid, money, ACTIVITIES, PLANS, planLabel, STATUS, fileExt, shrinkImage, friendlyError, setBusy, trialInfo, fmtDay, OFFER_REASONS, KINDS, KIND_ICON, ACTIVITIES_BY_KIND } from './lib.js';
 import { takePhoto } from './camera.js';
+import { showInstall } from './pwa.js';
 import { pickLocation } from './mappick.js';
 
 const VIEWS = ['v-loading', 'v-auth', 'v-check-email', 'v-reset', 'v-apply', 'v-status', 'v-invites', 'v-dash', 'v-roles', 'v-rep-done'];
@@ -573,6 +574,7 @@ async function openDash(id) {
   }
   selectTab(isDriver() ? 'deliveries' : 'products');
   show('v-dash');
+  showInstall($('#v-dash'), isDriver() ? 'ثبّت تحصّله على جوالك، وتوصلك توصيلاتك من أيقونته مباشرة.' : 'ثبّت لوحة متجرك على جوالك، وافتحها من أيقونتها مثل أي تطبيق.');
   if (canOrders()) pollOrders();
   await loadProducts();
   if (ctx.owner) loadApprovals(); else if (viaApproval()) loadMine();
