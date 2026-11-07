@@ -612,7 +612,7 @@ async function showOpenInvoice(box) {
   if (!data) return;
   const d = document.createElement('p'); d.id = 'trial-inv'; d.className = 'note'; d.style.marginTop = '10px';
   const left = Math.ceil((new Date(data.due_at) - Date.now()) / 864e5);
-  d.append(`🧾 عندك مطالبة تجديد ${money(data.total)} (شامل الضريبة)، ${left > 0 ? `آخر موعد بعد ${left} يوم` : 'موعدها اليوم'}. تدفع بالتحويل أو الشبكة عن طريق المسوّق. `);
+  d.append(`🧾 عندك مطالبة تجديد ${money(data.total)} (شامل الضريبة)، ${left > 0 ? `آخر موعد بعد ${left} يوم` : 'موعدها اليوم'}. حوّل وارفع الإيصال من صفحة المطالبة، أو ادفع شبكة عن طريق المسوّق. `);
   const a = document.createElement('a'); a.href = 'invoice.html?id=' + data.id; a.target = '_blank'; a.textContent = 'عرض المطالبة وطرق السداد';
   d.append(a); box.append(d);
 }

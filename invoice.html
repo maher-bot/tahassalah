@@ -44,13 +44,21 @@
     </table>
     <div id="i-paid" hidden><span class="stamp">✓ مدفوعة</span> <span class="hint" id="i-paid-info"></span></div>
     <div id="i-pay" class="note" hidden></div>
+    <form id="f-proof" class="card stack no-print" hidden novalidate style="margin-top:12px;background:var(--brand-soft)">
+      <b>حوّلت المبلغ؟ ارفع الإيصال هنا</b>
+      <label>صورة إيصال التحويل<input type="file" name="file" accept="image/*,application/pdf" required></label>
+      <label><span>رقم العملية <span class="opt">(اختياري)</span></span><input name="ref" dir="ltr" maxlength="80"></label>
+      <p class="err" role="alert"></p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary" type="submit" id="proof-save">📎 إرسال الإيصال</button><a class="btn ghost" id="wa" target="_blank" rel="noopener">أو أرسله واتساب</a></div>
+    </form>
+    <p id="proof-sent" class="note no-print" hidden style="margin-top:12px">📎 وصلنا إيصالك، ونأكد السداد ونجدد اشتراكك خلال يوم عمل، ويوصلك إيصال بالإيميل.</p>
     <p class="hint" style="margin-top:14px;font-size:.85rem">هذه مطالبة اشتراك وليست فاتورة ضريبية. الفاتورة الضريبية تصدر من المنشأة بعد السداد.</p>
     <div class="no-print" style="display:flex;gap:8px;margin-top:12px"><button class="btn primary" type="button" onclick="print()">🖨️ طباعة / حفظ PDF</button></div>
   </section>
   <section id="v-none" class="narrow" hidden><div class="card status"><h2>ما قدرنا نفتح المطالبة</h2><p>سجّل دخولك بحساب المحل أو الإدارة، ثم افتح الرابط مرة ثانية. <a href="merchant.html?tab=login">دخول</a></p></div></section>
 </main>
 <script type="module">
-import { sb, $ } from './lib.js';
+import { sb, $, shrinkImage, fileExt, friendlyError, setBusy, toast } from './lib.js';
 const sar = n => Number(n || 0).toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
 const day = d => new Date(d).toLocaleDateString('ar-SA-u-nu-latn-ca-gregory', { day: 'numeric', month: 'long', year: 'numeric' });
 const PLAN = { family: 'أسر ومتجولين', trader: 'تاجر', pro: 'مميز' }, METHOD = { transfer: 'تحويل بنكي', pos: 'شبكة', cash: 'نقدي' };
@@ -81,6 +89,28 @@ else {
     const t = document.createElement('span');
     t.textContent = (s.iban ? `تحويل إلى ${s.company_name}${s.bank_name ? ' (' + s.bank_name + ')' : ''} على الآيبان ${s.iban} واكتب رقم المطالبة ${inv.number} في الملاحظة، أو ` : '') + 'شبكة أو نقدًا عن طريق مسوّق تحصّله.';
     p.append(t);
+    const { data: { user } } = await sb.auth.getUser();
+    if (user && user.id === inv.merchant_id) {
+      if (inv.submitted_at) $('#proof-sent').hidden = false;
+      const f = $('#f-proof'); f.hidden = false;
+      if (inv.submitted_at) f.querySelector('b').textContent = 'تبي ترسل إيصال ثاني بدل اللي أرسلته؟';
+      $('#wa').href = 'https://wa.me/966555606635?text=' + encodeURIComponent(`السلام عليكم، حوّلت اشتراك «${inv.store_name}»، رقم المطالبة ${inv.number} بمبلغ ${sar(inv.total)}. مرفق الإيصال.`);
+      f.addEventListener('submit', async e => {
+        e.preventDefault();
+        const btn = $('#proof-save'), err = $('.err', f), file = f.file.files[0];
+        if (!file) return (err.textContent = 'اختر صورة الإيصال.');
+        setBusy(btn, true);
+        try {
+          const up = await shrinkImage(file, 1600);
+          const path = `${user.id}/${inv.number}-${Date.now()}.${fileExt(up)}`;
+          const r1 = await sb.storage.from('receipts').upload(path, up, { contentType: up.type || undefined });
+          if (r1.error) throw r1.error;
+          const r2 = await sb.rpc('submit_payment_proof', { inv_id: inv.id, receipt: path, ref: f.ref.value });
+          if (r2.error) throw r2.error;
+          f.hidden = true; $('#proof-sent').hidden = false; toast('تم إرسال الإيصال ✓');
+        } catch (ex) { err.textContent = friendlyError(ex); } finally { setBusy(btn, false); }
+      });
+    }
   }
 }
 </script>

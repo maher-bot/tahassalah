@@ -35,6 +35,7 @@ function billPlan(m) {
   return ['trader', 'pro'].includes(m.next_plan) ? m.next_plan : 'family';
 }
 
+if (location.hash === '#bills') setTimeout(() => $('#tabs [data-t=bills]')?.click(), 0);
 // ---------------- الدخول ----------------
 sb.auth.getSession().then(async ({ data: { session } }) => {
   me = session?.user;
@@ -109,6 +110,7 @@ function renderBills() {
       if (f === 'soon') return due && due >= now && due - now <= 7 * DAY;
       if (f === 'late') return due && due < now;
       if (f === 'open') return !!inv;
+      if (f === 'proof') return !!inv?.submitted_at;
       if (f === 'paid') return paid && new Date(paid.paid_at) >= from && new Date(paid.paid_at) < to;
       if (f === 'none') return !due;
       return true;
@@ -131,6 +133,11 @@ function renderBills() {
     if (inv) {
       const a = mk('a', 'num', inv.number); a.href = 'invoice.html?id=' + inv.id; a.target = '_blank';
       invCell.append(a, mk('div', 'hint num', sar(inv.total)));
+      if (inv.submitted_at) {
+        const r = mk('a', 'badge pending', '📎 إيصال من التاجر'); r.href = '#';
+        r.onclick = async ev => { ev.preventDefault(); const { data } = await sb.storage.from('receipts').createSignedUrl(inv.submitted_receipt, 300); if (data) open(data.signedUrl, '_blank'); };
+        invCell.append(r);
+      }
     } else if (paid) {
       const a = mk('a', 'num', '✓ ' + paid.number); a.href = 'invoice.html?id=' + paid.id; a.target = '_blank';
       invCell.append(a, mk('div', 'hint', `${METHOD[paid.paid_method] || ''} · ${fmtDay(paid.paid_at)}`));
@@ -138,7 +145,7 @@ function renderBills() {
     td(invCell);
     const act = mk('div'); act.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
     if (inv) {
-      const pay = mk('button', 'btn primary sm', '💳 تسجيل سداد'); pay.type = 'button'; pay.onclick = () => openPay(inv);
+      const pay = mk('button', 'btn primary sm', inv.submitted_at ? '✓ تأكيد السداد' : '💳 تسجيل سداد'); pay.type = 'button'; pay.onclick = () => openPay(inv);
       const v = mk('button', 'btn ghost sm', 'إلغاء'); v.type = 'button'; v.onclick = () => voidInv(inv);
       act.append(pay, v);
     } else {
@@ -176,6 +183,7 @@ let paying = null;
 function openPay(inv) {
   paying = inv; fp.reset(); $('.err', fp).textContent = '';
   $('#pay-what').textContent = `${inv.store_name} · ${inv.number} · ${sar(inv.total)}`;
+  if (inv.submitted_at) { fp.method.value = 'transfer'; fp.ref.value = inv.submitted_ref || ''; $('#pay-what').textContent += ' · 📎 التاجر رفع إيصال (يُحفظ مع السداد)'; }
   dlg.showModal();
 }
 $('#pay-cancel').addEventListener('click', () => dlg.close());
@@ -184,7 +192,7 @@ fp.addEventListener('submit', async e => {
   const btn = $('#pay-save'), err = $('.err', fp);
   setBusy(btn, true);
   try {
-    let receipt = null;
+    let receipt = paying.submitted_receipt || null;
     const f = fp.file.files[0];
     if (f) {
       if (f.size > 5 * 1024 * 1024 && !f.type.startsWith('image/')) throw new Error('الإيصال أكبر من 5 ميجا.');

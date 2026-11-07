@@ -1,6 +1,6 @@
 // تحصّله — إيميلات مطالبات الاشتراك.
 // daily (يوميًا من cron عبر billing_daily): مطالبة جديدة قبل 7 أيام، تذكير قبل 3 أيام، وتذكير يوم الاستحقاق.
-// paid (من تريقر invoices): إيصال سداد للتاجر.
+// paid (من تريقر invoices): إيصال سداد للتاجر. proof: التاجر رفع إيصال ← إيميل للإدارة.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
 const env = (k: string) => Deno.env.get(k) ?? "";
@@ -52,6 +52,7 @@ function howToPay(b: any, inv: any) {
       ${b.iban ? `<li>تحويل بنكي إلى <b>${esc(b.company_name)}</b>${b.bank_name ? ` (${esc(b.bank_name)})` : ""}، الآيبان: <b dir="ltr">${esc(b.iban)}</b>، واكتب رقم المطالبة <b>${esc(inv.number)}</b> في الملاحظة.</li>` : ""}
       <li>شبكة (مدى أو بطاقة) أو نقدًا عن طريق مسوّق تحصّله.</li>
     </ul>
+    <p style="margin:8px 0 0"><b>حوّلت؟</b> افتح المطالبة من الزر تحت وارفع صورة الإيصال، أو أرسله واتساب.</p>
     <p style="color:#4E625D;font-size:13px">أول ما يتأكد السداد يتجدد اشتراكك تلقائيًا ويوصلك إيصال. للاستفسار واتساب ‎+966 55 560 6635.</p>`;
 }
 
@@ -78,7 +79,7 @@ async function daily(c: any) {
     else if (left > 3 && !rem.d7) { key = "d7"; subject = `مطالبة تجديد اشتراكك في تحصّله · ${inv.number}`; lead = `اشتراكك يتجدد بعد <b>${left} أيام</b>. هذي مطالبة التجديد حسب باقتك.`; }
     if (!key) continue;
     const html = layout(c.b, "مطالبة اشتراك", `<p>أهلًا ${esc(inv.owner_name ?? "")}،</p><p>${lead}</p>${invTable(inv)}${howToPay(c.b, inv)}
-      ${btn(`${c.n.site_url}/invoice.html?id=${inv.id}`, "عرض المطالبة")}`);
+      ${btn(`${c.n.site_url}/invoice.html?id=${inv.id}`, "عرض المطالبة ورفع الإيصال")}`);
     const ok = await send(c.n.from_email, inv.email, subject, html);
     // نعلّم التذكيرات اللي قبله بعد، عشان ما يوصله تذكيران متتاليان
     const mark = key === "due" ? { d7: true, d3: true, due: new Date().toISOString() } : key === "d3" ? { d7: true, d3: new Date().toISOString() } : { d7: new Date().toISOString() };
@@ -96,12 +97,23 @@ async function paid(c: any, id: string) {
   return await send(c.n.from_email, inv.email, `إيصال سداد اشتراكك · ${inv.number}`, html);
 }
 
+async function proof(c: any, id: string) {
+  const { data: inv } = await admin.from("invoices").select("*").eq("id", id).single();
+  if (!inv || inv.status !== "issued" || !inv.submitted_receipt) return false;
+  const { data: u } = await admin.storage.from("receipts").createSignedUrl(inv.submitted_receipt, 60 * 60 * 24 * 7);
+  const html = layout(c.b, "تاجر رفع إيصال سداد", `<p><b>${esc(inv.store_name)}</b> رفع إيصال سداد المطالبة <b>${esc(inv.number)}</b> بمبلغ <b>${esc(money(inv.total))}</b>${inv.submitted_ref ? ` (مرجع ${esc(inv.submitted_ref)})` : ""}.</p>
+    <p>تأكد إن المبلغ وصل الحساب، وبعدها اضغط «تأكيد السداد» في الحسابات، والاشتراك يتجدد تلقائيًا.</p>
+    ${u?.signedUrl ? btn(u.signedUrl, "عرض الإيصال") : ""}${btn(`${c.n.site_url}/accounts.html#bills`, "افتح الحسابات")}`);
+  return await send(c.n.from_email, c.n.admin_email, `📎 إيصال سداد: ${inv.store_name} · ${inv.number}`, html);
+}
+
 Deno.serve(async (req) => {
   const c = await cfg();
   if (!c.n?.webhook_secret || req.headers.get("x-webhook-secret") !== c.n.webhook_secret) return new Response("unauthorized", { status: 401 });
   const p = await req.json().catch(() => null);
   try {
     if (p?.type === "daily") return Response.json({ sent: await daily(c) });
+    if (p?.type === "proof" && p.invoice_id) return Response.json({ sent: await proof(c, p.invoice_id) });
     if (p?.type === "paid" && p.invoice_id) return Response.json({ sent: await paid(c, p.invoice_id) });
   } catch (e) { console.error(e); return new Response("error", { status: 500 }); }
   return new Response("ignored");
