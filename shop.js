@@ -279,10 +279,9 @@ $('#f-name').addEventListener('submit', async e => {
 async function openOrders(silent = false) {
   if (!(await ensureBuyer(() => openOrders()))) return;
   if (!silent) show('v-loading');
-  const { data, error } = await sb.from('orders').select('*, order_items(*)').eq('buyer_id', user.id).order('created_at', { ascending: false }).limit(50);
+  const { data, error } = await sb.from('orders_v').select('*').eq('buyer_id', user.id).order('created_at', { ascending: false }).limit(50);
   if (error) { toast(friendlyError(error)); return showStores(); }
-  const names = new Map(stores.map(s => [s.id, s.store_name]));
-  $('#orders').replaceChildren(...data.map(o => orderCard(o, names.get(o.merchant_id))));
+  $('#orders').replaceChildren(...data.map(o => orderCard(o, o.store_name)));
   if (!data.length) $('#orders').append(mk('p', 'hint', 'ما عندك طلبات للحين.'));
   if (!silent) show('v-orders');
 }
@@ -293,14 +292,14 @@ function orderCard(o, storeName) {
   head.append(mk('b', '', `${storeName || 'المحل'} · ${o.number}`), mk('span', 'badge ' + (step === 0 ? 'rejected' : step === 6 ? 'approved' : 'pending'), label));
   c.append(head);
   if (step > 0) { const st = mk('div', 'steps'); for (let i = 1; i <= 6; i++) st.append(mk('i', i <= step ? 'on' : '')); c.append(st); }
-  c.append(mk('div', 'hint', o.order_items.map(i => `${i.name} × ${i.qty}`).join('، ')));
+  c.append(mk('div', 'hint', o.items.map(i => `${i.name} × ${i.qty}`).join('، ')));
   c.append(mk('div', 'num', `الإجمالي ${sar(o.total)} · ${o.fulfillment === 'delivery' ? 'توصيل' : 'استلام من المحل'} · ${PAY[o.payment_method]}${o.payment_status === 'paid' ? ' · مدفوع ✓' : o.payment_status === 'proof' ? ' · وصل الإيصال' : ''}`));
   if (o.driver_name && ['ready', 'out'].includes(o.status)) c.append(mk('div', 'hint', `🛵 المندوب: ${o.driver_name}`));
   if (o.reason) c.append(mk('div', 'hint', 'السبب: ' + o.reason));
   const acts = mk('div'); acts.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
   if (o.status === 'placed') {
     const x = mk('button', 'btn ghost sm', 'إلغاء الطلب'); x.type = 'button';
-    x.onclick = async () => { if (!confirm('تلغي الطلب؟')) return; const { error } = await sb.rpc('order_action', { oid: o.id, action: 'cancel', args: {} }); if (error) return toast(why(error)); openOrders(); };
+    x.onclick = async () => { if (!confirm('تلغي الطلب؟')) return; const { error } = await sb.rpc('order_action_v', { oid: o.id, action: 'cancel', args: {} }); if (error) return toast(why(error)); openOrders(); };
     acts.append(x);
   }
   if (o.payment_method === 'transfer' && o.payment_status !== 'paid' && ['accepted', 'preparing', 'ready', 'out'].includes(o.status)) {
@@ -319,7 +318,7 @@ function orderCard(o, storeName) {
           try {
             const sm = await shrinkImage(f, 1600), path = `${user.id}/${o.number}-${Date.now()}.${fileExt(sm)}`;
             const r1 = await sb.storage.from('receipts').upload(path, sm, { contentType: sm.type || undefined }); if (r1.error) throw r1.error;
-            const r2 = await sb.rpc('order_action', { oid: o.id, action: 'proof', args: { receipt: path } }); if (r2.error) throw r2.error;
+            const r2 = await sb.rpc('order_action_v', { oid: o.id, action: 'proof', args: { receipt: path } }); if (r2.error) throw r2.error;
             toast('وصل الإيصال للمحل ✓'); openOrders();
           } catch (ex) { toast(why(ex)); } finally { setBusy(b, false); }
         };

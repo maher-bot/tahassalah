@@ -1647,7 +1647,7 @@ let ordersCache = [], seenNew = new Set(), pollTimer = null, primed = false;
 const mapLink = o => o.lat != null ? `https://www.google.com/maps/dir/?api=1&destination=${o.lat},${o.lng}` : null;
 const waLink = p => p ? 'https://wa.me/966' + String(p).replace(/\D/g, '').replace(/^(966|0)/, '') : null;
 async function orderAct(o, action, args = {}) {
-  const { error } = await sb.rpc('order_action', { oid: o.id, action, args });
+  const { error } = await sb.rpc('order_action_v', { oid: o.id, action, args });
   if (error) {
     const m = String(error.message);
     return toast(m.includes('pay_before_delivery') ? 'الطلب تحويل: أكّد استلام المبلغ قبل ما تحوّله للمندوب.' : m.includes('driver_not_found') ? 'المندوب مو مفعّل في فريق المتجر.' : m.includes('invalid_state') ? 'حالة الطلب تغيّرت، حدّث الصفحة.' : friendlyError(error));
@@ -1661,17 +1661,19 @@ function orderBox(o, mode) {
   const b = document.createElement('span'); b.className = 'badge ' + O_STATUS[o.status][1]; b.textContent = O_STATUS[o.status][0];
   head.append(t, b); el.append(head);
   const line = (txt, cls = 'hint') => { const p = document.createElement('div'); p.className = cls; p.textContent = txt; el.append(p); return p; };
-  line(o.order_items.map(i => `${i.name} × ${i.qty}`).join('، '), '');
+  if (mode === 'driver') line(`🏪 ${o.store_name}${o.store_district ? ' · ' + o.store_district : ''}`, '');
+  line(o.items.map(i => `${i.name} × ${i.qty}`).join('، '), '');
   line(`${money(o.total)} · ${o.fulfillment === 'delivery' ? '🛵 توصيل' : '🏪 استلام'} · ${O_PAY[o.payment_method]} · ${o.payment_status === 'paid' ? 'مدفوع ✓' : o.payment_status === 'proof' ? '📎 وصل إيصال تحويل' : 'غير مدفوع'}`);
   line(new Date(o.created_at).toLocaleString('ar-SA-u-nu-latn-ca-gregory', { hour: 'numeric', minute: '2-digit', day: 'numeric', month: 'short' }));
   if (o.fulfillment === 'delivery' && o.address) line('📍 ' + o.address);
+  else if (o.fulfillment === 'delivery' && mode === 'orders') line('📍 عنوان الزبون وجواله يطلعون للمندوب بعد التحويل.');
   if (o.note) line('📝 ' + o.note);
   if (o.driver_name && mode === 'orders') line('🛵 المندوب: ' + o.driver_name);
   if (o.collected_amount != null) line(`استلم المندوب ${money(o.collected_amount)} ${o.collected_method === 'card' ? 'شبكة' : 'نقدًا'}`);
   const acts = document.createElement('div'); acts.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
   const btn = (txt, cls, fn) => { const x = document.createElement('button'); x.type = 'button'; x.className = 'btn sm ' + cls; x.textContent = txt; x.onclick = fn; acts.append(x); return x; };
   const link = (txt, href) => { if (!href) return; const a = document.createElement('a'); a.className = 'btn ghost sm'; a.textContent = txt; a.href = href; a.target = '_blank'; a.rel = 'noopener'; acts.append(a); };
-  link('💬 واتساب الزبون', waLink(o.buyer_phone));
+  if (o.buyer_phone) { link('📞 اتصال', 'tel:+966' + String(o.buyer_phone).replace(/\D/g, '').replace(/^(966|0)/, '')); link('💬 واتساب الزبون', waLink(o.buyer_phone)); }
   if (mode === 'orders') {
     if (o.payment_proof && o.payment_status === 'proof') btn('📎 الإيصال', 'ghost', async () => { const { data } = await sb.storage.from('receipts').createSignedUrl(o.payment_proof, 300); if (data) open(data.signedUrl, '_blank'); });
     if (o.status === 'placed') { btn('✓ قبول', 'primary', () => orderAct(o, 'accept')); btn('رفض', 'ghost', () => { const r = prompt('سبب الرفض (يشوفه الزبون):'); if (r != null) orderAct(o, 'reject', { reason: r }); }); }
@@ -1690,7 +1692,8 @@ function orderBox(o, mode) {
     }
     if (['accepted', 'preparing'].includes(o.status)) btn('إلغاء', 'ghost', () => { const r = prompt('سبب الإلغاء (يشوفه الزبون):'); if (r != null) orderAct(o, 'reject', { reason: r }); });
   } else {
-    link('🗺️ الخريطة', mapLink(o));
+    if (['ready'].includes(o.status) && o.store_lat != null) link('🏪 موقع المحل', `https://www.google.com/maps/dir/?api=1&destination=${o.store_lat},${o.store_lng}`);
+    link('🗺️ موقع الزبون', mapLink(o));
     if (o.status === 'ready') btn('🛵 استلمت الطلب وطالع', 'primary', () => orderAct(o, 'out'));
     if (o.status === 'out' && o.payment_status === 'paid') btn('✓ تم التسليم', 'primary', () => { if (confirm('سلّمت الطلب؟')) orderAct(o, 'delivered'); });
     if (o.status === 'out' && o.payment_status !== 'paid') {
@@ -1703,7 +1706,7 @@ function orderBox(o, mode) {
 }
 async function loadOrders() {
   const f = $('#o-filter').value, start = new Date(); start.setHours(0, 0, 0, 0);
-  let q = sb.from('orders').select('*, order_items(*)').eq('merchant_id', ctx.mid).order('created_at', { ascending: false }).limit(200);
+  let q = sb.from('orders_v').select('*').eq('merchant_id', ctx.mid).order('created_at', { ascending: false }).limit(200);
   if (f === 'active') q = q.in('status', ACTIVE);
   if (f === 'done') q = q.in('status', ['delivered', 'picked_up']).gte('done_at', start.toISOString());
   const { data, error } = await q;
@@ -1720,7 +1723,7 @@ function pollOrders() {
   clearInterval(pollTimer);
   const tick = async () => {
     if (!ctx || !canOrders() || document.hidden) return;
-    const { data } = await sb.from('orders').select('id').eq('merchant_id', ctx.mid).eq('status', 'placed');
+    const { data } = await sb.from('orders_v').select('id').eq('merchant_id', ctx.mid).eq('status', 'placed');
     const n = data?.length || 0, c = $('#c-orders');
     c.hidden = !n; c.textContent = n;
     const fresh = (data || []).filter(x => !seenNew.has(x.id));
@@ -1736,12 +1739,15 @@ function pollOrders() {
 }
 async function loadDeliveries() {
   const start = new Date(); start.setHours(0, 0, 0, 0);
-  const { data, error } = await sb.from('orders').select('*, order_items(*)').eq('driver_user_id', user.id).eq('merchant_id', ctx.mid)
+  // كل المحلات اللي يوصّل لها في قائمة وحدة
+  const { data, error } = await sb.from('orders_v').select('*').eq('driver_user_id', user.id)
     .or(`status.in.(ready,out),done_at.gte.${start.toISOString()}`).order('created_at', { ascending: false });
   if (error) return toast(friendlyError(error));
   const open = data.filter(o => ['ready', 'out'].includes(o.status));
-  const cash = data.filter(o => o.collected_method === 'cash').reduce((s, o) => s + Number(o.collected_amount), 0);
-  $('#dl-sum').textContent = `عندك ${open.length} طلب للتوصيل · سلّمت اليوم ${data.length - open.length} · كاش معك ${money(cash)} (سلّمه للكاشير)`;
+  const byStore = {};
+  data.filter(o => o.collected_method === 'cash').forEach(o => { byStore[o.store_name] = (byStore[o.store_name] || 0) + Number(o.collected_amount); });
+  const cashTxt = Object.entries(byStore).map(([s, v]) => `${s}: ${money(v)}`).join(' · ');
+  $('#dl-sum').textContent = `عندك ${open.length} طلب للتوصيل · سلّمت اليوم ${data.length - open.length}` + (cashTxt ? ` · الكاش اللي معك (سلّمه لكل محل): ${cashTxt}` : '');
   const c = $('#c-deliv'); c.hidden = !open.length; c.textContent = open.length;
   $('#dl-list').replaceChildren(...data.map(o => orderBox(o, 'driver')));
   if (!data.length) $('#dl-list').append(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'ما عندك طلبات الحين. أول ما يحوّل لك الكاشير طلب يطلع هنا.' }));
