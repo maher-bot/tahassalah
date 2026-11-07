@@ -60,8 +60,13 @@ async function route(session) {
   user = session?.user ?? null;
   $('#who').textContent = user?.email ?? '';
   $('#logout').hidden = !user;
+  $('#to-admin').hidden = $('#to-store').hidden = true;
   if (!user) return show('v-auth');
   show('v-loading');
+  // نفس الإيميل له متجر أو صلاحية إدارة: أزرار للتنقل
+  sb.rpc('is_admin').then(({ data }) => { $('#to-admin').hidden = !data; });
+  Promise.all([sb.from('merchants').select('id').eq('id', user.id).maybeSingle(), sb.rpc('my_stores')])
+    .then(([m, st]) => { $('#to-store').hidden = !(m.data || st.data?.length); });
   const { data, error } = await sb.rpc('my_rep');
   if (error) { $('#v-loading').textContent = friendlyError(error); return; }
   rep = data?.[0];

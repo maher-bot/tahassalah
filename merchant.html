@@ -17,7 +17,7 @@
 <body>
 <header class="top"><div class="in">
   <a class="mark" href="index.html"><svg viewBox="0 0 512 512" aria-hidden="true"><circle cx="256" cy="256" r="256" fill="var(--brand)"/><circle cx="256" cy="256" r="102.4" fill="none" stroke="var(--surface)" stroke-width="18" opacity=".9"/><circle cx="256" cy="256" r="174" fill="none" stroke="var(--surface)" stroke-width="18" opacity=".5"/><circle cx="256" cy="256" r="38.4" fill="var(--surface)"/><path d="M363.5 197.6C345.1 179.7 312.3 144.4 312.3 112.6a51.2 51.2 0 0 1 102.4 0C414.7 144.4 382 179.7 363.5 197.6z" fill="var(--pin)" stroke="var(--brand)" stroke-width="10"/><circle cx="363.5" cy="112.6" r="19.5" fill="#fff"/></svg>تحصّله</a>
-  <div class="sp"><a class="btn ghost sm" id="to-admin" href="admin.html" hidden>🛠️ لوحة الإدارة</a><span class="who" id="who"></span><button class="btn ghost sm" id="logout" hidden>خروج</button></div>
+  <div class="sp"><a class="btn ghost sm" id="to-admin" href="admin.html" hidden>🛠️ لوحة الإدارة</a><a class="btn ghost sm" id="to-rep" href="rep.html" hidden>🧭 المسوّقين</a><span class="who" id="who"></span><button class="btn ghost sm" id="logout" hidden>خروج</button></div>
 </div></header>
 
 <main>
@@ -26,6 +26,12 @@
   <!-- الدخول وإنشاء الحساب -->
   <section id="v-auth" class="narrow" hidden>
     <div class="card">
+      <p class="hint" style="margin-bottom:6px"><b>مين أنت؟</b></p>
+      <div class="roles" role="group" aria-label="نوع الحساب">
+        <a class="role" href="index.html#buyers"><b>🛍️ مشتري</b><span>قريبًا</span></a>
+        <a class="role on" href="merchant.html" aria-current="page"><b>🏪 تاجر</b><span>محل، أسرة، عربة</span></a>
+        <a class="role" href="rep.html"><b>🧭 مسوّق</b><span>الفريق الميداني</span></a>
+      </div>
       <!-- فيديو تعريفي يشتغل تلقائيًا (بدون صوت) لزوار الإعلانات؛ utm_content=families يعرض فيديو الأسر -->
       <video id="intro-video" class="intro-video" autoplay muted loop playsinline controls preload="metadata" poster="media/promo-9x16.jpg" aria-label="فيديو تعريفي بتحصّله">
         <source src="media/promo-9x16.mp4" type="video/mp4">
@@ -66,6 +72,19 @@
         <button class="btn ghost" type="button" id="forgot">نسيت كلمة المرور</button>
         <button class="btn ghost" type="button" id="forgot-wa" hidden>ما وصلني الرابط؟ تواصل واتساب</button>
       </form>
+    </div>
+  </section>
+
+  <!-- اختيار الوجهة لمن عنده أكثر من دور (إدارة / مسوّق / محل) بنفس الإيميل -->
+  <section id="v-roles" class="narrow" hidden>
+    <div class="card">
+      <h2>وين تبغى تدخل؟</h2>
+      <p class="hint" style="margin:6px 0 14px">إيميلك مسجّل في أكثر من مكان. اختر:</p>
+      <div class="roles col">
+        <a class="role" id="go-admin" href="admin.html" hidden><b>🛠️ الإدارة</b><span>مراجعة التجار والفريق الميداني</span></a>
+        <a class="role" id="go-rep" href="rep.html" hidden><b>🧭 المسوّقين</b><span>تطبيق المسوّق الميداني</span></a>
+        <button class="role" type="button" id="go-store" hidden><b>🏪 المحل التجاري</b><span>لوحة متجرك</span></button>
+      </div>
     </div>
   </section>
 

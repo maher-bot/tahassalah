@@ -1,7 +1,7 @@
 import { rememberLogin, hidePasswords, sb, $, $$, toast, clean, digits, valid, money, ACTIVITIES, PLANS, planLabel, STATUS, fileExt, shrinkImage, friendlyError, setBusy, trialInfo, fmtDay, OFFER_REASONS, KINDS, KIND_ICON, ACTIVITIES_BY_KIND } from './lib.js';
 import { pickLocation } from './mappick.js';
 
-const VIEWS = ['v-loading', 'v-auth', 'v-check-email', 'v-reset', 'v-apply', 'v-status', 'v-invites', 'v-dash'];
+const VIEWS = ['v-loading', 'v-auth', 'v-check-email', 'v-reset', 'v-apply', 'v-status', 'v-invites', 'v-dash', 'v-roles'];
 const show = id => { VIEWS.forEach(v => { $('#' + v).hidden = v !== id; }); window.scrollTo(0, 0); };
 const here = () => location.origin + location.pathname;
 
@@ -129,7 +129,7 @@ $('#f-reset').addEventListener('submit', async e => {
   recovering = false; toast('تم تغيير كلمة المرور.'); routedFor = undefined; route();
 });
 
-$('#logout').addEventListener('click', async () => { await sb.auth.signOut(); });
+$('#logout').addEventListener('click', async () => { try { sessionStorage.removeItem('tah-role'); } catch {} await sb.auth.signOut(); });
 
 sb.auth.onAuthStateChange((event, session) => {
   if (event === 'PASSWORD_RECOVERY') { recovering = true; show('v-reset'); return; }
@@ -147,10 +147,11 @@ async function route(session) {
   routedFor = user?.id ?? null;
   $('#who').textContent = user?.email ?? '';
   $('#logout').hidden = !user;
-  { const ta = $('#to-admin'); if (ta) ta.hidden = true; }
+  { const ta = $('#to-admin'); if (ta) ta.hidden = true; const tr = $('#to-rep'); if (tr) tr.hidden = true; }
   if (!user) return show('v-auth');
   // حساب الإدارة (اللي له متجر أيضًا) يشوف رابط لوحة الإدارة
   sb.rpc('is_admin').then(({ data }) => { const ta = $('#to-admin'); if (ta) ta.hidden = !data; });
+  sb.rpc('my_rep').then(({ data }) => { const tr = $('#to-rep'); if (tr) tr.hidden = !data?.[0]; });
 
   show('v-loading');
   const [m, inv, st] = await Promise.all([
@@ -160,6 +161,17 @@ async function route(session) {
   if (m.error) { $('#v-loading').textContent = friendlyError(m.error); return; }
   merchant = m.data; invites = inv.data || []; stores = st.data || [];
   if (invites.length && !skipInvites) return showInvites();
+  // نفس الإيميل له أكثر من دور: نسأله وين يدخل (مرة وحدة في الجلسة)
+  let chosen = null; try { chosen = sessionStorage.getItem('tah-role'); } catch {}
+  if (chosen !== 'merchant') {
+    const [ad, rp] = await Promise.all([sb.rpc('is_admin'), sb.rpc('my_rep')]);
+    const isAdmin = !!ad.data, isRep = !!rp.data?.[0];
+    const hasStore = !!merchant || stores.length > 0 || invites.length > 0;
+    const n = isAdmin + isRep + hasStore;
+    if (n > 1) return showRoles(isAdmin, isRep, hasStore);
+    if (isRep && n === 1) return location.replace('rep.html');
+    if (isAdmin && n === 1) return location.replace('admin.html');
+  }
   if (merchant?.status === 'approved' || stores.length) return openDash(pickStore());
   if (!merchant) return openApply();
   showStatus();
@@ -170,6 +182,12 @@ function pickStore() {
   const ids = [merchant?.status === 'approved' ? merchant.id : null, ...stores.map(s => s.merchant_id)].filter(Boolean);
   return ids.includes(saved) ? saved : ids[0];
 }
+
+function showRoles(isAdmin, isRep, hasStore) {
+  $('#go-admin').hidden = !isAdmin; $('#go-rep').hidden = !isRep; $('#go-store').hidden = !hasStore;
+  show('v-roles');
+}
+$('#go-store').addEventListener('click', () => { try { sessionStorage.setItem('tah-role', 'merchant'); } catch {} route(); });
 
 // ---------------- دعوات الانضمام ----------------
 function showInvites() {
