@@ -413,6 +413,17 @@
           </div>
           <p class="hint">لا تشحن قبل ما تتأكد من وصول المبلغ على حسابك. المنصة ما تستلم فلوس الطلب ولا الشحن.</p>
         </fieldset>
+        <fieldset id="rt-box"><legend>🧺 خدمة الاستلام والتسليم (مغسلة، خياط، تصليح...)</legend>
+          <label class="check"><input type="checkbox" name="service_roundtrip"> <span><b>أستلم من الزبون وأرجّع له</b><br><span class="hint">الزبون يختار خدماتك من قائمة أسعارك (منتجاتك)، ومندوبك يستلم من بيته ويرجّعها بعد التنفيذ.</span></span></label>
+          <div class="row2" id="rt-fields" hidden>
+            <label>رسوم الاستلام والتسليم (المشوارين)<input name="roundtrip_fee" inputmode="decimal" dir="ltr" value="0"></label>
+            <label><span>مجاني إذا الطلب فوق <span class="opt">(اختياري)</span></span><input name="roundtrip_free_over" inputmode="decimal" dir="ltr" placeholder="مثال: 100"></label>
+            <label>مدة التنفيذ العادية<select name="turnaround_hours"><option value="12">12 ساعة</option><option value="24">24 ساعة</option><option value="48" selected>48 ساعة</option><option value="72">72 ساعة</option><option value="120">5 أيام</option></select></label>
+            <label class="check" style="align-self:end"><input type="checkbox" name="express_enabled"> <span><b>⚡ أقدّم «مستعجل»</b></span></label>
+            <label>رسوم المستعجل<input name="express_fee" inputmode="decimal" dir="ltr" value="0"></label>
+            <label>مدة المستعجل<select name="express_hours"><option value="3">3 ساعات</option><option value="6">6 ساعات</option><option value="12">12 ساعة</option><option value="24" selected>24 ساعة</option></select></label>
+          </div>
+        </fieldset>
         <fieldset id="pay-box"><legend>الدفع عند الاستلام</legend>
           <p class="hint">المشتري يدفع لما يستلم طلبه، في المحل أو للمندوب. المنصة ما تستلم أي فلوس ولا تحتاج بوابة دفع. اختر اللي تقبله.</p>
           <label class="check"><input type="checkbox" name="pay_cash" checked> <span><b>نقدًا</b></span></label>

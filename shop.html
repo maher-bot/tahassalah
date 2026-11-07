@@ -60,6 +60,11 @@
         <label>العنوان (الحي، الشارع، علامة مميزة)<input name="address" maxlength="200"></label>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn ghost sm" type="button" id="c-locate">📍 موقعي الحالي</button><button class="btn ghost sm" type="button" id="c-map">🗺️ حدّد على الخريطة</button><span class="hint" id="c-loc"></span></div>
       </div>
+      <div id="c-rt" class="stack" hidden>
+        <label>متى يجيك المندوب يستلم؟<input type="datetime-local" name="collect_at"></label>
+        <label class="check" id="c-express-row" hidden><input type="checkbox" name="express"> <span id="c-express-lbl"></span></label>
+        <p class="hint" id="c-rt-hint"></p>
+      </div>
       <fieldset><legend>الدفع</legend><div class="opt-grid" id="c-pay"></div></fieldset>
       <label><span>ملاحظة للمحل <span class="opt">(اختياري)</span></span><input name="note" maxlength="300"></label>
       <div class="note" id="c-total"></div>

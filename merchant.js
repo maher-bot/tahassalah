@@ -1291,7 +1291,7 @@ const isPerson = () => !!(merchant?.kind && merchant.kind !== 'store');
 // الأسر والمتنقلون: نقدًا أو تحويل على الحساب. المحلات: نقدًا أو بطاقة (في المحل أو للمندوب)، وتقسيط تابي أو تمارا في المحل بحساب التاجر نفسه.
 const syncPay = () => {
   const person = isPerson(), show = (id, on) => { const el = $(id); if (el) el.hidden = !on; };
-  show('#pay-card-row', !person); show('#pay-tabby-row', !person); show('#pay-tamara-row', !person); show('#pay-transfer-row', person); show('#pay-card-delivery-row', !person && fset.delivers.checked);
+  show('#pay-card-row', !person); show('#pay-tabby-row', !person); show('#pay-tamara-row', !person); show('#pay-transfer-row', person); show('#pay-card-delivery-row', !person && (fset.delivers.checked || fset.service_roundtrip.checked));
   if (person) { fset.pay_card.checked = false; fset.pay_card_delivery.checked = false; if (fset.pay_tabby) { fset.pay_tabby.checked = false; fset.pay_tamara.checked = false; } }
   else { if (fset.pay_transfer) fset.pay_transfer.checked = false; if (!fset.delivers.checked) fset.pay_card_delivery.checked = false; }
 };
@@ -1319,6 +1319,10 @@ async function loadSettings() {
   fset.prep_minutes.value = String(d.prep_minutes ?? 15); fset.note.value = d.note ?? '';
   if (fset.pay_cash) { fset.pay_cash.checked = d.pay_cash ?? true; fset.pay_card.checked = d.pay_card ?? false; fset.pay_card_delivery.checked = d.pay_card_delivery ?? false; if (fset.pay_transfer) fset.pay_transfer.checked = d.pay_transfer ?? false; if (fset.pay_tabby) { const sb0 = merchant?.bnpl || []; fset.pay_tabby.checked = d.pay_tabby ?? sb0.includes('tabby'); fset.pay_tamara.checked = d.pay_tamara ?? sb0.includes('tamara'); } }
   renderPayLink(); renderMyData();
+  fset.service_roundtrip.checked = !!d.service_roundtrip; fset.roundtrip_fee.value = d.roundtrip_fee ?? 0; fset.roundtrip_free_over.value = d.roundtrip_free_over ?? '';
+  fset.turnaround_hours.value = String(d.turnaround_hours ?? 48); fset.express_enabled.checked = !!d.express_enabled;
+  fset.express_fee.value = d.express_fee ?? 0; fset.express_hours.value = String(d.express_hours ?? 24);
+  $('#rt-fields').hidden = !fset.service_roundtrip.checked;
   if (fset.ships_intercity) {
     fset.ships_intercity.checked = d.ships_intercity ?? false; fset.intercity_fee_mode.value = d.intercity_fee_mode ?? 'negotiable';
     fset.intercity_fee.value = d.intercity_fee ?? ''; fset.intercity_eta.value = d.intercity_eta ?? ''; fset.intercity_note.value = d.intercity_note ?? '';
@@ -1326,12 +1330,16 @@ async function loadSettings() {
   if (![...fset.prep_minutes.options].some(o => o.value === fset.prep_minutes.value)) fset.prep_minutes.value = '15';
   syncDelivery(); syncIntercity();
 }
+fset.service_roundtrip.addEventListener('change', () => { $('#rt-fields').hidden = !fset.service_roundtrip.checked; syncPay(); });
 fset.addEventListener('submit', async e => {
   e.preventDefault();
   const err = $('.err', fset), btn = $('#settings-save');
-  if (!fset.pickup.checked && !fset.delivers.checked && !fset.ships_intercity?.checked) return (err.textContent = 'اختر الاستلام أو التوصيل (المحلي أو لمدن ثانية).');
+  if (!fset.pickup.checked && !fset.delivers.checked && !fset.ships_intercity?.checked && !fset.service_roundtrip.checked) return (err.textContent = 'اختر الاستلام أو التوصيل (المحلي أو لمدن ثانية) أو خدمة الاستلام والتسليم.');
+  const rt = fset.service_roundtrip.checked, rtFee = num(fset.roundtrip_fee.value) ?? 0, rtOver = num(fset.roundtrip_free_over.value), exFee = num(fset.express_fee.value) ?? 0;
+  if (rt && !(rtFee >= 0 && rtFee <= 500)) return (err.textContent = 'رسوم الاستلام والتسليم من 0 إلى 500 ريال.');
+  if (rt && fset.express_enabled.checked && !(exFee >= 0 && exFee <= 500)) return (err.textContent = 'رسوم المستعجل من 0 إلى 500 ريال.');
   const person = isPerson();
-  const cardDelivery = !person && fset.delivers.checked && fset.pay_card_delivery.checked;
+  const cardDelivery = !person && (fset.delivers.checked || fset.service_roundtrip.checked) && fset.pay_card_delivery.checked;
   const card = !person && fset.pay_card.checked, transfer = person && !!fset.pay_transfer?.checked;
   if (!fset.pay_cash.checked && !card && !cardDelivery && !transfer) return (err.textContent = 'اختر طريقة دفع واحدة على الأقل.');
   const ships = !!fset.ships_intercity?.checked, feeMode = fset.intercity_fee_mode?.value || 'negotiable', interFee = num(fset.intercity_fee?.value);
@@ -1348,6 +1356,8 @@ fset.addEventListener('submit', async e => {
     prep_minutes: Number(fset.prep_minutes.value), note: fset.note.value.trim() || null,
     pay_cash: fset.pay_cash.checked, pay_card: card, pay_card_delivery: cardDelivery, pay_transfer: transfer,
     ...(fset.pay_tabby ? { pay_tabby: !person && fset.pay_tabby.checked, pay_tamara: !person && fset.pay_tamara.checked } : {}),
+    service_roundtrip: rt, roundtrip_fee: rtFee, roundtrip_free_over: rt ? rtOver : null, turnaround_hours: Number(fset.turnaround_hours.value),
+    express_enabled: rt && fset.express_enabled.checked, express_fee: exFee, express_hours: Number(fset.express_hours.value),
     ships_intercity: ships, intercity_fee_mode: feeMode, intercity_fee: ships && feeMode === 'buyer_fixed' ? interFee : null,
     intercity_eta: ships ? (fset.intercity_eta.value.trim() || null) : null, intercity_note: ships ? (fset.intercity_note.value.trim() || null) : null,
   };
@@ -1640,9 +1650,12 @@ $('#f-iban')?.addEventListener('submit', async e => {
 
 // ---------------- طلبات المشترين ----------------
 const O_STATUS = { placed: ['جديد', 'pending'], accepted: ['مقبول', 'approved'], preparing: ['جاري التجهيز', 'approved'], ready: ['جاهز', 'approved'],
-  out: ['مع المندوب', 'approved'], delivered: ['تم التسليم', 'approved'], picked_up: ['تم الاستلام', 'approved'], rejected: ['مرفوض', 'rejected'], cancelled: ['ملغي', 'suspended'] };
+  out: ['مع المندوب', 'approved'], delivered: ['تم التسليم', 'approved'], picked_up: ['تم الاستلام', 'approved'], rejected: ['مرفوض', 'rejected'], cancelled: ['ملغي', 'suspended'],
+  to_collect: ['بانتظار الاستلام من الزبون', 'pending'], collecting: ['المندوب رايح يستلم', 'approved'], at_store: ['وصلت المحل', 'approved'], processing: ['قيد التنفيذ', 'approved'] };
 const O_PAY = { cash: 'نقدًا', card: 'شبكة', transfer: 'تحويل', tabby: 'تابي', tamara: 'تمارا' };
-const ACTIVE = ['placed', 'accepted', 'preparing', 'ready', 'out'];
+const ACTIVE = ['placed', 'accepted', 'preparing', 'ready', 'out', 'to_collect', 'collecting', 'at_store', 'processing'];
+const FUL = { delivery: '🛵 توصيل', pickup: '🏪 استلام من المحل', roundtrip: '🧺 استلام وتسليم' };
+const when = d => new Date(d).toLocaleString('ar-SA-u-nu-latn-ca-gregory', { weekday: 'short', hour: 'numeric', minute: '2-digit', day: 'numeric', month: 'short' });
 let ordersCache = [], seenNew = new Set(), pollTimer = null, primed = false;
 const mapLink = o => o.lat != null ? `https://www.google.com/maps/dir/?api=1&destination=${o.lat},${o.lng}` : null;
 const waLink = p => p ? 'https://wa.me/966' + String(p).replace(/\D/g, '').replace(/^(966|0)/, '') : null;
@@ -1663,34 +1676,82 @@ function orderBox(o, mode) {
   const line = (txt, cls = 'hint') => { const p = document.createElement('div'); p.className = cls; p.textContent = txt; el.append(p); return p; };
   if (mode === 'driver') line(`🏪 ${o.store_name}${o.store_district ? ' · ' + o.store_district : ''}`, '');
   line(o.items.map(i => `${i.name} × ${i.qty}`).join('، '), '');
-  line(`${money(o.total)} · ${o.fulfillment === 'delivery' ? '🛵 توصيل' : '🏪 استلام'} · ${O_PAY[o.payment_method]} · ${o.payment_status === 'paid' ? 'مدفوع ✓' : o.payment_status === 'proof' ? '📎 وصل إيصال تحويل' : 'غير مدفوع'}`);
+  line(`${money(o.total)} · ${FUL[o.fulfillment]}${o.express ? ' ⚡ مستعجل' : ''} · ${O_PAY[o.payment_method]} · ${o.payment_status === 'paid' ? 'مدفوع ✓' : o.payment_status === 'proof' ? '📎 وصل إيصال تحويل' : 'غير مدفوع'}`);
   line(new Date(o.created_at).toLocaleString('ar-SA-u-nu-latn-ca-gregory', { hour: 'numeric', minute: '2-digit', day: 'numeric', month: 'short' }));
-  if (o.fulfillment === 'delivery' && o.address) line('📍 ' + o.address);
-  else if (o.fulfillment === 'delivery' && mode === 'orders') line('📍 عنوان الزبون وجواله يطلعون للمندوب بعد التحويل.');
+  if (o.fulfillment !== 'pickup' && o.address) line('📍 ' + o.address);
+  else if (o.fulfillment !== 'pickup' && mode === 'orders') line('📍 عنوان الزبون وجواله يطلعون للمندوب بعد التحويل.');
+  if (o.fulfillment === 'roundtrip') {
+    if (o.collect_at && ['placed', 'accepted', 'to_collect', 'collecting'].includes(o.status)) line('🕒 وقت الاستلام من الزبون: ' + when(o.collect_at), '');
+    if (o.return_due_at && !['delivered', 'rejected', 'cancelled'].includes(o.status)) line('⏰ يرجع للزبون قبل: ' + when(o.return_due_at), '');
+    if (o.collect_driver_name && mode === 'orders') line('🧺 مندوب الاستلام: ' + o.collect_driver_name);
+    if (o.adjust_pending) line('⚠️ تعدّل العدد، بانتظار موافقة الزبون على المبلغ الجديد' + (o.adjust_note ? ': ' + o.adjust_note : ''), 'low');
+  }
   if (o.note) line('📝 ' + o.note);
-  if (o.driver_name && mode === 'orders') line('🛵 المندوب: ' + o.driver_name);
+  if (o.driver_name && mode === 'orders') line((o.fulfillment === 'roundtrip' ? '🛵 مندوب التسليم: ' : '🛵 المندوب: ') + o.driver_name);
   if (o.collected_amount != null) line(`استلم المندوب ${money(o.collected_amount)} ${o.collected_method === 'card' ? 'شبكة' : 'نقدًا'}`);
   const acts = document.createElement('div'); acts.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
   const btn = (txt, cls, fn) => { const x = document.createElement('button'); x.type = 'button'; x.className = 'btn sm ' + cls; x.textContent = txt; x.onclick = fn; acts.append(x); return x; };
   const link = (txt, href) => { if (!href) return; const a = document.createElement('a'); a.className = 'btn ghost sm'; a.textContent = txt; a.href = href; a.target = '_blank'; a.rel = 'noopener'; acts.append(a); };
+  const pickDriver = (label, action) => {
+    const sel = document.createElement('select'); sel.style.width = 'auto'; sel.append(new Option('اختر المندوب…', ''));
+    sb.rpc('store_drivers', { mid: o.merchant_id }).then(({ data }) => {
+      (data || []).forEach(d => sel.append(new Option(`${d.name || d.email}${d.open_orders ? ` (معه ${d.open_orders})` : ''}`, d.id)));
+      if (!data?.length) sel.replaceChildren(new Option('ما عندك مندوب مفعّل. أضفه من «الفريق».', ''));
+    });
+    acts.append(sel);
+    btn(label, 'primary', () => { if (!sel.value) return toast('اختر المندوب.'); orderAct(o, action, { staff_id: sel.value }); });
+  };
+  const adjustBtn = () => btn('✏️ تعديل العدد', 'ghost', () => {
+    const items = [];
+    for (const i of o.items) {
+      const v = prompt(`${i.name}: العدد الفعلي؟ (0 = شيله)`, String(i.qty));
+      if (v == null) return;
+      const n = Number(digits(v)); if (!(n >= 0)) return toast('رقم غير صحيح.');
+      if (n !== i.qty) items.push({ id: i.id, qty: n });
+    }
+    if (!items.length) return toast('ما فيه تغيير.');
+    const note = prompt('ملاحظة للزبون (اختياري):', '') ?? '';
+    orderAct(o, 'adjust', { items, note });
+  });
+  if ((o.collect_photos || []).length) btn(`📷 صور الاستلام (${o.collect_photos.length})`, 'ghost', async () => {
+    for (const p of o.collect_photos) { const { data } = await sb.storage.from('receipts').createSignedUrl(p, 300); if (data) open(data.signedUrl, '_blank'); }
+  });
   if (o.buyer_phone) { link('📞 اتصال', 'tel:+966' + String(o.buyer_phone).replace(/\D/g, '').replace(/^(966|0)/, '')); link('💬 واتساب الزبون', waLink(o.buyer_phone)); }
   if (mode === 'orders') {
     if (o.payment_proof && o.payment_status === 'proof') btn('📎 الإيصال', 'ghost', async () => { const { data } = await sb.storage.from('receipts').createSignedUrl(o.payment_proof, 300); if (data) open(data.signedUrl, '_blank'); });
     if (o.status === 'placed') { btn('✓ قبول', 'primary', () => orderAct(o, 'accept')); btn('رفض', 'ghost', () => { const r = prompt('سبب الرفض (يشوفه الزبون):'); if (r != null) orderAct(o, 'reject', { reason: r }); }); }
-    if (o.status === 'accepted') btn('جاري التجهيز', 'ghost', () => orderAct(o, 'preparing'));
+    if (o.status === 'accepted' && o.fulfillment !== 'roundtrip') btn('جاري التجهيز', 'ghost', () => orderAct(o, 'preparing'));
+    if (o.fulfillment === 'roundtrip') {
+      if (o.status === 'accepted') pickDriver('🧺 حوّل لمندوب الاستلام', 'assign_collect');
+      if (o.status === 'at_store') { adjustBtn(); if (!o.adjust_pending) btn('▶️ بدأ التنفيذ', 'primary', () => orderAct(o, 'processing')); }
+      if (o.status === 'processing') btn('✓ جاهز للتسليم', 'primary', () => orderAct(o, 'ready'));
+      if (o.status === 'ready' && !o.driver_user_id) pickDriver('🛵 حوّل لمندوب التسليم', 'assign');
+    }
     if (['accepted', 'preparing'].includes(o.status) && o.fulfillment === 'pickup') btn('جاهز للاستلام', 'ghost', () => orderAct(o, 'ready'));
     if (o.payment_status !== 'paid' && ['accepted', 'preparing', 'ready'].includes(o.status) && ['transfer', 'tabby', 'tamara'].includes(o.payment_method)) btn('✓ تم الدفع', 'ghost', () => { if (confirm('تأكدت إن المبلغ وصل؟')) orderAct(o, 'paid'); });
     if (o.fulfillment === 'pickup' && ['accepted', 'preparing', 'ready'].includes(o.status)) btn('✓ استلمه الزبون', 'primary', () => { if (confirm(o.payment_status === 'paid' ? 'الزبون استلم طلبه؟' : `الزبون استلم ودفع ${money(o.total)}؟`)) orderAct(o, 'picked_up'); });
-    if (o.fulfillment === 'delivery' && ['accepted', 'preparing', 'ready'].includes(o.status) && !o.driver_user_id) {
-      const sel = document.createElement('select'); sel.style.width = 'auto'; sel.append(new Option('اختر المندوب…', ''));
-      sb.rpc('store_drivers', { mid: ctx.mid }).then(({ data }) => {
-        (data || []).forEach(d => sel.append(new Option(`${d.name || d.email}${d.open_orders ? ` (معه ${d.open_orders})` : ''}`, d.id)));
-        if (!data?.length) sel.replaceChildren(new Option('ما عندك مندوب مفعّل. أضفه من «الفريق».', ''));
-      });
-      acts.append(sel);
-      btn('🛵 حوّل للمندوب', 'primary', () => { if (!sel.value) return toast('اختر المندوب.'); orderAct(o, 'assign', { staff_id: sel.value }); });
-    }
-    if (['accepted', 'preparing'].includes(o.status)) btn('إلغاء', 'ghost', () => { const r = prompt('سبب الإلغاء (يشوفه الزبون):'); if (r != null) orderAct(o, 'reject', { reason: r }); });
+    if (o.fulfillment === 'delivery' && ['accepted', 'preparing', 'ready'].includes(o.status) && !o.driver_user_id) pickDriver('🛵 حوّل للمندوب', 'assign');
+    if (['accepted', 'preparing', 'to_collect'].includes(o.status)) btn('إلغاء', 'ghost', () => { const r = prompt('سبب الإلغاء (يشوفه الزبون):'); if (r != null) orderAct(o, 'reject', { reason: r }); });
+  } else if (['to_collect', 'collecting'].includes(o.status)) {
+    // مشوار الاستلام من الزبون
+    link('🗺️ موقع الزبون', mapLink(o));
+    if (o.status === 'to_collect') btn('🛵 رايح أستلم', 'primary', () => orderAct(o, 'collecting'));
+    adjustBtn();
+    const up = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*', multiple: true, capture: 'environment' }); up.hidden = true;
+    acts.append(up);
+    btn('📷 استلمت (صوّر الأغراض)', 'primary', () => up.click());
+    up.onchange = async () => {
+      const photos = [];
+      try {
+        for (const f of [...up.files].slice(0, 8)) {
+          const sm = await shrinkImage(f, 1400), path = `${user.id}/${o.number}-collect-${Date.now()}-${photos.length}.${fileExt(sm)}`;
+          const r = await sb.storage.from('receipts').upload(path, sm, { contentType: sm.type || undefined }); if (r.error) throw r.error;
+          photos.push(path);
+        }
+      } catch (ex) { return toast(friendlyError(ex)); }
+      orderAct(o, 'collected', { photos });
+    };
+    if (o.store_lat != null) link('🏪 موقع المحل', `https://www.google.com/maps/dir/?api=1&destination=${o.store_lat},${o.store_lng}`);
   } else {
     if (['ready'].includes(o.status) && o.store_lat != null) link('🏪 موقع المحل', `https://www.google.com/maps/dir/?api=1&destination=${o.store_lat},${o.store_lng}`);
     link('🗺️ موقع الزبون', mapLink(o));
@@ -1740,10 +1801,14 @@ function pollOrders() {
 async function loadDeliveries() {
   const start = new Date(); start.setHours(0, 0, 0, 0);
   // كل المحلات اللي يوصّل لها في قائمة وحدة
-  const { data, error } = await sb.from('orders_v').select('*').eq('driver_user_id', user.id)
-    .or(`status.in.(ready,out),done_at.gte.${start.toISOString()}`).order('created_at', { ascending: false });
+  const { data: all, error } = await sb.from('orders_v').select('*')
+    .or(`driver_user_id.eq.${user.id},collect_driver_user_id.eq.${user.id}`).gte('updated_at', new Date(Date.now() - 7 * 864e5).toISOString())
+    .order('created_at', { ascending: false });
+  // مهامي: استلام من الزبون، توصيل/تسليم، والمسلّم اليوم
+  const data = (all || []).filter(o => (o.collect_driver_user_id === user.id && ['to_collect', 'collecting'].includes(o.status))
+    || (o.driver_user_id === user.id && (['ready', 'out'].includes(o.status) || (o.done_at && new Date(o.done_at) >= start))));
   if (error) return toast(friendlyError(error));
-  const open = data.filter(o => ['ready', 'out'].includes(o.status));
+  const open = data.filter(o => ['ready', 'out', 'to_collect', 'collecting'].includes(o.status));
   const byStore = {};
   data.filter(o => o.collected_method === 'cash').forEach(o => { byStore[o.store_name] = (byStore[o.store_name] || 0) + Number(o.collected_amount); });
   const cashTxt = Object.entries(byStore).map(([s, v]) => `${s}: ${money(v)}`).join(' · ');

@@ -14,7 +14,9 @@ const km = (a, b) => { const R = 6371, r = x => x * Math.PI / 180; const d = Mat
 const STATUS = {
   placed: ['وصل المحل، بانتظار القبول', 1], accepted: ['المحل قبل طلبك', 2], preparing: ['جاري التجهيز', 3], ready: ['جاهز', 4],
   out: ['مع المندوب في الطريق 🛵', 5], delivered: ['تم التسليم ✓', 6], picked_up: ['تم الاستلام ✓', 6], rejected: ['اعتذر المحل', 0], cancelled: ['ملغي', 0],
+  to_collect: ['المندوب بيجيك يستلم', 2], collecting: ['المندوب في الطريق لك يستلم 🛵', 2], at_store: ['وصلت أغراضك المحل', 3], processing: ['قيد التنفيذ 🧺', 3],
 };
+const when = d => new Date(d).toLocaleString('ar-SA-u-nu-latn-ca-gregory', { weekday: 'short', hour: 'numeric', minute: '2-digit', day: 'numeric', month: 'short' });
 const PAY = { cash: 'نقدًا عند الاستلام', card: 'شبكة (مدى/بطاقة) عند الاستلام', transfer: 'تحويل بنكي للمحل', tabby: 'تابي في المحل', tamara: 'تمارا في المحل' };
 
 let user = null, buyer = null, here = null, stores = [], cur = null, settings = null, products = [];
@@ -37,7 +39,7 @@ function setQty(p, qty) {
   }
   c.mid = cur.id; c.store = cur.store_name;
   if (qty <= 0) delete c.items[p.id];
-  else c.items[p.id] = { qty: Math.min(qty, p.quantity ?? 999), name: p.name, price: unitPrice(p) };
+  else c.items[p.id] = { qty: Math.min(qty, settings?.service_roundtrip ? 999 : (p.quantity ?? 999)), name: p.name, price: unitPrice(p) };
   cart.save(c); renderCartBar();
 }
 const unitPrice = p => p.sale_price != null && (!p.offer_ends_at || new Date(p.offer_ends_at) > new Date()) ? Number(p.sale_price) : Number(p.price);
@@ -91,6 +93,7 @@ async function openStore(s) {
   products = p.data || []; settings = ss.data || { pickup: true, pay_cash: true };
   $('#st-name').textContent = s.store_name;
   const info = [s.activity, settings.pickup !== false && 'استلام من المحل', settings.delivers && `توصيل ${Number(settings.delivery_fee) ? sar(settings.delivery_fee) : 'مجاني'}`,
+    settings.service_roundtrip && `🧺 استلام وتسليم من بيتك ${Number(settings.roundtrip_fee) ? sar(settings.roundtrip_fee) : 'مجاني'}`,
     settings.min_order && `أقل طلب ${sar(settings.min_order)}`].filter(Boolean);
   $('#st-info').textContent = info.join(' · ');
   $('#pq').value = '';
@@ -101,18 +104,19 @@ function renderProducts() {
   const q = $('#pq').value.trim(), c = cart.get();
   const list = products.filter(p => !q || p.name.includes(q) || (p.category || '').includes(q));
   $('#products').replaceChildren(...list.map(p => {
-    const el = mk('div', 'prod' + (p.quantity === 0 ? ' off' : ''));
+    const svc = !!settings.service_roundtrip, out = !svc && p.quantity === 0;
+    const el = mk('div', 'prod' + (out ? ' off' : ''));
     const src = imgUrl(p.image_path);
     if (src) { const i = mk('img'); i.src = src; i.alt = ''; i.loading = 'lazy'; el.append(i); } else el.append(mk('div', 'ph', p.name.slice(0, 1)));
     const t = mk('div'); t.style.minWidth = '0';
     const m = mk('div', 'm'); const up = unitPrice(p);
     m.append(mk('b', 'num', sar(up)));
     if (up !== Number(p.price)) m.append(Object.assign(mk('s', 'num', sar(p.price))));
-    if (p.quantity === 0) m.append(mk('span', 'low', 'نفد'));
+    if (out) m.append(mk('span', 'low', 'نفد'));
     t.append(mk('div', 'n', p.name), m); el.append(t);
     const inCart = c.mid === cur.id ? c.items[p.id]?.qty || 0 : 0;
     const box = mk('div', 'qty');
-    if (p.quantity !== 0) {
+    if (!out) {
       if (inCart) {
         const minus = mk('button', '', '−'); minus.type = 'button'; minus.onclick = () => { setQty(p, inCart - 1); renderProducts(); };
         const plus = mk('button', '', '+'); plus.type = 'button'; plus.onclick = () => { setQty(p, inCart + 1); renderProducts(); };
@@ -157,7 +161,13 @@ function openCart() {
   const ful = [];
   if (settings.pickup !== false) ful.push(radio('ful', 'pickup', 'استلام من المحل', '', true));
   if (settings.delivers) ful.push(radio('ful', 'delivery', 'توصيل', Number(settings.delivery_fee) ? `(${sar(settings.delivery_fee)}${settings.free_delivery_over ? `، مجاني فوق ${sar(settings.free_delivery_over)}` : ''})` : '(مجاني)', !ful.length));
+  if (settings.service_roundtrip) ful.unshift(radio('ful', 'roundtrip', '🧺 استلام وتسليم من بيتك', Number(settings.roundtrip_fee)
+    ? `(${sar(settings.roundtrip_fee)} للمشوارين${settings.roundtrip_free_over ? `، مجاني فوق ${sar(settings.roundtrip_free_over)}` : ''})` : '(مجاني)', true));
+  if (settings.service_roundtrip) ful.forEach((x, i) => { if (i) x.querySelector('input').checked = false; });
   $('#c-ful').replaceChildren(...ful);
+  const ex = $('#c-express-row'); ex.hidden = !settings.express_enabled;
+  $('#c-express-lbl').textContent = `⚡ مستعجل: يرجع لك خلال ${settings.express_hours || 24} ساعة (+${sar(settings.express_fee)})`;
+  if (!fo.collect_at.value) { const d = new Date(Date.now() + 2 * 36e5); d.setMinutes(0, 0, 0); fo.collect_at.value = new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); }
   if (!ful.length) $('#c-ful').append(mk('p', 'err', 'المحل ما فعّل الاستلام ولا التوصيل.'));
   renderPay(); updateTotal();
   show('v-cart');
@@ -165,23 +175,29 @@ function openCart() {
 function fulVal() { return fo.querySelector('input[name=ful]:checked')?.value; }
 function renderPay() {
   const f = fulVal(), opts = [];
-  if (settings.pay_cash !== false) opts.push(['cash', f === 'delivery' ? 'نقدًا للمندوب' : 'نقدًا في المحل']);
-  if (f === 'delivery' ? settings.pay_card_delivery : settings.pay_card) opts.push(['card', f === 'delivery' ? 'شبكة (مدى/بطاقة) عند المندوب' : 'شبكة (مدى/بطاقة) في المحل']);
+  if (settings.pay_cash !== false) opts.push(['cash', f === 'pickup' ? 'نقدًا في المحل' : f === 'roundtrip' ? 'نقدًا للمندوب عند التسليم' : 'نقدًا للمندوب']);
+  const door = f === 'delivery' || f === 'roundtrip';
+  if (door ? settings.pay_card_delivery : settings.pay_card) opts.push(['card', door ? 'شبكة (مدى/بطاقة) عند المندوب' : 'شبكة (مدى/بطاقة) في المحل']);
   if (settings.pay_transfer) opts.push(['transfer', 'تحويل بنكي للمحل', 'تحوّل بعد ما يقبل المحل طلبك، وترفع الإيصال']);
   if (f === 'pickup' && settings.pay_tabby) opts.push(['tabby', 'تقسيط تابي في المحل']);
   if (f === 'pickup' && settings.pay_tamara) opts.push(['tamara', 'تقسيط تمارا في المحل']);
   $('#c-pay').replaceChildren(...opts.map(([v, l, h], i) => radio('pay', v, l, h || '', i === 0)));
-  $('#c-addr').hidden = f !== 'delivery';
+  $('#c-addr').hidden = f === 'pickup';
+  $('#c-rt').hidden = f !== 'roundtrip';
+  $('#c-rt-hint').textContent = f === 'roundtrip' ? `يرجع لك خلال ${fo.express?.checked ? settings.express_hours || 24 : settings.turnaround_hours || 48} ساعة من الاستلام. لو العدد اختلف وقت الاستلام، يتعدّل المبلغ وتوافق عليه.` : '';
 }
-fo.addEventListener('change', e => { if (e.target.name === 'ful') { renderPay(); updateTotal(); } });
+fo.addEventListener('change', e => { if (e.target.name === 'ful' || e.target.name === 'express') { renderPay(); updateTotal(); } });
 function fee() {
-  if (fulVal() !== 'delivery') return 0;
-  const sub = cart.sum();
-  return settings.free_delivery_over && sub >= Number(settings.free_delivery_over) ? 0 : Number(settings.delivery_fee || 0);
+  const sub = cart.sum(), f = fulVal();
+  if (f === 'delivery') return settings.free_delivery_over && sub >= Number(settings.free_delivery_over) ? 0 : Number(settings.delivery_fee || 0);
+  if (f === 'roundtrip') return (settings.roundtrip_free_over && sub >= Number(settings.roundtrip_free_over) ? 0 : Number(settings.roundtrip_fee || 0))
+    + (fo.express.checked ? Number(settings.express_fee || 0) : 0);
+  return 0;
 }
 function updateTotal() {
   const sub = cart.sum(), f = fee();
-  $('#c-total').textContent = `المنتجات ${sar(sub)}${fulVal() === 'delivery' ? ` + التوصيل ${sar(f)}` : ''} = الإجمالي ${sar(sub + f)}`;
+  const lbl = fulVal() === 'delivery' ? ' + التوصيل ' + sar(f) : fulVal() === 'roundtrip' ? ' + الاستلام والتسليم' + (fo.express.checked ? ' والمستعجل ' : ' ') + sar(f) : '';
+  $('#c-total').textContent = `المنتجات ${sar(sub)}${lbl} = الإجمالي ${sar(sub + f)}`;
 }
 $('#c-locate').addEventListener('click', () => {
   $('#c-loc').textContent = 'جارِ تحديد موقعك…';
@@ -192,7 +208,7 @@ $('#c-map').addEventListener('click', async () => { const p = await pickLocation
 
 const ERR = {
   store_unavailable: 'المحل مو متاح الحين.', delivery_unavailable: 'المحل ما يوصّل الحين.', pickup_unavailable: 'الاستلام من المحل مو متاح.',
-  address_required: 'اكتب العنوان وحدّد موقعك.', payment_unavailable: 'طريقة الدفع هذي مو متاحة.', product_unavailable: 'فيه منتج ما عاد متوفر. حدّث السلة.',
+  address_required: 'اكتب العنوان وحدّد موقعك.', collect_time_required: 'اختر وقت استلام خلال الأسبوعين الجايات.', roundtrip_unavailable: 'المحل ما يقدّم الاستلام والتسليم الحين.', payment_unavailable: 'طريقة الدفع هذي مو متاحة.', product_unavailable: 'فيه منتج ما عاد متوفر. حدّث السلة.',
   cart_empty: 'السلة فاضية.', cannot_cancel: 'المحل قبل الطلب، ما تقدر تلغيه. تواصل معه.',
 };
 const why = e => { const m = String(e?.message || e); for (const k in ERR) if (m.includes(k)) return ERR[k];
@@ -204,13 +220,15 @@ fo.addEventListener('submit', async e => {
   const err = $('.err', fo), btn = $('#c-place'), f = fulVal(), pay = fo.querySelector('input[name=pay]:checked')?.value;
   if (!f) return (err.textContent = 'اختر طريقة الاستلام.');
   if (!pay) return (err.textContent = 'اختر طريقة الدفع.');
-  if (f === 'delivery' && (!coords || fo.address.value.trim().length < 4)) return (err.textContent = 'اكتب العنوان وحدّد موقعك.');
+  if (f !== 'pickup' && (!coords || fo.address.value.trim().length < 4)) return (err.textContent = 'اكتب العنوان وحدّد موقعك.');
+  if (f === 'roundtrip' && !fo.collect_at.value) return (err.textContent = 'اختر وقت الاستلام.');
   if (!(await ensureBuyer(() => openCart()))) return;
   const c = cart.get();
   setBusy(btn, true);
   const { data, error } = await sb.rpc('place_order', {
     mid: c.mid, items: Object.entries(c.items).map(([product_id, x]) => ({ product_id, qty: x.qty })), fulfillment: f, payment_method: pay,
-    address: f === 'delivery' ? fo.address.value.trim() : null, lat: f === 'delivery' ? coords.lat : null, lng: f === 'delivery' ? coords.lng : null, note: fo.note.value.trim() || null,
+    address: f !== 'pickup' ? fo.address.value.trim() : null, lat: f !== 'pickup' ? coords.lat : null, lng: f !== 'pickup' ? coords.lng : null, note: fo.note.value.trim() || null,
+    collect_at: f === 'roundtrip' ? new Date(fo.collect_at.value).toISOString() : null, express: f === 'roundtrip' && fo.express.checked,
   });
   setBusy(btn, false);
   if (error) return (err.textContent = why(error));
@@ -293,7 +311,18 @@ function orderCard(o, storeName) {
   c.append(head);
   if (step > 0) { const st = mk('div', 'steps'); for (let i = 1; i <= 6; i++) st.append(mk('i', i <= step ? 'on' : '')); c.append(st); }
   c.append(mk('div', 'hint', o.items.map(i => `${i.name} × ${i.qty}`).join('، ')));
-  c.append(mk('div', 'num', `الإجمالي ${sar(o.total)} · ${o.fulfillment === 'delivery' ? 'توصيل' : 'استلام من المحل'} · ${PAY[o.payment_method]}${o.payment_status === 'paid' ? ' · مدفوع ✓' : o.payment_status === 'proof' ? ' · وصل الإيصال' : ''}`));
+  if (o.fulfillment === 'roundtrip') {
+    if (o.collect_at && ['placed', 'accepted', 'to_collect', 'collecting'].includes(o.status)) c.append(mk('div', 'hint', '🕒 الاستلام منك: ' + when(o.collect_at)));
+    if (o.return_due_at && !['delivered', 'rejected', 'cancelled'].includes(o.status)) c.append(mk('div', 'hint', '⏰ يرجع لك قبل: ' + when(o.return_due_at)));
+    if (o.adjust_pending) {
+      const box = mk('div', 'note stack');
+      box.append(mk('b', '', `تعدّل العدد وقت الاستلام. المبلغ الجديد ${sar(o.total)}`), mk('div', 'hint', o.items.map(i => `${i.name} × ${i.qty}`).join('، ') + (o.adjust_note ? ' · ' + o.adjust_note : '')));
+      const ok = mk('button', 'btn primary sm', '✓ موافق على التعديل'); ok.type = 'button';
+      ok.onclick = async () => { const { error } = await sb.rpc('order_action_v', { oid: o.id, action: 'approve_adjust', args: {} }); if (error) return toast(why(error)); toast('تمت الموافقة ✓'); openOrders(); };
+      box.append(ok); c.append(box);
+    }
+  }
+  c.append(mk('div', 'num', `الإجمالي ${sar(o.total)} · ${o.fulfillment === 'delivery' ? 'توصيل' : o.fulfillment === 'roundtrip' ? 'استلام وتسليم' + (o.express ? ' ⚡ مستعجل' : '') : 'استلام من المحل'} · ${PAY[o.payment_method]}${o.payment_status === 'paid' ? ' · مدفوع ✓' : o.payment_status === 'proof' ? ' · وصل الإيصال' : ''}`));
   if (o.driver_name && ['ready', 'out'].includes(o.status)) c.append(mk('div', 'hint', `🛵 المندوب: ${o.driver_name}`));
   if (o.reason) c.append(mk('div', 'hint', 'السبب: ' + o.reason));
   const acts = mk('div'); acts.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
