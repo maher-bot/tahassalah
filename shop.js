@@ -325,12 +325,7 @@ function orderCard(o, storeName) {
   c.append(mk('div', 'num', `الإجمالي ${sar(o.total)} · ${o.fulfillment === 'delivery' ? 'توصيل' : o.fulfillment === 'roundtrip' ? 'استلام وتسليم' + (o.express ? ' ⚡ مستعجل' : '') : 'استلام من المحل'} · ${PAY[o.payment_method]}${o.payment_status === 'paid' ? ' · مدفوع ✓' : o.payment_status === 'proof' ? ' · وصل الإيصال' : ''}`));
   if (o.driver_name && ['ready', 'out'].includes(o.status)) c.append(mk('div', 'hint', `🛵 المندوب: ${o.driver_name}`));
   if (o.reason) c.append(mk('div', 'hint', 'السبب: ' + o.reason));
-  const pics = [...(o.collect_photos || []), ...(o.delivery_photos || [])];
-  if (pics.length) {
-    const b = mk('button', 'btn ghost sm', `📷 صور الاستلام والتسليم (${pics.length})`); b.type = 'button';
-    b.onclick = async () => { for (const p of pics) { const { data } = await sb.storage.from('receipts').createSignedUrl(p, 300); if (data) open(data.signedUrl, '_blank'); } };
-    c.append(b);
-  }
+
   const acts = mk('div'); acts.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
   if (o.status === 'placed') {
     const x = mk('button', 'btn ghost sm', 'إلغاء الطلب'); x.type = 'button';

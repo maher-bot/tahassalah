@@ -1,4 +1,5 @@
 import { rememberLogin, hidePasswords, sb, $, $$, toast, clean, digits, valid, money, ACTIVITIES, PLANS, planLabel, STATUS, fileExt, shrinkImage, friendlyError, setBusy, trialInfo, fmtDay, OFFER_REASONS, KINDS, KIND_ICON, ACTIVITIES_BY_KIND } from './lib.js';
+import { takePhoto } from './camera.js';
 import { pickLocation } from './mappick.js';
 
 const VIEWS = ['v-loading', 'v-auth', 'v-check-email', 'v-reset', 'v-apply', 'v-status', 'v-invites', 'v-dash', 'v-roles', 'v-rep-done'];
@@ -1701,25 +1702,18 @@ function orderBox(o, mode) {
     acts.append(sel);
     btn(label, 'primary', () => { if (!sel.value) return toast('اختر المندوب.'); orderAct(o, action, { staff_id: sel.value }); });
   };
-  // رفع صور (الاستلام أو التسليم) من كاميرا الجوال
-  const shoot = async (files, tag) => {
-    const photos = [];
-    for (const f of [...files].slice(0, 8)) {
-      const sm = await shrinkImage(f, 1400), path = `${user.id}/${o.number}-${tag}-${Date.now()}-${photos.length}.${fileExt(sm)}`;
-      const r = await sb.storage.from('receipts').upload(path, sm, { contentType: sm.type || undefined }); if (r.error) throw r.error;
-      photos.push(path);
-    }
-    return photos;
-  };
+  // صورة الاستلام / التسليم: من كاميرا الصفحة مباشرة (بدون اختيار ملف)، وتطلع للكاشير وصاحب المحل فقط
   const camBtn = (label, cls, tag, after) => {
-    const up = Object.assign(document.createElement('input'), { type: 'file', accept: 'image/*', multiple: true, capture: 'environment' }); up.hidden = true;
-    acts.append(up);
-    const b = btn(label, cls, () => up.click());
-    up.onchange = async () => {
-      if (!up.files.length) return;
+    const b = btn(label, cls, async () => {
+      const shot = await takePhoto(`${o.number} · ${tag === 'collect' ? 'استلام' : 'تسليم'}`);
+      if (!shot) return;
       setBusy(b, true);
-      try { await after(await shoot(up.files, tag)); } catch (ex) { toast(friendlyError(ex)); } finally { setBusy(b, false); }
-    };
+      try {
+        const path = `${user.id}/${o.number}-${tag}-${Date.now()}.jpg`;
+        const r = await sb.storage.from('receipts').upload(path, shot, { contentType: 'image/jpeg' }); if (r.error) throw r.error;
+        await after([path]);
+      } catch (ex) { toast(friendlyError(ex)); } finally { setBusy(b, false); }
+    });
     return b;
   };
   // تعديل العدد: جدول بكل الخدمات في صفحة وحدة
@@ -1773,6 +1767,7 @@ function orderBox(o, mode) {
     if (o.status === 'to_collect') btn('🛵 رايح أستلم', 'primary', () => orderAct(o, 'collecting'));
     adjustBtn();
     camBtn('📷 استلمت (صوّر الأغراض)', 'primary', 'collect', photos => orderAct(o, 'collected', { photos }));
+    const h = document.createElement('div'); h.className = 'hint'; h.style.width = '100%'; h.textContent = 'التصوير من الكاميرا مباشرة، والصورة توصل المحل وما تنحفظ في جوالك.'; acts.append(h);
     if (o.store_lat != null) link('🏪 موقع المحل', `https://www.google.com/maps/dir/?api=1&destination=${o.store_lat},${o.store_lng}`);
   } else {
     if (['ready'].includes(o.status) && o.store_lat != null) link('🏪 موقع المحل', `https://www.google.com/maps/dir/?api=1&destination=${o.store_lat},${o.store_lng}`);
@@ -1785,7 +1780,7 @@ function orderBox(o, mode) {
         camBtn(`📷 سلّمت واستلمت ${money(o.total)} نقدًا`, 'primary', 'delivered', photos => orderAct(o, 'delivered', { amount: o.total, method: 'cash', photos }));
         camBtn('📷 سلّمت والدفع شبكة', 'ghost', 'delivered', photos => orderAct(o, 'delivered', { amount: o.total, method: 'card', photos }));
       }
-      const hint = document.createElement('div'); hint.className = 'hint'; hint.style.width = '100%'; hint.textContent = 'صوّر الطلب عند الزبون، وأول ما ترفع الصورة يكتمل التوصيل.'; acts.append(hint);
+      const hint = document.createElement('div'); hint.className = 'hint'; hint.style.width = '100%'; hint.textContent = 'صوّر الطلب عند الزبون من الكاميرا، وأول ما تستخدم الصورة يكتمل التوصيل. الصورة توصل المحل وما تنحفظ في جوالك.'; acts.append(hint);
     }
   }
   if (acts.children.length) el.append(acts);
