@@ -3,6 +3,7 @@ import { takePhoto } from './camera.js';
 import { showInstall, showPushCard } from './pwa.js';
 import { pickLocation } from './mappick.js';
 import { SUPABASE_URL } from './config.js';
+import * as S from './stats-ui.js';
 
 const VIEWS = ['v-loading', 'v-auth', 'v-check-email', 'v-reset', 'v-apply', 'v-status', 'v-invites', 'v-dash', 'v-roles', 'v-rep-done'];
 const show = id => { VIEWS.forEach(v => { $('#' + v).hidden = v !== id; }); window.scrollTo(0, 0); };
@@ -594,7 +595,8 @@ $('#d-switch').addEventListener('change', e => {
 
 function selectTab(name) {
   $$('#d-tabs [role=tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
-  for (const t of ['products', 'approvals', 'mine', 'team', 'settings', 'orders', 'deliveries']) $('#p-' + t).hidden = t !== name;
+  for (const t of ['products', 'approvals', 'mine', 'team', 'settings', 'orders', 'deliveries', 'stats']) $('#p-' + t).hidden = t !== name;
+  if (name === 'stats') loadStats();
   if (name === 'orders') loadOrders();
   if (name === 'deliveries') loadDeliveries();
   if (name === 'settings') { loadSettings(); loadPos(); }
@@ -736,6 +738,7 @@ function render() {
     else price.append(mk('b', '', money(p.price)));
     const qty = p.always_available ? mk('span', '', `متوفر دائمًا · لكل ${unitOf(p)}`) : mk('span', p.quantity <= 2 ? 'low' : '', p.quantity > 0 ? `${p.quantity} ${unitOf(p)}` : 'نفد');
     m.append(price, qty);
+    if (p.pack_size) m.append(mk('span', '', `📦 ${p.pack_name || 'كرتون'} ${p.pack_size}: ${money(p.pack_price)}${p.pack_only ? ' · بالعبوة فقط' : ''}`));
     if (p.category) m.append(mk('span', '', p.category));
     if (p.preorder_hours) m.append(mk('span', '', '🕒 طلب مسبق ' + (p.preorder_hours >= 24 ? `${p.preorder_hours / 24 === 1 ? 'يوم' : p.preorder_hours / 24 === 2 ? 'يومين' : p.preorder_hours / 24 + ' أيام'}` : `${p.preorder_hours} ساعات`)));
     if (!p.is_active) m.append(mk('span', '', 'مخفي'));
@@ -771,7 +774,7 @@ function unitDefaults() {
   return { unit: 'حبة', always: false };
 }
 const unitOf = p => p.unit || unitDefaults().unit;
-const FIELDS = ['name', 'price', 'sale_price', 'quantity', 'unit', 'always_available', 'category', 'barcode', 'description', 'image_path', 'is_active', 'offer_reason', 'offer_ends_at', 'expires_on'];
+const FIELDS = ['name', 'price', 'sale_price', 'quantity', 'unit', 'always_available', 'pack_name', 'pack_size', 'pack_price', 'pack_only', 'category', 'barcode', 'description', 'image_path', 'is_active', 'offer_reason', 'offer_ends_at', 'expires_on'];
 function changed(p, row) {
   const out = {};
   for (const k of FIELDS) {
@@ -831,8 +834,9 @@ function openProduct(p) {
     fp.is_active.checked = p.is_active;
     fp.preorder_hours.value = p.preorder_hours ?? '';
     fp.unit.value = p.unit || ''; fp.always_available.checked = !!p.always_available;
+    fp.pack_name.value = p.pack_name || ''; fp.pack_size.value = p.pack_size ?? ''; fp.pack_price.value = p.pack_price ?? ''; fp.pack_only.checked = !!p.pack_only;
   } else { const d = unitDefaults(); fp.unit.value = d.unit; fp.always_available.checked = d.always; }
-  syncAlways();
+  syncAlways(); $('#pack-box').open = !!p?.pack_size;
   $('#preorder-row').hidden = viaApproval();
   fp.preorder_hours.disabled = !canInv();
   syncOffer();
@@ -842,7 +846,8 @@ function openProduct(p) {
   $('.cur', box).textContent = p?.image_path ? '✓ فيه صورة (اختر صورة جديدة لاستبدالها)' : '';
   // الحقول حسب الصلاحية
   const inv = canInv(), pr = canPrice() || !p;
-  for (const k of ['name', 'quantity', 'category', 'barcode', 'description', 'image', 'is_active', 'unit', 'always_available']) fp[k].disabled = !inv;
+  for (const k of ['name', 'quantity', 'category', 'barcode', 'description', 'image', 'is_active', 'unit', 'always_available', 'pack_name', 'pack_size', 'pack_only']) fp[k].disabled = !inv;
+  fp.pack_price.disabled = !pr;
   for (const k of ['price', 'sale_price', 'offer_reason', 'offer_ends_at']) fp[k].disabled = !pr;
   fp.expires_on.disabled = !inv;
   $('#capture').hidden = !inv;
@@ -876,6 +881,10 @@ fp.addEventListener('submit', async e => {
   if (price == null || !(price >= 0)) return (err.textContent = 'اكتب سعر صحيح.');
   if (sale != null && !(sale >= 0 && sale < price)) return (err.textContent = 'سعر العرض لازم يكون أقل من السعر الأصلي.');
   const always = fp.always_available.checked;
+  const packSize = num(fp.pack_size.value), packPrice = num(fp.pack_price.value), packOnly = fp.pack_only.checked;
+  if ((packSize != null || packPrice != null || packOnly) && !(Number.isInteger(packSize) && packSize >= 2 && packSize <= 10000 && packPrice > 0))
+    return (err.textContent = 'للبيع بالعبوة: اكتب كم حبة فيها (2 وفوق) وسعرها.');
+  const pack = { pack_name: packSize ? (fp.pack_name.value.trim() || 'كرتون') : null, pack_size: packSize ?? null, pack_only: !!packSize && packOnly };
   if (!always && (qty == null || !Number.isInteger(qty) || qty < 0)) return (err.textContent = 'الكمية رقم صحيح من 0 وفوق.');
   err.textContent = ''; setBusy(btn, true, 'جارِ الحفظ…');
   let oldImage = null, newImage = null;   // القديمة تنحذف بعد نجاح الحفظ فقط، والجديدة تنحذف لو فشل
@@ -899,13 +908,13 @@ fp.addEventListener('submit', async e => {
     if (offer.offer_ends_at && new Date(offer.offer_ends_at) < new Date()) throw new Error('تاريخ نهاية العرض لازم يكون اليوم أو بعده.');
     const row = canInv() ? {
       name: fp.name.value.trim(), price, sale_price: sale, quantity: always ? (Number.isInteger(qty) && qty >= 0 ? qty : (editing?.quantity ?? 0)) : qty,
-      unit: fp.unit.value.trim() || null, always_available: always,
+      unit: fp.unit.value.trim() || null, always_available: always, ...pack, pack_price: packSize ? packPrice : null,
       category: fp.category.value.trim() || null, barcode: digits(fp.barcode.value).trim() || null,
       description: fp.description.value.trim() || null, is_active: fp.is_active.checked, image_path,
       expires_on: fp.expires_on.value || null, ...offer,
-    } : { price, sale_price: sale, ...offer };
+    } : { price, sale_price: sale, ...offer, pack_price: editing?.pack_size ? packPrice : null };
     if (canInv() && !viaApproval()) row.preorder_hours = fp.preorder_hours.value ? Number(fp.preorder_hours.value) : null;
-    if (editing && !canPrice()) { delete row.price; delete row.sale_price; delete row.offer_reason; delete row.offer_ends_at; }
+    if (editing && !canPrice()) { delete row.price; delete row.sale_price; delete row.offer_reason; delete row.offer_ends_at; delete row.pack_price; }
     const r = await writeProduct(editing ? 'update' : 'insert', editing, row);
     if (oldImage) sb.storage.from('product-images').remove([oldImage]);
     dlg.close();
@@ -1058,9 +1067,9 @@ $('#q-scan').addEventListener('click', () => scan(code => {
 }));
 
 // ---------------- موافقات صاحب المتجر ----------------
-const LABEL = { unit: 'الوحدة', always_available: 'متوفر دائمًا', name: 'الاسم', price: 'السعر', sale_price: 'سعر العرض', quantity: 'الكمية', category: 'التصنيف', barcode: 'الباركود', description: 'الوصف', image_path: 'الصورة', is_active: 'الظهور', offer_reason: 'سبب العرض', offer_ends_at: 'نهاية العرض', expires_on: 'الصلاحية' };
+const LABEL = { unit: 'الوحدة', always_available: 'متوفر دائمًا', pack_name: 'اسم العبوة', pack_size: 'حبات العبوة', pack_price: 'سعر العبوة', pack_only: 'بالعبوة فقط', name: 'الاسم', price: 'السعر', sale_price: 'سعر العرض', quantity: 'الكمية', category: 'التصنيف', barcode: 'الباركود', description: 'الوصف', image_path: 'الصورة', is_active: 'الظهور', offer_reason: 'سبب العرض', offer_ends_at: 'نهاية العرض', expires_on: 'الصلاحية' };
 const ACTION = { insert: 'إضافة منتج', update: 'تعديل', delete: 'حذف' };
-const showVal = (k, v) => v == null || v === '' ? '—' : k === 'offer_reason' ? (OFFER_REASONS[v] || v) : ['offer_ends_at', 'expires_on'].includes(k) ? fmtDay(v) : k === 'is_active' ? (v ? 'ظاهر' : 'مخفي') : k === 'always_available' ? (v ? 'نعم' : 'لا') : k === 'image_path' ? 'صورة جديدة' : ['price', 'sale_price'].includes(k) ? money(v) : String(v);
+const showVal = (k, v) => v == null || v === '' ? '—' : k === 'offer_reason' ? (OFFER_REASONS[v] || v) : ['offer_ends_at', 'expires_on'].includes(k) ? fmtDay(v) : k === 'is_active' ? (v ? 'ظاهر' : 'مخفي') : ['always_available', 'pack_only'].includes(k) ? (v ? 'نعم' : 'لا') : k === 'pack_price' ? money(v) : k === 'image_path' ? 'صورة جديدة' : ['price', 'sale_price'].includes(k) ? money(v) : String(v);
 
 function changeCard(c, { owner }) {
   const p = products.find(x => x.id === c.product_id);
@@ -2148,3 +2157,44 @@ $('#pos-revoke').addEventListener('click', async () => {
   if (error) return toast(friendlyError(error));
   loadPos();
 });
+
+// ---------------- مؤشرات الأداء (الباقة المميزة) ----------------
+const FUL_NAME = { delivery: 'توصيل', pickup: 'استلام من المحل', roundtrip: 'استلام وتسليم' };
+async function loadStats() {
+  const body = $('#st-body');
+  if (!ctx?.owner) return;
+  if (!ctx.pro) { body.replaceChildren(S.section('📊 مؤشرات الأداء', null, proLock('مؤشرات أداء المحل: المنتجات الأكثر طلبًا، وأداء المندوبين والكاشيرية، وأوقات الذروة'))); return; }
+  body.replaceChildren(S.mk('p', 'hint', 'جارِ التحميل…'));
+  const days = Number($('#st-days').value);
+  const { data: d, error } = await sb.rpc('store_stats', { mid: ctx.mid, days });
+  if (error) return body.replaceChildren(S.mk('p', 'err', friendlyError(error)));
+  const rate = d.orders ? Math.round(d.done / d.orders * 100) : 0;
+  const shifts = Object.fromEntries((d.shifts || []).map(x => [x.name, x]));
+  const names = [...new Set([...(d.cashiers || []).map(x => x.name), ...Object.keys(shifts)])];
+  body.replaceChildren(
+    S.kpis([
+      ['الطلبات', S.nf(d.orders), `${S.nf(d.done)} مكتمل · ${rate}%`],
+      ['المبيعات', S.sar(d.sales), `متوسط الطلب ${S.sar(d.avg_order)}`],
+      ['القطع المباعة', S.nf(d.items_sold)],
+      ['الزبائن', S.nf(d.buyers), `${S.nf(d.repeat_buyers)} رجعوا وطلبوا مرة ثانية`],
+      ['وقت القبول', S.mins(d.accept_min), 'من وصول الطلب لين القبول'],
+      ['وقت التوصيل', S.mins(d.deliver_min), 'من طلوع المندوب لين التسليم'],
+      ['مرفوض / ملغي', `${S.nf(d.rejected)} / ${S.nf(d.cancelled)}`],
+    ]),
+    S.section('الطلبات اليومية', 'مرّر على العمود تشوف العدد.', S.dayCols(d.by_day || [], days)),
+    S.section('🔥 المنتجات الأكثر طلبًا', d.no_sales ? `${S.nf(d.no_sales)} منتج ظاهر ما انطلب ولا مرة في هذي الفترة. جرّب عليها عرض أو صورة أوضح.` : null,
+      S.bars((d.top_products || []).map(p => ({ label: p.name, value: p.qty, note: S.sar(p.rev) })))),
+    d.low_stock?.length ? S.section('⚠️ منتجات عليها طلب وكميتها قليلة', null, S.bars(d.low_stock.map(p => ({ label: p.name, value: p.qty, note: p.unit || '' })))) : null,
+    S.section('🛵 أداء المندوبين', null, S.table(['المندوب', 'سلّم', 'متوسط التوصيل', 'كاش استلمه', 'معه الحين', 'تسليم بدون رمز', 'بالطريق'],
+      (d.drivers || []).map(x => [x.name, S.nf(x.delivered), S.mins(x.avg_min), S.sar(x.cash), S.sar(x.cash_held), S.nf(x.overrides), S.nf(x.on_road)]))),
+    S.section('🧑‍💼 أداء الكاشيرية', 'من سجل الحركات والمناوبات.', S.table(['الاسم', 'طلبات تعامل معها', 'قبل', 'رفض', 'سلّم للزبون', 'متوسط القبول', 'مناوبات', 'ساعات', 'فرق الدرج'],
+      names.map(n => { const c = (d.cashiers || []).find(x => x.name === n) || {}, s = shifts[n] || {};
+        return [n, S.nf(c.orders), S.nf(c.accepted), S.nf(c.rejected), S.nf(c.handed), S.mins(c.accept_min), S.nf(s.shifts), S.nf(s.hours), s.shifts ? (Number(s.diff) === 0 ? 'مطابق' : S.sar(s.diff)) : '—']; }))),
+    S.section('⏰ أوقات الذروة', 'كم طلب يجيك في كل ساعة. رتّب عدد الكاشيرية والمندوبين على هذي الأوقات.', S.hourCols(d.by_hour || [])),
+    S.section('طريقة الاستلام والدفع', null,
+      S.bars(Object.entries(d.by_fulfillment || {}).map(([k, v]) => ({ label: FUL_NAME[k] || k, value: v }))),
+      S.bars(Object.entries(d.by_payment || {}).map(([k, v]) => ({ label: O_PAY[k] || k, value: v })))),
+    S.section('🔐 تأكيد التسليم', null, S.kpis([['برمز التسليم', S.nf(d.confirm?.code)], ['أكّده الزبون بنفسه', S.nf(d.confirm?.buyer)], ['بدون رمز (بموافقة المحل)', S.nf(d.confirm?.override)]])),
+  );
+}
+$('#st-days').addEventListener('change', loadStats);

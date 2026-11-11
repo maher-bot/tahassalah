@@ -278,6 +278,7 @@
       <button role="tab" aria-selected="true" data-tab="products">المنتجات</button>
       <button role="tab" aria-selected="false" data-tab="approvals" data-owner>بانتظار موافقتك <span class="count" id="c-approvals" hidden></span></button>
       <button role="tab" aria-selected="false" data-tab="mine" data-staff>طلباتي <span class="count" id="c-mine" hidden></span></button>
+      <button role="tab" aria-selected="false" data-tab="stats" data-owner>📊 الأداء</button>
       <button role="tab" aria-selected="false" data-tab="team" data-owner>الفريق</button>
       <button role="tab" aria-selected="false" data-tab="settings" data-owner>التوصيل والاستلام</button>
     </div>
@@ -484,6 +485,13 @@
       </form>
     </div>
 
+    <!-- مؤشرات الأداء (الباقة المميزة) -->
+    <div id="p-stats" hidden>
+      <div class="toolbar"><select id="st-days" style="width:auto"><option value="7">آخر 7 أيام</option><option value="30" selected>آخر 30 يوم</option><option value="90">آخر 3 أشهر</option></select>
+        <span class="hint" style="margin-inline-start:auto">الطلبات المكتملة فقط تدخل في المبيعات والمنتجات</span></div>
+      <div class="stack" id="st-body"></div>
+    </div>
+
     <!-- فريق المتجر -->
     <div id="p-team" hidden>
       <div class="toolbar">
@@ -522,6 +530,16 @@
       <label>وحدة البيع<input name="unit" list="units" maxlength="20" placeholder="حبة، وجبة، قطعة، كرتون…"></label>
       <label class="check" style="align-self:end"><input type="checkbox" name="always_available"> <span><b>متوفر دائمًا</b><br><span class="hint">ما تتابع كمية (مطاعم، خدمات، تحضير يومي)</span></span></label>
     </div>
+    <details id="pack-box" class="note"><summary><b>📦 البيع بالكرتون أيضًا</b> <span class="opt">(اختياري، للجملة والسوبرماركت)</span></summary>
+      <div class="row3" style="margin-top:10px">
+        <label>اسم العبوة<input name="pack_name" list="packs" maxlength="20" placeholder="كرتون"></label>
+        <label>كم حبة فيها<input name="pack_size" inputmode="numeric" dir="ltr" placeholder="24"></label>
+        <label>سعر العبوة (ر.س)<input name="pack_price" inputmode="decimal" dir="ltr"></label>
+      </div>
+      <label class="check"><input type="checkbox" name="pack_only"> يباع بالعبوة فقط (جملة)</label>
+      <p class="hint">الكمية فوق تبقى بالحبة. لو انطلبت عبوة تنقص حباتها كلها من الكمية.</p>
+    </details>
+    <datalist id="packs"><option value="كرتون"><option value="شدّة"><option value="علبة"><option value="درزن"><option value="كيس"><option value="صندوق"></datalist>
     <datalist id="units"><option value="حبة"><option value="قطعة"><option value="وجبة"><option value="طبق"><option value="كرتون"><option value="علبة"><option value="كيلو"><option value="جرام"><option value="لتر"><option value="كوب"><option value="طقم"><option value="متر"><option value="خدمة"><option value="ساعة"></datalist>
     <div class="row2">
       <label><span>التصنيف <span class="opt">(اختياري)</span></span><input name="category" list="cats"></label>

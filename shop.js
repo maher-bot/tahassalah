@@ -32,15 +32,17 @@ const cart = {
   count(c = cart.get()) { return Object.values(c.items).reduce((s, x) => s + x.qty, 0); },
   sum(c = cart.get()) { return Object.values(c.items).reduce((s, x) => s + x.qty * x.price, 0); },
 };
-function setQty(p, qty) {
+function setQty(p, qty, pack = false) {
   let c = cart.get();
   if (c.mid && c.mid !== cur.id && cart.count(c)) {
     if (!confirm('السلة فيها منتجات من محل ثاني. تفرّغها وتبدأ من هذا المحل؟')) return;
     c = { mid: null, items: {} };
   }
   c.mid = cur.id; c.store = cur.store_name;
-  if (qty <= 0) delete c.items[p.id];
-  else c.items[p.id] = { qty: Math.min(qty, settings?.service_roundtrip || p.always_available ? 999 : (p.quantity ?? 999)), name: p.name, price: unitPrice(p) };
+  pack = !!(pack || p.pack_only);
+  const key = pack ? p.id + ':p' : p.id, cap = settings?.service_roundtrip || p.always_available ? 999 : pack ? Math.floor((p.quantity ?? 0) / p.pack_size) : (p.quantity ?? 999);
+  if (qty <= 0) delete c.items[key];
+  else c.items[key] = { pid: p.id, pack, qty: Math.min(qty, cap), name: pack ? `${p.name} (${packLabel(p)})` : p.name, price: pack ? Number(p.pack_price) : unitPrice(p) };
   cart.save(c); renderCartBar();
 }
 const unitPrice = p => p.sale_price != null && (!p.offer_ends_at || new Date(p.offer_ends_at) > new Date()) ? Number(p.sale_price) : Number(p.price);
@@ -101,29 +103,40 @@ async function openStore(s) {
   renderProducts(); renderCartBar(); show('v-store');
 }
 $('#pq').addEventListener('input', renderProducts);
+// المنتج بالحبة، وبالكرتون لو التاجر حدده (أو بالكرتون فقط للجملة)
+const hasPack = p => p.pack_size && p.pack_price;
+const packLabel = p => `${p.pack_name || 'كرتون'} ${p.pack_size} ${p.unit || 'حبة'}`;
 function renderProducts() {
   const q = $('#pq').value.trim(), c = cart.get();
   const list = products.filter(p => !q || p.name.includes(q) || (p.category || '').includes(q));
-  $('#products').replaceChildren(...list.map(p => {
-    const svc = !!settings.service_roundtrip, out = !svc && !p.always_available && p.quantity === 0;
+  const rows = list.flatMap(p => hasPack(p) ? (p.pack_only ? [[p, true]] : [[p, false], [p, true]]) : (p.pack_only ? [] : [[p, false]]));
+  $('#products').replaceChildren(...rows.map(([p, pack]) => {
+    const svc = !!settings.service_roundtrip;
+    const out = !svc && !p.always_available && (pack ? p.quantity < p.pack_size : p.quantity === 0);
     const el = mk('div', 'prod' + (out ? ' off' : ''));
     const src = imgUrl(p.image_path);
-    if (src) { const i = mk('img'); i.src = src; i.alt = ''; i.loading = 'lazy'; el.append(i); } else el.append(mk('div', 'ph', p.name.slice(0, 1)));
+    if (pack && !p.pack_only) el.append(mk('div', 'ph', '📦'));
+    else if (src) { const i = mk('img'); i.src = src; i.alt = ''; i.loading = 'lazy'; el.append(i); } else el.append(mk('div', 'ph', p.name.slice(0, 1)));
     const t = mk('div'); t.style.minWidth = '0';
-    const m = mk('div', 'm'); const up = unitPrice(p);
-    m.append(mk('b', 'num', sar(up)), mk('span', 'hint', '/ ' + (p.unit || (svc ? 'قطعة' : 'حبة'))));
-    if (up !== Number(p.price)) m.append(Object.assign(mk('s', 'num', sar(p.price))));
+    const m = mk('div', 'm');
+    if (pack) m.append(mk('b', 'num', sar(p.pack_price)), mk('span', 'hint', '/ ' + packLabel(p)));
+    else {
+      const up = unitPrice(p);
+      m.append(mk('b', 'num', sar(up)), mk('span', 'hint', '/ ' + (p.unit || (svc ? 'قطعة' : 'حبة'))));
+      if (up !== Number(p.price)) m.append(Object.assign(mk('s', 'num', sar(p.price))));
+    }
     if (out) m.append(mk('span', 'low', 'نفد'));
-    t.append(mk('div', 'n', p.name), m); el.append(t);
-    const inCart = c.mid === cur.id ? c.items[p.id]?.qty || 0 : 0;
+    t.append(mk('div', 'n', pack && !p.pack_only ? `${p.name} · ${p.pack_name || 'كرتون'}` : p.name), m); el.append(t);
+    const key = pack ? p.id + ':p' : p.id;
+    const inCart = c.mid === cur.id ? c.items[key]?.qty || 0 : 0;
     const box = mk('div', 'qty');
     if (!out) {
       if (inCart) {
-        const minus = mk('button', '', '−'); minus.type = 'button'; minus.onclick = () => { setQty(p, inCart - 1); renderProducts(); };
-        const plus = mk('button', '', '+'); plus.type = 'button'; plus.onclick = () => { setQty(p, inCart + 1); renderProducts(); };
+        const minus = mk('button', '', '−'); minus.type = 'button'; minus.onclick = () => { setQty(p, inCart - 1, pack); renderProducts(); };
+        const plus = mk('button', '', '+'); plus.type = 'button'; plus.onclick = () => { setQty(p, inCart + 1, pack); renderProducts(); };
         box.append(plus, mk('b', 'num', String(inCart)), minus);
       } else {
-        const add = mk('button', 'btn primary sm', 'أضف'); add.type = 'button'; add.onclick = () => { setQty(p, 1); renderProducts(); };
+        const add = mk('button', 'btn primary sm', 'أضف'); add.type = 'button'; add.onclick = () => { setQty(p, 1, pack); renderProducts(); };
         box.append(add);
       }
     }
@@ -151,10 +164,10 @@ function openCart() {
   $('#c-store').textContent = cur.store_name;
   $('#c-items').replaceChildren(...Object.entries(c.items).map(([pid, x]) => {
     const r = mk('div'); r.style.cssText = 'display:flex;justify-content:space-between;gap:8px;align-items:center';
-    const p = products.find(y => y.id === pid);
+    const p = products.find(y => y.id === (x.pid || pid));
     const q = mk('div', 'qty');
-    const minus = mk('button', '', '−'); minus.type = 'button'; minus.onclick = () => { if (p) setQty(p, x.qty - 1); else { delete c.items[pid]; cart.save(c); } openCart(); };
-    const plus = mk('button', '', '+'); plus.type = 'button'; plus.onclick = () => { if (p) { setQty(p, x.qty + 1); openCart(); } };
+    const minus = mk('button', '', '−'); minus.type = 'button'; minus.onclick = () => { if (p) setQty(p, x.qty - 1, x.pack); else { delete c.items[pid]; cart.save(c); } openCart(); };
+    const plus = mk('button', '', '+'); plus.type = 'button'; plus.onclick = () => { if (p) { setQty(p, x.qty + 1, x.pack); openCart(); } };
     q.append(plus, mk('b', 'num', String(x.qty)), minus);
     const t = mk('div'); t.append(mk('b', '', x.name), mk('div', 'hint num', `${sar(x.price)} × ${x.qty} = ${sar(x.price * x.qty)}`));
     r.append(t, q); return r;
@@ -213,6 +226,7 @@ const ERR = {
   cart_empty: 'السلة فاضية.', cannot_cancel: 'المحل قبل الطلب، ما تقدر تلغيه. تواصل معه.',
 };
 const why = e => { const m = String(e?.message || e); for (const k in ERR) if (m.includes(k)) return ERR[k];
+  if (m.includes('pack_unavailable')) return 'البيع بالكرتون لهذا المنتج تغيّر. حدّث الصفحة وأعد الإضافة.';
   if (m.includes('out_of_stock')) return 'الكمية المتوفرة من «' + m.split(':').pop().trim() + '» أقل من طلبك.';
   if (m.includes('below_min_order')) return 'أقل مبلغ للطلب ' + sar(m.split(':').pop()) + '.'; return friendlyError(e); };
 
@@ -227,7 +241,7 @@ fo.addEventListener('submit', async e => {
   const c = cart.get();
   setBusy(btn, true);
   const { data, error } = await sb.rpc('place_order', {
-    mid: c.mid, items: Object.entries(c.items).map(([product_id, x]) => ({ product_id, qty: x.qty })), fulfillment: f, payment_method: pay,
+    mid: c.mid, items: Object.entries(c.items).map(([k, x]) => ({ product_id: x.pid || k, qty: x.qty, pack: !!x.pack })), fulfillment: f, payment_method: pay,
     address: f !== 'pickup' ? fo.address.value.trim() : null, lat: f !== 'pickup' ? coords.lat : null, lng: f !== 'pickup' ? coords.lng : null, note: fo.note.value.trim() || null,
     collect_at: f === 'roundtrip' ? new Date(fo.collect_at.value).toISOString() : null, express: f === 'roundtrip' && fo.express.checked,
   });

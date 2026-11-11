@@ -194,3 +194,20 @@ dialog > .stack { padding: 20px; }
 .role span{font-size:.82rem;color:var(--muted)}
 .role.on,.role:hover{border-color:var(--brand);background:var(--brand-soft)}
 @media (max-width:420px){.roles:not(.col) .role{padding:8px;text-align:center}.roles:not(.col) .role span{font-size:.72rem}}
+
+/* مؤشرات الأداء */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.kpis .stat small { display: block; color: var(--muted); font-size: .78rem; margin-top: 2px; }
+.sbars { display: grid; gap: 8px; }
+.sbar { display: grid; grid-template-columns: minmax(90px, 32%) 1fr auto; gap: 10px; align-items: center; font-size: .9rem; min-width: 0; }
+.sbar > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sbar .track { height: 12px; min-width: 0; }
+.sbar .track i { display: block; height: 100%; background: var(--brand); border-radius: 4px; min-width: 3px; }
+.sbar b { font-variant-numeric: tabular-nums; }
+.scols { display: flex; align-items: flex-end; gap: 2px; height: 130px; border-bottom: 1px solid var(--line); padding-top: 6px; }
+.scols i { flex: 1; background: var(--brand); border-radius: 4px 4px 0 0; min-height: 2px; position: relative; cursor: default; }
+.scols i.zero { background: var(--line); }
+.scols i:hover { opacity: .75; }
+.scols-x { display: flex; justify-content: space-between; color: var(--muted); font-size: .75rem; margin-top: 4px; }
+.stack > * { min-width: 0; }
+@media (max-width: 640px) { .top .sp { flex-wrap: wrap; justify-content: flex-end; gap: 6px; } }
