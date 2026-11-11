@@ -190,6 +190,7 @@ $('#go-cart').addEventListener('click', () => openCart());
 
 // ---------------- السلة والطلب ----------------
 const fo = $('#f-order');
+const RECEIPT = [['none', 'ما أحتاج فاتورة', ''], ['paper', '🧾 ورقية مع الطلب', ''], ['whatsapp', '💬 على الواتساب', '(يوصل رقمك للمحل عشان يرسلها)']];
 function radio(name, value, label, hint, checked) {
   const l = mk('label', 'plan'); const i = Object.assign(document.createElement('input'), { type: 'radio', name, value, checked });
   const s = mk('span'); s.append(mk('b', '', label)); if (hint) s.append(' ', hint);
@@ -233,6 +234,8 @@ function renderPay() {
   if (f === 'pickup' && settings.pay_tabby) opts.push(['tabby', 'تقسيط تابي في المحل']);
   if (f === 'pickup' && settings.pay_tamara) opts.push(['tamara', 'تقسيط تمارا في المحل']);
   $('#c-pay').replaceChildren(...opts.map(([v, l, h], i) => radio('pay', v, l, h || '', i === 0)));
+  { let last = 'none'; try { last = localStorage.getItem('tah-receipt') || 'none'; } catch {}
+    $('#c-receipt').replaceChildren(...RECEIPT.map(([v, l, h]) => radio('receipt', v, l, h, v === last))); }
   $('#c-addr').hidden = f === 'pickup';
   $('#c-rt').hidden = f !== 'roundtrip';
   $('#c-rt-hint').textContent = f === 'roundtrip' ? `يرجع لك خلال ${fo.express?.checked ? settings.express_hours || 24 : settings.turnaround_hours || 48} ساعة من الاستلام. لو العدد اختلف وقت الاستلام، يتعدّل المبلغ وتوافق عليه.` : '';
@@ -285,6 +288,9 @@ fo.addEventListener('submit', async e => {
   setBusy(btn, false);
   if (error) return (err.textContent = why(error));
   err.textContent = '';
+  const rc = fo.querySelector('input[name=receipt]:checked')?.value || 'none';
+  try { localStorage.setItem('tah-receipt', rc); } catch {}
+  if (rc !== 'none') await sb.rpc('order_set_receipt', { oid: data.id, pref: rc });
   cart.save({ mid: null, items: {} });
   toast(`وصل طلبك ${data.number} للمحل ✓`, 4500);
   openOrders();
@@ -375,6 +381,8 @@ function orderCard(o, storeName) {
       box.append(ok); c.append(box);
     }
   }
+  if (o.receipt_pref === 'paper') c.append(mk('div', 'hint', '🧾 طلبت فاتورة ورقية مع الطلب'));
+  if (o.receipt_pref === 'whatsapp') c.append(mk('div', 'hint', o.receipt_sent_at ? '💬 أرسل لك المحل الفاتورة على الواتساب ✓' : '💬 الفاتورة بتوصلك على الواتساب'));
   c.append(mk('div', 'num', `الإجمالي ${sar(o.total)} · ${o.fulfillment === 'delivery' ? 'توصيل' : o.fulfillment === 'roundtrip' ? 'استلام وتسليم' + (o.express ? ' ⚡ مستعجل' : '') : 'استلام من المحل'} · ${PAY[o.payment_method]}${o.payment_status === 'paid' ? ' · مدفوع ✓' : o.payment_status === 'proof' ? ' · وصل الإيصال' : ''}`));
   if (o.driver_name && ['ready', 'out'].includes(o.status)) c.append(mk('div', 'hint', `🛵 المندوب: ${o.driver_name}`));
   // رمز التسليم: يعطيه الزبون للمندوب (أو للكاشير في الاستلام من المحل)
@@ -455,3 +463,6 @@ function withLogo(path, el, size) {
   lg.style.cssText = `width:${size}px;height:${size}px;object-fit:contain;border-radius:10px;border:1px solid var(--line);background:#fff;flex:0 0 auto`;
   w.append(lg, el); return w;
 }
+
+// اختيار الفاتورة يبقى محفوظ لو أعاد فتح السلة (مثلًا بعد تسجيل الدخول)
+$('#c-receipt').addEventListener('change', e => { if (e.target.name === 'receipt') try { localStorage.setItem('tah-receipt', e.target.value); } catch {} });

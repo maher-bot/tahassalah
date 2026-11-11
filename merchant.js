@@ -1715,7 +1715,7 @@ async function orderAct(o, action, args = {}) {
     const m = String(error.message);
     return toast(m.includes('pay_before_delivery') ? 'الطلب تحويل: أكّد استلام المبلغ قبل ما تحوّله للمندوب.' : m.includes('driver_not_found') ? 'المندوب مو مفعّل في فريق المتجر.' : m.includes('code_required') ? 'لازم رمز التسليم من الزبون أول.' : m.includes('reason_required') ? 'اكتب السبب.' : m.includes('invalid_state') ? 'حالة الطلب تغيّرت، حدّث الصفحة.' : friendlyError(error));
   }
-  if (action === 'accept' && autoPrint()) printOrder(o);
+  if (action === 'accept' && (autoPrint() || o.receipt_pref === 'paper')) printOrder(o);
   if (!$('#p-orders').hidden) loadOrders(); if (!$('#p-deliveries').hidden) loadDeliveries();
 }
 function orderBox(o, mode) {
@@ -1825,7 +1825,14 @@ function orderBox(o, mode) {
   if (allPhotos.length) btn(`📷 الصور (${allPhotos.length})`, 'ghost', async () => {
     for (const p of allPhotos) { const { data } = await sb.storage.from('receipts').createSignedUrl(p, 300); if (data) open(data.signedUrl, '_blank'); }
   });
-  if (mode === 'orders' && !['rejected', 'cancelled'].includes(o.status)) btn('🖨️ طباعة', 'ghost', () => printOrder(o));
+  if (mode === 'orders' && o.receipt_pref === 'paper') line('🧾 الزبون يبي فاتورة ورقية مع الطلب', 'low');
+  if (mode === 'orders' && o.receipt_pref === 'whatsapp') line(o.receipt_sent_at ? '💬 أرسلت الفاتورة للزبون واتساب ✓' : '💬 الزبون يبي الفاتورة على الواتساب', o.receipt_sent_at ? 'hint' : 'low');
+  if (mode === 'orders' && !['rejected', 'cancelled'].includes(o.status)) btn('🖨️ طباعة', o.receipt_pref === 'paper' ? 'primary' : 'ghost', () => printOrder(o));
+  if (mode === 'orders' && o.receipt_pref === 'whatsapp' && o.receipt_phone && !['rejected', 'cancelled', 'placed'].includes(o.status))
+    btn(o.receipt_sent_at ? '💬 أرسل الفاتورة مرة ثانية' : '💬 أرسل الفاتورة واتساب', o.receipt_sent_at ? 'ghost' : 'primary', () => {
+      open(waLink(o.receipt_phone) + '?text=' + encodeURIComponent(receiptText(o)), '_blank');
+      sb.rpc('order_receipt_sent', { oid: o.id }).then(() => loadOrders());
+    });
   if (o.buyer_phone) { link('📞 اتصال', 'tel:+966' + String(o.buyer_phone).replace(/\D/g, '').replace(/^(966|0)/, '')); link('💬 واتساب الزبون', waLink(o.buyer_phone)); }
   if (mode === 'orders') {
     if (o.payment_proof && o.payment_status === 'proof') btn('📎 الإيصال', 'ghost', async () => { const { data } = await sb.storage.from('receipts').createSignedUrl(o.payment_proof, 300); if (data) open(data.signedUrl, '_blank'); });
@@ -2355,3 +2362,15 @@ $('#logo-del').addEventListener('click', async () => {
   sb.storage.from('product-images').remove([ctx.logo]);
   ctx.logo = null; showLogo(); $('#d-logo').hidden = true;
 });
+
+// نص الإيصال للواتساب
+function receiptText(o) {
+  const lines = [`🧾 فاتورة طلبك من ${o.store_name || ctx.store}`, `رقم الطلب: ${o.number}`,
+    new Date(o.created_at).toLocaleString('ar-SA-u-nu-latn-ca-gregory', { dateStyle: 'medium', timeStyle: 'short' }), '',
+    ...o.items.map(i => `• ${i.name} × ${i.qty} = ${money(i.line_total)}`), '',
+    `المنتجات: ${money(o.subtotal)}`];
+  if (Number(o.delivery_fee)) lines.push(`${o.fulfillment === 'roundtrip' ? 'الاستلام والتسليم' : 'التوصيل'}: ${money(o.delivery_fee)}`);
+  if (Number(o.express_fee)) lines.push(`مستعجل: ${money(o.express_fee)}`);
+  lines.push(`الإجمالي: ${money(o.total)}`, `الدفع: ${O_PAY[o.payment_method]}${o.payment_status === 'paid' ? ' · مدفوع ✓' : ''}`, '', 'شكرًا لتسوّقكم 🌿 تحصّله');
+  return lines.join('\n');
+}
