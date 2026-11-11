@@ -349,6 +349,7 @@
       <button class="btn primary" id="add">+ إضافة منتج</button>
       <label class="btn ghost" style="display:inline-flex" id="csv-wrap">رفع ملف CSV<input type="file" id="csv" accept=".csv,text/csv" hidden></label>
       <a class="btn ghost sm" id="csv-tpl" download="tahassalah-products.csv">نموذج الملف</a>
+      <button class="btn ghost sm" id="b-plog" type="button" hidden>🕘 سجل التعديلات <span class="count num" id="c-plog" hidden>0</span></button>
     </div>
     <p class="note" id="staff-note" style="background:var(--brand-soft);margin-bottom:12px" hidden></p>
     <div class="plist" id="plist"></div>
@@ -602,6 +603,16 @@
       <button class="btn primary" type="submit" id="save">حفظ</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="dlg-plog">
+  <div class="stack">
+    <h2 style="font-size:1.2rem">🕘 سجل تعديلات المنتجات</h2>
+    <p class="hint">كل إضافة أو تعديل أو حذف باسم اللي سواه، وبالقيمة قبل وبعد. يشوفه صاحب المحل فقط.</p>
+    <label class="check"><input type="checkbox" id="plog-staff"> تعديلات الموظفين فقط</label>
+    <div id="plog-list" style="display:grid;gap:8px"></div>
+    <div class="foot"><button class="btn primary" type="button" id="plog-close">إغلاق</button></div>
+  </div>
 </dialog>
 
 <dialog id="dlg-scan">

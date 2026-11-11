@@ -1,4 +1,4 @@
-import { rememberLogin, hidePasswords, sb, $, $$, toast, clean, digits, valid, money, ACTIVITIES, PLANS, planLabel, STATUS, fileExt, shrinkImage, friendlyError, setBusy, trialInfo, fmtDay, OFFER_REASONS, KINDS, KIND_ICON, ACTIVITIES_BY_KIND } from './lib.js';
+import { rememberLogin, hidePasswords, sb, $, $$, toast, clean, digits, valid, money, ACTIVITIES, PLANS, planLabel, STATUS, fileExt, shrinkImage, friendlyError, setBusy, trialInfo, fmtDay, OFFER_REASONS, KINDS, KIND_ICON, ACTIVITIES_BY_KIND, ago } from './lib.js';
 import { takePhoto } from './camera.js';
 import { showInstall, showPushCard } from './pwa.js';
 import { pickLocation } from './mappick.js';
@@ -712,6 +712,7 @@ async function loadProducts() {
   products = data;
   $('#cats').replaceChildren(...[...new Set(products.map(p => p.category).filter(Boolean))].map(c => new Option(c)));
   render();
+  if (ctx.owner) loadPlog();
 }
 
 function renderLimit() {
@@ -763,6 +764,8 @@ function render() {
     if (dLeft != null) m.append(mk('span', dLeft <= 7 ? 'low' : '', dLeft < 0 ? 'منتهي الصلاحية' : dLeft <= 7 ? `⚠️ تنتهي صلاحيته خلال ${dLeft} يوم${p.sale_price == null ? ' — سوّ عليه عرض' : ''}` : 'الصلاحية ' + fmtDay(p.expires_on)));
     if (pendingIds.has(p.id)) m.append(mk('span', 'low', '⏳ تعديل بانتظار الموافقة'));
     mid.append(mk('div', 'n', p.name), m);
+    const last = plogLast.get(p.id);
+    if (last) mid.append(mk('div', 'hint', `✏️ ${last.actor_name} · ${plogText(last, true)} · ${ago(last.at)}`));
     const acts = mk('div', 'acts');
     if (canInv() && !p.always_available) {
       const minus = mk('button', 'btn ghost sm', '−1'); minus.title = 'إنقاص الكمية';
@@ -2404,3 +2407,54 @@ function receiptText(o) {
   lines.push('', 'شكرًا لتسوّقكم 🌿 تحصّله');
   return lines.join('\n');
 }
+
+// ---------------- سجل تعديلات المنتجات (صاحب المحل يشوف مين عدّل وش) ----------------
+let plog = [], plogLast = new Map();
+const plSeenKey = () => 'tah-plog-seen-' + ctx.mid;
+function plogText(l, short = false) {
+  if (l.action === 'insert') return 'أضاف المنتج' + (l.changes?.price?.[1] != null ? ` بسعر ${money(l.changes.price[1])}` : '');
+  if (l.action === 'delete') return 'حذف المنتج';
+  const parts = Object.entries(l.changes || {}).map(([k, [a, b]]) =>
+    k === 'image_path' ? (b ? 'غيّر الصورة' : 'شال الصورة')
+    : k === 'extra_images' ? `الصور الإضافية: ${(a || []).length} ← ${(b || []).length}`
+    : k === 'description' ? 'عدّل الوصف'
+    : k === 'preorder_hours' ? `الطلب المسبق: ${a ? a + ' ساعة' : 'لا'} ← ${b ? b + ' ساعة' : 'لا'}`
+    : `${LABEL[k] || k}: ${showVal(k, a)} ← ${showVal(k, b)}`);
+  return short ? parts.slice(0, 2).join('، ') + (parts.length > 2 ? ` (+${parts.length - 2})` : '') : parts.join(' · ');
+}
+async function loadPlog() {
+  if (!ctx?.owner) return;
+  const { data, error } = await sb.from('product_log').select('*').eq('merchant_id', ctx.mid).order('at', { ascending: false }).limit(200);
+  if (error) return;
+  plog = data || [];
+  plogLast = new Map();
+  for (const l of plog) if (!l.by_owner && l.action !== 'delete' && l.product_id && !plogLast.has(l.product_id)) plogLast.set(l.product_id, l);
+  let seen = 0; try { seen = Number(localStorage.getItem(plSeenKey())) || 0; } catch {}
+  const fresh = plog.filter(l => !l.by_owner && new Date(l.at).getTime() > seen).length;
+  const c = $('#c-plog'); c.hidden = !fresh; c.textContent = fresh;
+  $('#b-plog').hidden = false;
+  if (plogLast.size) render();
+}
+function renderPlog() {
+  const only = $('#plog-staff').checked, list = plog.filter(l => !only || !l.by_owner);
+  const box = $('#plog-list');
+  if (!list.length) { box.innerHTML = `<div class="empty">${only ? 'ما فيه تعديلات من الموظفين.' : 'ما فيه تعديلات مسجّلة بعد.'}</div>`; return; }
+  box.replaceChildren(...list.map(l => {
+    const el = document.createElement('div'); el.className = 'row-card'; el.style.cssText = 'display:block;padding:10px 12px' + (l.by_owner ? ';opacity:.75' : '');
+    const top = document.createElement('div'); top.style.cssText = 'display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap';
+    top.append(Object.assign(document.createElement('b'), { textContent: l.product_name || 'منتج' }),
+      Object.assign(document.createElement('span'), { className: 'hint', textContent: new Date(l.at).toLocaleString('ar-SA-u-nu-latn-ca-gregory', { dateStyle: 'medium', timeStyle: 'short' }) }));
+    const who = Object.assign(document.createElement('div'), { textContent: `👤 ${l.actor_name || '—'}` });
+    who.style.fontWeight = '600';
+    const what = Object.assign(document.createElement('div'), { className: l.action === 'delete' ? 'low' : 'hint', textContent: plogText(l) });
+    what.style.overflowWrap = 'anywhere';
+    el.append(top, who, what); return el;
+  }));
+}
+$('#b-plog').addEventListener('click', async () => {
+  await loadPlog(); renderPlog(); $('#dlg-plog').showModal();
+  try { localStorage.setItem(plSeenKey(), String(Date.now())); } catch {}
+  $('#c-plog').hidden = true;
+});
+$('#plog-staff').addEventListener('change', renderPlog);
+$('#plog-close').addEventListener('click', () => $('#dlg-plog').close());
