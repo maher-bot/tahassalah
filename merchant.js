@@ -2,7 +2,8 @@ import { rememberLogin, hidePasswords, sb, $, $$, toast, clean, digits, valid, m
 import { takePhoto } from './camera.js';
 import { showInstall, showPushCard } from './pwa.js';
 import { pickLocation } from './mappick.js';
-import { SUPABASE_URL } from './config.js';
+import { SUPABASE_URL, IS_DEMO } from './config.js';
+import { invoiceDoc, invoiceLink } from './invoice-ui.js';
 import * as S from './stats-ui.js';
 import { billDialog, renderBills, renderForecast, entryDialog } from './books-ui.js';
 
@@ -2231,38 +2232,17 @@ $('#st-days').addEventListener('change', loadStats);
 const autoPrint = () => { try { return localStorage.getItem('tah-autoprint') === '1'; } catch { return false; } };
 { const cb = $('#o-autoprint'); cb.checked = autoPrint(); cb.addEventListener('change', () => { try { localStorage.setItem('tah-autoprint', cb.checked ? '1' : '0'); } catch {} }); }
 const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-function printOrder(o) {
-  const rows = o.items.map(i => `<tr><td>${esc(i.name)}</td><td class="n">${i.qty}</td><td class="n">${money(i.line_total)}</td></tr>`).join('');
-  const paid = o.payment_status === 'paid' ? 'مدفوع ✓' : 'غير مدفوع';
-  const html = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${esc(o.number)}</title><style>
-    @page { size: 80mm auto; margin: 4mm; }
-    body { font-family: system-ui, Tahoma, sans-serif; font-size: 12px; color: #000; margin: 0; width: 72mm; }
-    h1 { font-size: 16px; text-align: center; margin: 0 0 2px; } .c { text-align: center; } .big { font-size: 20px; font-weight: 700; text-align: center; margin: 6px 0; }
-    table { width: 100%; border-collapse: collapse; margin: 6px 0; } td { padding: 3px 0; border-bottom: 1px dashed #999; vertical-align: top; } .n { text-align: left; white-space: nowrap; padding-inline-start: 6px; }
-    .row { display: flex; justify-content: space-between; } .tot { font-size: 15px; font-weight: 700; border-top: 2px solid #000; padding-top: 4px; margin-top: 4px; }
-    hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; } small { color: #333; }
-  </style></head><body>
-    ${ctx.logo ? `<div class="c"><img src="${esc(imgUrl(ctx.logo))}" alt="" style="width:22mm;height:22mm;object-fit:contain"></div>` : ''}
-    <h1>${esc(o.store_name || ctx.store)}</h1>
-    <div class="c"><small>إيصال طلب عبر تحصّله · ليس فاتورة ضريبية</small></div>
-    <div class="big">${esc(o.number)}</div>
-    <div class="row"><span>الزبون</span><b>${esc(o.buyer_name)}</b></div>
-    <div class="row"><span>التاريخ</span><span>${new Date(o.created_at).toLocaleString('ar-SA-u-nu-latn-ca-gregory', { dateStyle: 'medium', timeStyle: 'short' })}</span></div>
-    <div class="row"><span>الاستلام</span><b>${esc(FUL[o.fulfillment])}${o.express ? ' ⚡' : ''}</b></div>
-    <table><tr><td><b>المنتج</b></td><td class="n"><b>العدد</b></td><td class="n"><b>المبلغ</b></td></tr>${rows}</table>
-    <div class="row"><span>المنتجات</span><span>${money(o.subtotal)}</span></div>
-    ${Number(o.delivery_fee) ? `<div class="row"><span>${o.fulfillment === 'roundtrip' ? 'الاستلام والتسليم' : 'التوصيل'}</span><span>${money(o.delivery_fee)}</span></div>` : ''}
-    ${Number(o.express_fee) ? `<div class="row"><span>مستعجل</span><span>${money(o.express_fee)}</span></div>` : ''}
-    <div class="row tot"><span>الإجمالي</span><span>${money(o.total)}</span></div>
-    <div class="row"><span>الدفع</span><b>${esc(O_PAY[o.payment_method])} · ${paid}</b></div>
-    ${o.note ? `<hr><div>📝 ${esc(o.note)}</div>` : ''}
-    <hr><div class="c"><small>${o.fulfillment === 'pickup' ? 'الزبون يعطي الكاشير رمز الاستلام من جواله.' : 'التسليم برمز الزبون أو تأكيده من جواله.'}<br>شكرًا لتسوّقكم 🌿 tahassalah.com</small></div>
-  </body></html>`;
+async function printOrder(o) {
+  // الفاتورة نفسها اللي يشوفها المشتري (ضريبية لو المحل مسجل في الضريبة) + ملاحظة الطلب للتجهيز
+  const { data: inv, error } = o.invoice_token ? await sb.rpc('invoice_get', { t: o.invoice_token }) : { data: null };
+  if (error || !inv) return toast('ما قدرنا نجهز الفاتورة. حدّث الصفحة وجرّب.');
+  const html = await invoiceDoc(inv, { logoUrl: inv.logo_path ? imgUrl(inv.logo_path) : null, note: o.note,
+    copy: o.fulfillment === 'pickup' ? 'الزبون يعطي الكاشير رمز الاستلام من جواله.' : 'التسليم برمز الزبون أو تأكيده من جواله.' });
   const f = document.createElement('iframe');
   f.style.cssText = 'position:fixed;width:0;height:0;border:0;opacity:0';
   document.body.append(f);
   f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close();
-  setTimeout(() => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch { toast('ما قدرنا نفتح الطباعة.'); } setTimeout(() => f.remove(), 60000); }, 300);
+  setTimeout(() => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch { toast('ما قدرنا نفتح الطباعة.'); } setTimeout(() => f.remove(), 60000); }, 400);
 }
 
 // ---------------- حسابات المحل (الباقة المميزة) ----------------
@@ -2371,6 +2351,8 @@ function receiptText(o) {
     `المنتجات: ${money(o.subtotal)}`];
   if (Number(o.delivery_fee)) lines.push(`${o.fulfillment === 'roundtrip' ? 'الاستلام والتسليم' : 'التوصيل'}: ${money(o.delivery_fee)}`);
   if (Number(o.express_fee)) lines.push(`مستعجل: ${money(o.express_fee)}`);
-  lines.push(`الإجمالي: ${money(o.total)}`, `الدفع: ${O_PAY[o.payment_method]}${o.payment_status === 'paid' ? ' · مدفوع ✓' : ''}`, '', 'شكرًا لتسوّقكم 🌿 تحصّله');
+  lines.push(`الإجمالي: ${money(o.total)}`, `الدفع: ${O_PAY[o.payment_method]}${o.payment_status === 'paid' ? ' · مدفوع ✓' : ''}`);
+  if (o.invoice_token) lines.push('', '📄 الفاتورة كاملة (وتقدر تحمّلها PDF):', invoiceLink(o.invoice_token, IS_DEMO));
+  lines.push('', 'شكرًا لتسوّقكم 🌿 تحصّله');
   return lines.join('\n');
 }

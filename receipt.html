@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>فاتورة · تحصّله</title>
+<link rel="icon" href="brand/favicon.ico" sizes="any">
+<link rel="icon" href="brand/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<style id="inv-css"></style>
+<style>
+  body { margin: 0; background: #eef3f1; }
+  main { padding: 16px; display: grid; gap: 14px; justify-items: center; }
+  #paper { background: #fff; padding: 14px 10px; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,.08); max-width: 100%; box-sizing: border-box; }
+  .bar { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .bar button { font: inherit; font-weight: 700; border: 0; border-radius: 12px; padding: 12px 18px; cursor: pointer; background: #105E51; color: #fff; }
+  .bar button.ghost { background: #fff; color: #105E51; border: 1.5px solid #105E51; }
+  .msg { text-align: center; color: #333; padding: 40px 10px; font-family: system-ui, Tahoma, sans-serif; }
+  @media print { body { background: #fff; } main { padding: 0; } .bar { display: none; } #paper { box-shadow: none; padding: 0; } @page { size: 80mm auto; margin: 4mm; } }
+</style>
+</head>
+<body>
+<main>
+  <p class="msg" id="msg">جارِ تحميل الفاتورة…</p>
+  <div id="paper" hidden><div class="inv80" id="inv"></div></div>
+  <div class="bar" id="bar" hidden>
+    <button type="button" id="pdf">⬇️ تحميل PDF</button>
+    <button type="button" class="ghost" id="print">🖨️ طباعة</button>
+  </div>
+</main>
+<script type="module">
+import { sb } from './lib.js';
+import { invoiceBody, INVOICE_CSS } from './invoice-ui.js';
+document.getElementById('inv-css').textContent = INVOICE_CSS;
+const t = new URLSearchParams(location.search).get('t');
+const msg = document.getElementById('msg');
+const { data: inv, error } = /^[0-9a-f-]{36}$/i.test(t || '') ? await sb.rpc('invoice_get', { t }) : { data: null };
+if (error || !inv) msg.textContent = 'ما لقينا هالفاتورة. تأكد من الرابط، أو اطلبها من المحل.';
+else {
+  msg.hidden = true;
+  const logoUrl = inv.logo_path ? sb.storage.from('product-images').getPublicUrl(inv.logo_path).data.publicUrl : null;
+  document.getElementById('inv').innerHTML = await invoiceBody(inv, { logoUrl });
+  document.title = `فاتورة ${inv.number} · ${inv.store_name}`;
+  document.getElementById('paper').hidden = document.getElementById('bar').hidden = false;
+  document.getElementById('print').onclick = () => print();
+  document.getElementById('pdf').onclick = async e => {
+    const b = e.currentTarget; b.disabled = true; b.textContent = 'جارِ التجهيز…';
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/+esm'), import('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/+esm')]);
+      const el = document.getElementById('paper');
+      const c = await html2canvas(el, { scale: 3, backgroundColor: '#fff', useCORS: true });
+      const w = 80, h = w * c.height / c.width;
+      const pdf = new jsPDF({ unit: 'mm', format: [w, h] });
+      pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, w, h);
+      pdf.save(`invoice-${inv.number}.pdf`);
+    } catch { print(); }
+    b.disabled = false; b.textContent = '⬇️ تحميل PDF';
+  };
+}
+</script>
+</body>
+</html>

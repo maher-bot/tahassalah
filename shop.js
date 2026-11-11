@@ -2,6 +2,7 @@
 // الدفع للمحل مباشرة (عند الاستلام، شبكة، تحويل، تابي/تمارا في المحل)؛ المنصة ما تمسك فلوس.
 import { sb, $, $$, toast, digits, valid, friendlyError, setBusy, shrinkImage, fileExt } from './lib.js';
 import { IS_DEMO } from './config.js';
+import { invoiceLink } from './invoice-ui.js';
 import { pickLocation } from './mappick.js';
 import { showInstall, showPushCard } from './pwa.js';
 
@@ -382,6 +383,7 @@ function orderCard(o, storeName) {
     }
   }
   if (o.receipt_pref === 'paper') c.append(mk('div', 'hint', '🧾 طلبت فاتورة ورقية مع الطلب'));
+  if (o.invoice_token && !['placed', 'rejected', 'cancelled'].includes(o.status)) { const a = mk('a', 'btn ghost sm', '📄 فاتورتك (PDF)'); a.href = invoiceLink(o.invoice_token, IS_DEMO); a.target = '_blank'; a.rel = 'noopener'; c.append(a); }
   if (o.receipt_pref === 'whatsapp') c.append(mk('div', 'hint', o.receipt_sent_at ? '💬 أرسل لك المحل الفاتورة على الواتساب ✓' : '💬 الفاتورة بتوصلك على الواتساب'));
   c.append(mk('div', 'num', `الإجمالي ${sar(o.total)} · ${o.fulfillment === 'delivery' ? 'توصيل' : o.fulfillment === 'roundtrip' ? 'استلام وتسليم' + (o.express ? ' ⚡ مستعجل' : '') : 'استلام من المحل'} · ${PAY[o.payment_method]}${o.payment_status === 'paid' ? ' · مدفوع ✓' : o.payment_status === 'proof' ? ' · وصل الإيصال' : ''}`));
   if (o.driver_name && ['ready', 'out'].includes(o.status)) c.append(mk('div', 'hint', `🛵 المندوب: ${o.driver_name}`));
