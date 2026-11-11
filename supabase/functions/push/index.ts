@@ -6,7 +6,7 @@ const env = (k: string) => Deno.env.get(k) ?? "";
 const admin = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
 const money = (n: number) => Number(n).toLocaleString("ar-SA", { maximumFractionDigits: 2 }) + " ر.س";
 
-type Msg = { users: string[]; title: string; body: string; url: string; tag: string };
+type Msg = { users: string[]; title: string; body: string; url: string; tag: string; actions?: { action: string; title: string }[] };
 
 // تنبيهات المحل: لو فيه مناوبة مفتوحة تروح لأجهزة المناوبة فقط، وإلا لصاحب المحل وموظفين الطلبات
 async function staffOf(mid: string) {
@@ -70,7 +70,8 @@ Deno.serve(async (req) => {
   if (p?.type === "offer") {
     const { data: aud } = await admin.rpc("offer_audience", { mid: p.merchant_id, la: p.lat, ln: p.lng });
     const users = (aud ?? []).map((x: any) => x.user_id);
-    if (users.length) list = [{ users, title: `🏷️ عرض من ${p.store}`, body: `${p.product}: ${money(p.sale)} بدل ${money(p.price)}`, url: "shop.html", tag: "offer-" + p.merchant_id }];
+    if (users.length) list = [{ users, title: `🏷️ عرض من ${p.store}`, body: `${p.product}: ${money(p.sale)} بدل ${money(p.price)}`, url: "shop.html", tag: "offer-" + p.merchant_id,
+      actions: [{ action: "stop-offers", title: "إيقاف تنبيهات العروض" }] }];
   } else if (!p?.record) return new Response("ignored");
   else list = await messages(p.type, p.record, p.old_record);
   let sent = 0;
@@ -85,7 +86,7 @@ Deno.serve(async (req) => {
     for (const s of subs) {
       try {
         await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-          JSON.stringify({ title: msg.title, body: msg.body, url: msg.url, tag: msg.tag }), { TTL: 3600, urgency: "high" });
+          JSON.stringify({ title: msg.title, body: msg.body, url: msg.url, tag: msg.tag, actions: msg.actions }), { TTL: 3600, urgency: "high" });
         sent++;
       } catch (e: any) {
         if (e?.statusCode === 404 || e?.statusCode === 410) await admin.from("push_subscriptions").delete().eq("id", s.id);

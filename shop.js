@@ -64,6 +64,13 @@ $$('[data-back]').forEach(b => b.addEventListener('click', () => { if (b.dataset
   stores = data || [];
   navigator.geolocation?.getCurrentPosition(p => { here = { lat: p.coords.latitude, lng: p.coords.longitude }; if (!$('#v-stores').hidden) renderStores(); }, () => {}, { timeout: 8000 });
   if (location.hash === '#orders') return openOrders();
+  // من زر «إيقاف تنبيهات العروض» في التنبيه
+  if (location.hash === '#stop-offers') {
+    history.replaceState(null, '', location.pathname + location.search);
+    const stop = async () => { await sb.rpc('set_offer_alerts', { on_: false }); if (buyer) buyer.offer_alerts = false; toast('وقفنا تنبيهات العروض. تقدر ترجّعها من «طلباتي».', 5000); openOrders(); };
+    if (await ensureBuyer(stop)) return stop();
+    return;
+  }
   showStores();
 })();
 
