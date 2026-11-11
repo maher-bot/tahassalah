@@ -229,3 +229,17 @@ dialog > .stack { padding: 20px; }
   .table-wrap td[data-label]::before { content: attr(data-label); color: var(--muted); font-size: .82rem; flex: 0 0 auto; max-width: 45%; }
   .table-wrap tr td:last-child { border-bottom: 0; }
 }
+/* الجوال: ولا عنصر أعرض من الشاشة */
+@media (max-width: 640px) {
+  .card.live { flex-wrap: wrap; }
+  .card.live > * { min-width: 0 !important; flex: 1 1 100%; }
+  main input, main select, main textarea { max-width: 100%; min-width: 0 !important; }
+  main form[style*="flex"] > input, main form[style*="flex"] > select { flex: 1 1 140px; }
+  main img, main video, main iframe { max-width: 100%; }
+  main .card, main section, main fieldset { min-width: 0; max-width: 100%; }
+}
+@media (max-width: 640px) {
+  .top .in { flex-wrap: wrap; row-gap: 8px; }
+  .top .sp { flex: 1 1 auto; min-width: 0; }
+  .top .sp .btn { white-space: nowrap; }
+}
