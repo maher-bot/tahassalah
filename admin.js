@@ -67,8 +67,9 @@ $('#refresh').addEventListener('click', load);
 const fmtDate = d => new Date(d).toLocaleString('ar-SA-u-nu-latn-ca-gregory', { dateStyle: 'medium', timeStyle: 'short' });
 
 function render() {
-  $('#q').hidden = tab === 'launch';
+  $('#q').hidden = tab === 'launch' || tab === 'logos';
   if (tab === 'launch') return renderLaunch();
+  if (tab === 'logos') return renderLogos();
   const q = $('#q').value.trim().toLowerCase();
   const list = all.filter(m => m.status === tab && (!q || [m.store_name, m.owner_name, m.cr_number, m.id_number, m.phone, m.email, m.city, KINDS[m.kind]].some(x => (x || '').toLowerCase().includes(q))));
   const box = $('#mlist');
@@ -481,4 +482,34 @@ async function renderLaunch() {
   sw.append(city, l1, l2, row);
 
   box.replaceChildren(stats, cities, plans, acts, sw);
+}
+
+// ---------------- الشعارات الجديدة: التاجر يرفع شعاره ويظهر مباشرة، وهنا تشوفه وتشيل المخالف ----------------
+async function renderLogos() {
+  const box = $('#mlist');
+  box.innerHTML = '<p class="hint">جارِ التحميل…</p>';
+  const { data, error } = await sb.rpc('admin_logos', { days: 60 });
+  if (error) { box.innerHTML = ''; return toast(friendlyError(error)); }
+  if (tab !== 'logos') return;
+  const url = p => sb.storage.from('product-images').getPublicUrl(p).data.publicUrl;
+  if (!data.length) { box.innerHTML = '<div class="empty">ما أضاف أحد شعار في آخر 60 يوم.</div>'; return; }
+  box.replaceChildren(...data.map(m => {
+    const el = document.createElement('div'); el.className = 'row-card';
+    const img = Object.assign(document.createElement('img'), { src: url(m.logo_path), alt: m.store_name, loading: 'lazy' });
+    img.style.cssText = 'width:64px;height:64px;object-fit:contain;border-radius:12px;border:1px solid var(--line);background:#fff';
+    const t = document.createElement('div'); t.style.cssText = 'display:flex;gap:12px;align-items:center;min-width:0';
+    const tx = document.createElement('div');
+    tx.append(Object.assign(document.createElement('b'), { textContent: m.store_name }), Object.assign(document.createElement('div'), { className: 'hint', textContent: `${m.activity || ''} · أضاف شعاره ${fmtDate(m.logo_at)}` }));
+    t.append(img, tx);
+    const rm = Object.assign(document.createElement('button'), { className: 'btn danger sm', textContent: 'شيل الشعار', type: 'button' });
+    rm.onclick = async () => {
+      if (!confirm(`تشيل شعار «${m.store_name}»؟ (مثلًا لأنه شعار ماركة ما يملكها أو صورة غير لائقة)`)) return;
+      const { error } = await sb.rpc('admin_remove_logo', { mid: m.id });
+      if (error) return toast(friendlyError(error));
+      toast('انشال الشعار.'); renderLogos();
+    };
+    el.append(t, rm); return el;
+  }));
+  const c = document.querySelector('[data-c=logos]'); const recent = data.filter(m => Date.now() - new Date(m.logo_at) < 7 * 864e5).length;
+  c.hidden = !recent; c.textContent = recent;
 }

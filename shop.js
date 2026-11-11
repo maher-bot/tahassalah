@@ -108,7 +108,7 @@ function renderStores() {
     if (s.premium) { const pb = mk('span', 'badge pending', '⭐ مميز'); pb.style.marginInlineStart = '6px'; name.append(pb); }
     const t = mk('div'); t.append(name, mk('div', 'hint', [s.activity, s.district].filter(Boolean).join(' · ')));
     if (hit?.matches) t.append(mk('div', 'hint', `فيه: ${(hit.sample || []).join('، ')}${hit.matches > 3 ? ` و${hit.matches - 3} غيرها` : ''}`));
-    b.append(t, mk('span', 'badge approved num', d == null ? '' : d < 1 ? `${Math.round(d * 1000)} م` : `${d.toFixed(1)} كم`));
+    b.append(withLogo(s.logo_path, t, 44), mk('span', 'badge approved num', d == null ? '' : d < 1 ? `${Math.round(d * 1000)} م` : `${d.toFixed(1)} كم`));
     b.onclick = () => openStore(s);
     return b;
   }));
@@ -123,7 +123,7 @@ async function openStore(s) {
     sb.from('store_settings').select('*').eq('merchant_id', s.id).maybeSingle(),
   ]);
   products = p.data || []; settings = ss.data || { pickup: true, pay_cash: true };
-  $('#st-name').textContent = s.store_name + (s.premium ? ' ⭐' : '');
+  $('#st-name').replaceChildren(withLogo(s.logo_path, mk('span', '', s.store_name + (s.premium ? ' ⭐' : '')), 52));
   const info = [s.activity, settings.pickup !== false && 'استلام من المحل', settings.delivers && `توصيل ${Number(settings.delivery_fee) ? sar(settings.delivery_fee) : 'مجاني'}`,
     settings.service_roundtrip && `🧺 استلام وتسليم من بيتك ${Number(settings.roundtrip_fee) ? sar(settings.roundtrip_fee) : 'مجاني'}`,
     settings.min_order && `أقل طلب ${sar(settings.min_order)}`].filter(Boolean);
@@ -446,3 +446,12 @@ $('#offer-alerts input').addEventListener('change', async e => {
   if (buyer) buyer.offer_alerts = on;
   toast(on ? 'بنبهك بعروض المحلات القريبة ✓ (فعّل التنبيهات لو ما فعّلتها)' : 'وقفنا تنبيهات العروض.');
 });
+
+// شعار المحل (لو رفعه) جنب الاسم
+function withLogo(path, el, size) {
+  if (!path) return el;
+  const w = mk('div'); w.style.cssText = 'display:flex;gap:10px;align-items:center;min-width:0';
+  const lg = mk('img'); lg.src = imgUrl(path); lg.alt = ''; lg.loading = 'lazy';
+  lg.style.cssText = `width:${size}px;height:${size}px;object-fit:contain;border-radius:10px;border:1px solid var(--line);background:#fff;flex:0 0 auto`;
+  w.append(lg, el); return w;
+}

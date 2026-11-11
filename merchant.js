@@ -4,6 +4,7 @@ import { showInstall, showPushCard } from './pwa.js';
 import { pickLocation } from './mappick.js';
 import { SUPABASE_URL } from './config.js';
 import * as S from './stats-ui.js';
+import { billDialog, renderBills, renderForecast, entryDialog } from './books-ui.js';
 
 const VIEWS = ['v-loading', 'v-auth', 'v-check-email', 'v-reset', 'v-apply', 'v-status', 'v-invites', 'v-dash', 'v-roles', 'v-rep-done'];
 const show = id => { VIEWS.forEach(v => { $('#' + v).hidden = v !== id; }); window.scrollTo(0, 0); };
@@ -35,7 +36,7 @@ const utmParams = () => ({
 // ctx: المتجر المفتوح حاليًا — صاحبه أو موظف فيه
 let ctx = null;
 const ROLES = { manager: 'مدير فرع', stock: 'أمين مخزون', pricing: 'موظف أسعار', cashier: 'كاشير', accountant: 'محاسب', driver: 'مندوب توصيل' };
-const ROLE_PERMS = { manager: ['inventory', 'prices', 'orders'], stock: ['inventory'], pricing: ['prices'], cashier: ['orders'], driver: ['delivery'] };
+const ROLE_PERMS = { manager: ['inventory', 'prices', 'orders'], stock: ['inventory'], pricing: ['prices'], cashier: ['orders'], driver: ['delivery'], accountant: ['earnings'] };
 const canOrders = () => ctx?.owner || ctx?.perms.has('orders');
 const isDriver = () => !ctx?.owner && ctx?.perms.has('delivery');
 const canInv = () => ctx?.owner || ctx?.perms.has('inventory');
@@ -574,6 +575,7 @@ async function openDash(id) {
   $$('#d-tabs [data-staff]').forEach(b => { b.hidden = !viaApproval(); });
   $$('#d-tabs [data-orders]').forEach(b => { b.hidden = !canOrders(); });
   $$('#d-tabs [data-driver]').forEach(b => { b.hidden = !isDriver(); });
+  $$('#d-tabs [data-books]').forEach(b => { b.hidden = !(ctx.owner || ctx.perms.has('earnings')); });
   $('#add').hidden = !canInv();
   const direct = ctx.owner || (canInv() && !ctx.needs);
   $('#csv-wrap').hidden = !direct; $('#csv-tpl').hidden = !direct;
@@ -585,8 +587,10 @@ async function openDash(id) {
   }
   // باقة المحل: ميزات «مميز» (المناوبات، العهدة، ربط المخزون، سجل الحركات)
   const { data: feat } = await sb.rpc('store_features', { mid: ctx.mid });
-  ctx.pro = !!feat?.pro; ctx.plan = feat?.plan; ctx.activity = feat?.activity;
-  selectTab(isDriver() ? 'deliveries' : 'products');
+  ctx.pro = !!feat?.pro; ctx.plan = feat?.plan; ctx.activity = feat?.activity; ctx.logo = feat?.logo_path || null;
+  { const lg = $('#d-logo'); lg.hidden = !ctx.logo; if (ctx.logo) lg.src = imgUrl(ctx.logo); }
+  selectTab(location.hash === '#books' && (ctx.owner || ctx.perms.has('earnings')) ? 'books'
+    : isDriver() ? 'deliveries' : (!ctx.owner && ctx.perms.has('earnings') && ctx.perms.size === 1) ? 'books' : 'products');
   show('v-dash');
   showPushCard($('#v-dash'), sb, user.id, isDriver() ? 'يوصلك تنبيه على جوالك أول ما يتحوّل لك طلب، حتى والتطبيق مقفول.' : 'يوصلك تنبيه على جوالك أول ما يجيك طلب جديد، حتى والتطبيق مقفول.');
   showInstall($('#v-dash'), isDriver() ? 'ثبّت تحصّله على جوالك، وتوصلك توصيلاتك من أيقونته مباشرة.' : 'ثبّت لوحة متجرك على جوالك، وافتحها من أيقونتها مثل أي تطبيق.');
@@ -604,11 +608,12 @@ $('#d-switch').addEventListener('change', e => {
 
 function selectTab(name) {
   $$('#d-tabs [role=tab]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
-  for (const t of ['products', 'approvals', 'mine', 'team', 'settings', 'orders', 'deliveries', 'stats']) $('#p-' + t).hidden = t !== name;
+  for (const t of ['products', 'approvals', 'mine', 'team', 'settings', 'orders', 'deliveries', 'stats', 'books']) $('#p-' + t).hidden = t !== name;
+  if (name === 'books') loadBooks();
   if (name === 'stats') loadStats();
   if (name === 'orders') loadOrders();
   if (name === 'deliveries') loadDeliveries();
-  if (name === 'settings') { loadSettings(); loadPos(); }
+  if (name === 'settings') { loadSettings(); loadPos(); showLogo(); }
   if (name === 'approvals') loadApprovals();
   if (name === 'mine') loadMine();
   if (name === 'team') { loadTeam(); loadCashiers(); loadShiftLog(); }
@@ -1217,6 +1222,7 @@ function openStaff(s) {
     fs.role.value = ROLE_PERMS[s.role] ? s.role : 'stock';
     fs.p_inventory.checked = s.perms.includes('inventory'); fs.p_prices.checked = s.perms.includes('prices');
     fs.p_orders.checked = s.perms.includes('orders'); fs.p_delivery.checked = s.perms.includes('delivery');
+    fs.p_earnings.checked = s.perms.includes('earnings');
     fs.needs_approval.checked = s.needs_approval;
   }
   dlgStaff.showModal(); (s ? fs.name : fs.name).focus();
@@ -1227,12 +1233,13 @@ fs.role.addEventListener('change', () => {
   const p = ROLE_PERMS[fs.role.value] || [];
   fs.p_inventory.checked = p.includes('inventory'); fs.p_prices.checked = p.includes('prices');
   fs.p_orders.checked = p.includes('orders'); fs.p_delivery.checked = p.includes('delivery');
+  fs.p_earnings.checked = p.includes('earnings');
 });
 fs.addEventListener('submit', async e => {
   e.preventDefault();
   const err = $('.err', fs), btn = $('#staff-save');
   const email = fs.email.value.trim().toLowerCase(), name = fs.name.value.trim();
-  const perms = [fs.p_inventory.checked && 'inventory', fs.p_prices.checked && 'prices', fs.p_orders.checked && 'orders', fs.p_delivery.checked && 'delivery'].filter(Boolean);
+  const perms = [fs.p_inventory.checked && 'inventory', fs.p_prices.checked && 'prices', fs.p_orders.checked && 'orders', fs.p_delivery.checked && 'delivery', fs.p_earnings.checked && 'earnings'].filter(Boolean);
   if (name.length < 2) return (err.textContent = 'اكتب اسم الموظف.');
   if (!editingStaff && !/^\S+@\S+\.\S+$/.test(email)) return (err.textContent = 'اكتب إيميل صحيح.');
   if (!perms.length) return (err.textContent = 'اختر صلاحية وحدة على الأقل.');
@@ -2228,6 +2235,7 @@ function printOrder(o) {
     .row { display: flex; justify-content: space-between; } .tot { font-size: 15px; font-weight: 700; border-top: 2px solid #000; padding-top: 4px; margin-top: 4px; }
     hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; } small { color: #333; }
   </style></head><body>
+    ${ctx.logo ? `<div class="c"><img src="${esc(imgUrl(ctx.logo))}" alt="" style="width:22mm;height:22mm;object-fit:contain"></div>` : ''}
     <h1>${esc(o.store_name || ctx.store)}</h1>
     <div class="c"><small>إيصال طلب عبر تحصّله · ليس فاتورة ضريبية</small></div>
     <div class="big">${esc(o.number)}</div>
@@ -2249,3 +2257,101 @@ function printOrder(o) {
   f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close();
   setTimeout(() => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch { toast('ما قدرنا نفتح الطباعة.'); } setTimeout(() => f.remove(), 60000); }, 300);
 }
+
+// ---------------- حسابات المحل (الباقة المميزة) ----------------
+const BK = {
+  expense: { salaries: 'رواتب', rent: 'إيجار', goods: 'بضاعة وموردين', utilities: 'كهرباء وماء', telecom: 'اتصالات وإنترنت', maintenance: 'صيانة',
+    marketing: 'تسويق', government: 'رسوم حكومية', transport: 'نقل ومواصلات', subscriptions: 'اشتراكات', other: 'أخرى' },
+  income: { store_sales: 'مبيعات المحل (خارج تحصّله)', other_income: 'دخل آخر' },
+};
+const PAY_NAME = { cash: 'نقدًا', card: 'شبكة', transfer: 'تحويل', tabby: 'تابي', tamara: 'تمارا' };
+{ const d = new Date(); $('#bk-month').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; }
+$('#bk-month').addEventListener('change', () => loadBooks());
+const isoD = d => new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+
+async function loadBooks() {
+  const body = $('#bk-body');
+  if (!ctx) return;
+  if (!ctx.pro) { body.replaceChildren(S.section('💰 حسابات المحل', null, proLock('حسابات المحل: الفواتير المستحقة بتذكير، والمصروفات والرواتب، والدخل، والميزانية القادمة'))); return; }
+  body.replaceChildren(S.mk('p', 'hint', 'جارِ التحميل…'));
+  const [y, m] = $('#bk-month').value.split('-').map(Number);
+  const d1 = isoD(new Date(y, m - 1, 1)), d2 = isoD(new Date(y, m, 0));
+  const ago = isoD(new Date(Date.now() - 90 * 864e5)), now = isoD(new Date());
+  const [{ data: sales }, { data: ent, error }, { data: sales90 }, { data: inc90 }] = await Promise.all([
+    sb.rpc('books_platform_sales', { mid: ctx.mid, d1, d2 }),
+    sb.from('merchant_entries').select('*').eq('merchant_id', ctx.mid).gte('entry_date', d1).lte('entry_date', d2).order('entry_date', { ascending: false }),
+    sb.rpc('books_platform_sales', { mid: ctx.mid, d1: ago, d2: now }),
+    sb.from('merchant_entries').select('amount').eq('merchant_id', ctx.mid).eq('kind', 'income').gte('entry_date', ago),
+  ]);
+  if (error) return body.replaceChildren(S.mk('p', 'err', friendlyError(error)));
+  const sum = a => (a || []).reduce((s, x) => s + Number(x.total ?? x.amount ?? 0), 0);
+  const platform = sum(sales), otherInc = sum(ent.filter(e => e.kind === 'income')), exp = sum(ent.filter(e => e.kind === 'expense'));
+  const monthly = (sum(sales90) + sum(inc90)) / 3;
+
+  const billsBox = S.mk('div', 'mlist'), doneBox = S.mk('div', 'mlist'), fcBox = S.mk('div');
+  const addBill = S.mk('button', 'btn primary sm', '＋ فاتورة مستحقة'); addBill.type = 'button';
+  addBill.onclick = () => billDialog({ sb, mid: ctx.mid, cats: BK.expense, toast, friendlyError, onSaved: loadBooks });
+  const addExp = S.mk('button', 'btn primary sm', '＋ مصروف'); addExp.type = 'button';
+  addExp.onclick = () => entryDialog({ sb, mid: ctx.mid, cats: BK, kind: 'expense', toast, friendlyError, onSaved: loadBooks });
+  const addInc = S.mk('button', 'btn ghost sm', '＋ دخل'); addInc.type = 'button';
+  addInc.onclick = () => entryDialog({ sb, mid: ctx.mid, cats: BK, kind: 'income', toast, friendlyError, onSaved: loadBooks });
+  const bar = (...b) => { const x = S.mk('div'); x.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap'; x.append(...b); return x; };
+
+  const entRows = ent.map(e => {
+    const att = e.attachments?.length ? (() => { const b = S.mk('button', 'btn ghost sm', `📄 ${e.attachments.length}`); b.type = 'button'; b.onclick = async () => { for (const p of e.attachments) { const { data } = await sb.storage.from('receipts').createSignedUrl(p, 300); if (data) open(data.signedUrl, '_blank'); } }; return b; })() : '—';
+    const del = S.mk('button', 'btn ghost sm', 'حذف'); del.type = 'button';
+    del.onclick = async () => { if (!confirm('حذف القيد؟')) return; const { error } = await sb.from('merchant_entries').delete().eq('id', e.id); if (error) return toast(friendlyError(error)); loadBooks(); };
+    const edit = S.mk('button', 'btn ghost sm', 'تعديل'); edit.type = 'button';
+    edit.onclick = () => entryDialog({ sb, mid: ctx.mid, cats: BK, kind: e.kind, entry: e, toast, friendlyError, onSaved: loadBooks });
+    const acts = S.mk('div'); acts.style.cssText = 'display:flex;gap:4px'; acts.append(edit, del);
+    return [e.entry_date, e.kind === 'income' ? 'دخل' : 'مصروف', BK[e.kind][e.category] || e.category, e.description || '', money(e.amount), att, acts];
+  });
+  body.replaceChildren(
+    S.kpis([
+      ['مبيعات تحصّله', money(platform), (sales || []).map(x => `${PAY_NAME[x.method] || x.method} ${money(x.total)}`).join(' · ') || 'تنحسب تلقائيًا من الطلبات'],
+      ['دخل آخر', money(otherInc)],
+      ['المصروفات', money(exp)],
+      ['الصافي', money(platform + otherInc - exp)],
+    ]),
+    S.section('⏰ الفواتير المستحقة', 'الإيجار والرواتب وفواتير الموردين بتاريخ سدادها، ويوصلك تذكير بالجوال والإيميل في المواعيد اللي تختارها.', bar(addBill), billsBox),
+    S.section('📅 الميزانية القادمة', 'الدخل المتوقع = متوسط دخلك الشهري لآخر 3 أشهر (مبيعات تحصّله والدخل الآخر).', fcBox),
+    S.section('الدخل والمصروفات لهذا الشهر', 'المصروف المسدد من «الفواتير المستحقة» ينضاف هنا تلقائيًا.', bar(addExp, addInc),
+      S.table(['التاريخ', 'النوع', 'التصنيف', 'الوصف', 'المبلغ', 'مرفق', ''], entRows)),
+    (() => { const d = S.mk('details', 'card'); d.style.padding = '12px 16px'; d.append(Object.assign(S.mk('summary'), { innerHTML: '<b>الفواتير المسددة</b>' }), doneBox); return d; })(),
+  );
+  const opts = { sb, mid: ctx.mid, cats: BK.expense, toast, friendlyError, onChange: loadBooks };
+  const [open] = await Promise.all([renderBills(billsBox, opts), renderBills(doneBox, { ...opts, show: 'done' })]);
+  renderForecast(fcBox, { bills: open, monthlyIncome: monthly, incomeLabel: 'الدخل المتوقع (تقديري)' });
+  const soon = open.filter(b => (new Date(b.due_date) - Date.now()) / 864e5 <= 7).length;
+  const c = $('#c-books'); c.hidden = !soon; c.textContent = soon;
+}
+
+// ---------------- شعار المحل: يرفعه صاحب المحل ويظهر مباشرة ----------------
+function showLogo() {
+  const p = $('#logo-prev'); p.hidden = !ctx?.logo; if (ctx?.logo) p.src = imgUrl(ctx.logo);
+  $('#logo-del').hidden = !ctx?.logo;
+}
+$('#logo-file').addEventListener('change', async e => {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file || !ctx?.owner) return;
+  try {
+    const small = await shrinkImage(file, 512);
+    if (small.size > 2 * 1024 * 1024) return toast('الصورة كبيرة، اختر أصغر من 2 ميجا.');
+    const ext = small.type === 'image/webp' ? 'webp' : small.type === 'image/png' ? 'png' : 'jpg';
+    const path = `${ctx.mid}/logo-${crypto.randomUUID()}.${ext}`;
+    const up = await sb.storage.from('product-images').upload(path, small, { contentType: small.type });
+    if (up.error) throw up.error;
+    const { error } = await sb.rpc('set_store_logo', { path });
+    if (error) throw error;
+    if (ctx.logo) sb.storage.from('product-images').remove([ctx.logo]);
+    ctx.logo = path; showLogo(); $('#d-logo').hidden = false; $('#d-logo').src = imgUrl(path);
+    toast('انضاف شعارك ✓ ويظهر للمشترين.');
+  } catch (ex) { toast(friendlyError(ex)); }
+});
+$('#logo-del').addEventListener('click', async () => {
+  if (!ctx?.logo || !confirm('حذف شعار المحل؟')) return;
+  const { error } = await sb.rpc('set_store_logo', { path: null });
+  if (error) return toast(friendlyError(error));
+  sb.storage.from('product-images').remove([ctx.logo]);
+  ctx.logo = null; showLogo(); $('#d-logo').hidden = true;
+});

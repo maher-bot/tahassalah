@@ -267,7 +267,7 @@
   <section id="v-dash" hidden>
     <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px">
       <div style="min-width:0;flex:1">
-        <h1 style="font-size:1.6rem" id="d-store"></h1>
+        <h1 style="font-size:1.6rem;display:flex;gap:10px;align-items:center" id="d-store-wrap"><img id="d-logo" alt="" hidden style="width:44px;height:44px;object-fit:contain;border-radius:10px;border:1px solid var(--line);background:#fff"><span id="d-store"></span></h1>
         <p class="hint"><span class="badge approved" id="d-badge">مفعّل</span> <span id="d-plan"></span></p>
       </div>
       <label class="switch" id="d-switch-wrap" hidden><span class="hint">المتجر</span><select id="d-switch"></select></label>
@@ -279,6 +279,7 @@
       <button role="tab" aria-selected="false" data-tab="approvals" data-owner>بانتظار موافقتك <span class="count" id="c-approvals" hidden></span></button>
       <button role="tab" aria-selected="false" data-tab="mine" data-staff>طلباتي <span class="count" id="c-mine" hidden></span></button>
       <button role="tab" aria-selected="false" data-tab="stats" data-owner>📊 الأداء</button>
+      <button role="tab" aria-selected="false" data-tab="books" data-books hidden>💰 الحسابات <span class="count" id="c-books" hidden></span></button>
       <button role="tab" aria-selected="false" data-tab="team" data-owner>الفريق</button>
       <button role="tab" aria-selected="false" data-tab="settings" data-owner>التوصيل والاستلام</button>
     </div>
@@ -458,6 +459,15 @@
           <button class="btn danger sm" type="button" id="data-delete">حذف حسابي وبياناتي نهائيًا</button>
         </div>
       </div>
+      <div class="card" id="logo-card" style="margin-top:16px;display:grid;gap:10px">
+        <b>🖼️ شعار محلك</b>
+        <p class="hint">يظهر للمشترين جنب اسم محلك وفي صفحته، وعلى إيصال الطلب المطبوع. صورة مربعة واضحة، وحجمها أقل من 2 ميجا.</p>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <img id="logo-prev" alt="شعار المحل" hidden style="width:80px;height:80px;object-fit:contain;border-radius:14px;border:1px solid var(--line);background:#fff">
+          <label class="btn primary sm">رفع الشعار<input type="file" id="logo-file" accept="image/png,image/jpeg,image/webp" hidden></label>
+          <button class="btn ghost sm" type="button" id="logo-del" hidden>حذف الشعار</button>
+        </div>
+      </div>
       <div class="card" id="pos-card" style="margin-top:16px;display:grid;gap:10px">
         <b>🔗 ربط المخزون مع نظام الكاشير</b>
         <p class="hint">نظام الكاشير حق محلك يرسل الكميات للمنصة تلقائيًا كل ما تتغير، بدون ما يحدّثها أحد بيده. الربط بالباركود، فلازم كل منتج في المنصة يكون عليه نفس باركوده في نظام الكاشير.</p>
@@ -491,6 +501,13 @@
       <div class="toolbar"><select id="st-days" style="width:auto"><option value="7">آخر 7 أيام</option><option value="30" selected>آخر 30 يوم</option><option value="90">آخر 3 أشهر</option></select>
         <span class="hint" style="margin-inline-start:auto">الطلبات المكتملة فقط تدخل في المبيعات والمنتجات</span></div>
       <div class="stack" id="st-body"></div>
+    </div>
+
+    <!-- حسابات المحل (الباقة المميزة) -->
+    <div id="p-books" hidden class="stack">
+      <div class="toolbar"><label style="display:flex;gap:6px;align-items:center;font-weight:500">الشهر<input type="month" id="bk-month" style="width:auto"></label>
+        <span class="hint" style="margin-inline-start:auto">دفتر داخلي لمحلك، وليس فواتير ضريبية</span></div>
+      <div id="bk-body" class="stack"></div>
     </div>
 
     <!-- فريق المتجر -->
@@ -599,6 +616,7 @@
         <option value="pricing">موظف أسعار — الأسعار فقط</option>
         <option value="cashier">كاشير — يستقبل الطلبات ويحوّلها للمندوب</option>
         <option value="driver">🛵 مندوب توصيل — يوصّل الطلبات اللي تتحوّل له</option>
+        <option value="accountant">💰 محاسب — الحسابات والفواتير</option>
       </select>
     </label>
     <fieldset>
@@ -607,6 +625,7 @@
       <label class="check"><input type="checkbox" name="p_prices"> تعديل الأسعار والعروض</label>
       <label class="check"><input type="checkbox" name="p_orders"> استقبال طلبات المشترين وتجهيزها وتحويلها للمندوب</label>
       <label class="check"><input type="checkbox" name="p_delivery"> توصيل الطلبات (مندوب)</label>
+      <label class="check"><input type="checkbox" name="p_earnings"> الحسابات: الفواتير والمصروفات والدخل (محاسب)</label>
     </fieldset>
     <label class="check"><input type="checkbox" name="needs_approval" checked> <span><b>تعديلاته تحتاج موافقتي</b><br><span class="hint">كل إضافة أو تعديل أو حذف يسويه ينتظر موافقتك قبل ما يظهر. شيلها لما تثق فيه.</span></span></label>
     <p class="err" role="alert"></p>

@@ -72,6 +72,10 @@ Deno.serve(async (req) => {
     const users = (aud ?? []).map((x: any) => x.user_id);
     if (users.length) list = [{ users, title: `🏷️ عرض من ${p.store}`, body: `${p.product}: ${money(p.sale)} بدل ${money(p.price)}`, url: "shop.html", tag: "offer-" + p.merchant_id,
       actions: [{ action: "stop-offers", title: "إيقاف تنبيهات العروض" }] }];
+  } else if (p?.type === "direct" && Array.isArray(p.messages)) {
+    // تنبيهات جاهزة من دوال ثانية (مثل تذكير الفواتير)
+    list = p.messages.filter((m: any) => Array.isArray(m?.users) && m.title).slice(0, 500)
+      .map((m: any) => ({ users: m.users, title: String(m.title).slice(0, 120), body: String(m.body ?? "").slice(0, 240), url: String(m.url ?? "merchant.html"), tag: String(m.tag ?? "") }));
   } else if (!p?.record) return new Response("ignored");
   else list = await messages(p.type, p.record, p.old_record);
   let sent = 0;

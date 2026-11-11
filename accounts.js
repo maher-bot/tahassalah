@@ -1,4 +1,5 @@
 import { sb, $, $$, toast, PLANS, KIND_ICON, friendlyError, setBusy, fmtDay, fileExt, shrinkImage, digits } from './lib.js';
+import { billDialog, renderBills as renderBillList, renderForecast } from './books-ui.js';
 
 // ---------------- أساسيات ----------------
 const VIEWS = ['v-loading', 'v-denied', 'v-app'];
@@ -36,6 +37,7 @@ function billPlan(m) {
 }
 
 if (location.hash === '#bills') setTimeout(() => $('#tabs [data-t=bills]')?.click(), 0);
+if (location.hash === '#payables') setTimeout(() => $('#tabs [data-t=payables]')?.click(), 0);
 // ---------------- الدخول ----------------
 sb.auth.getSession().then(async ({ data: { session } }) => {
   me = session?.user;
@@ -81,6 +83,7 @@ function render() {
   if (tab === 'reps') renderReps();
   if (tab === 'svc') renderSvc();
   if (tab === 'ledger') renderLedger();
+  if (tab === 'payables') renderPayables();
   if (tab === 'settings') renderSettings();
 }
 
@@ -478,3 +481,15 @@ $('#stmt-csv').addEventListener('click', () => {
   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `كشف-حساب-${stmtName}.csv` });
   a.click(); URL.revokeObjectURL(a.href);
 });
+
+// ---------------- الفواتير المستحقة والميزانية القادمة ----------------
+const PAY_CATS = Object.fromEntries(Object.entries(CATS.expense).filter(([k]) => k !== 'rep_bonus'));
+async function renderPayables() {
+  const opts = { sb, mid: null, cats: PAY_CATS, toast, friendlyError, onChange: renderPayables };
+  const [open] = await Promise.all([renderBillList($('#pay-list'), opts), renderBillList($('#pay-done'), { ...opts, show: 'done' })]);
+  const c = $('#c-pay'), soon = open.filter(b => (new Date(b.due_date) - Date.now()) / 864e5 <= 7).length;
+  c.hidden = !soon; c.textContent = soon;
+  const { data: inv } = await sb.from('invoices').select('total,due_at').eq('status', 'issued');
+  renderForecast($('#pay-forecast'), { bills: open, inflow: (inv || []).map(i => ({ date: String(i.due_at).slice(0, 10), amount: i.total })), incomeLabel: 'مطالبات التجار المتوقعة' });
+}
+$('#pay-add').addEventListener('click', () => billDialog({ sb, mid: null, cats: PAY_CATS, toast, friendlyError, onSaved: renderPayables }));

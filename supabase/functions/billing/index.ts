@@ -126,12 +126,33 @@ async function proof(c: any, id: string) {
   return await send(c.n.from_email, c.n.admin_email, `📎 إيصال سداد: ${inv.store_name} · ${inv.number}`, html);
 }
 
+// تذكير الفواتير المستحقة (للإدارة والتاجر) حسب الأيام أو التواريخ اللي اختارها صاحبها: إيميل + تنبيه على الجوال
+async function billReminders(c: any) {
+  const { data: rows, error } = await admin.rpc("bill_reminders_due");
+  if (error) { console.error("bill_reminders_due", error.message); return 0; }
+  let n = 0;
+  const pushes: any[] = [];
+  for (const r of rows ?? []) {
+    const when = r.days_left === 0 ? "اليوم" : r.days_left < 0 ? "متأخرة" : `بعد ${r.days_left} يوم`;
+    const subject = `⏰ فاتورة مستحقة ${when}: ${r.title}`;
+    const url = r.merchant_id ? `${c.n.site_url}/merchant.html#books` : `${c.n.site_url}/accounts.html#payables`;
+    const html = layout(c.b, "تذكير بفاتورة مستحقة", `<p>${r.store_name ? `<b>${esc(r.store_name)}</b>: ` : ""}فاتورة <b>${esc(r.title)}</b>${r.vendor ? ` لـ ${esc(r.vendor)}` : ""} بمبلغ <b>${esc(money(r.amount))}</b> موعد سدادها <b>${esc(day(r.due_date))}</b> (${esc(when)}).</p>
+      <p>لما تسددها اضغط «تم السداد» في الحسابات، وتنحفظ في المصروفات تلقائيًا.</p>${btn(url, "افتح الفواتير")}`);
+    for (const to of r.emails ?? []) if (await send(c.n.from_email, to, subject, html)) n++;
+    pushes.push({ users: r.user_ids ?? [], title: subject, body: `${r.title} · ${money(r.amount)} · ${day(r.due_date)}`, url: r.merchant_id ? "merchant.html#books" : "accounts.html#payables", tag: "bill-" + r.bill_id });
+  }
+  if (pushes.length) await fetch(replaceFn(c, "push"), { method: "POST", headers: { "Content-Type": "application/json", "x-webhook-secret": c.n.webhook_secret }, body: JSON.stringify({ type: "direct", messages: pushes }) }).catch((e) => console.error("push", e));
+  return n;
+}
+const replaceFn = (c: any, name: string) => `${env("SUPABASE_URL")}/functions/v1/${name}`;
+
 Deno.serve(async (req) => {
   const c = await cfg();
   if (!c.n?.webhook_secret || req.headers.get("x-webhook-secret") !== c.n.webhook_secret) return new Response("unauthorized", { status: 401 });
   const p = await req.json().catch(() => null);
   try {
-    if (p?.type === "daily") return Response.json({ sent: await daily(c) });
+    if (p?.type === "daily") return Response.json({ sent: await daily(c), bills: await billReminders(c) });
+    if (p?.type === "bills") return Response.json({ bills: await billReminders(c) });
     if (p?.type === "issued" && p.invoice_id) return Response.json({ sent: await issued(c, p.invoice_id) });
     if (p?.type === "proof" && p.invoice_id) return Response.json({ sent: await proof(c, p.invoice_id) });
     if (p?.type === "paid" && p.invoice_id) return Response.json({ sent: await paid(c, p.invoice_id) });
