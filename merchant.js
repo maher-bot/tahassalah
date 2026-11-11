@@ -972,10 +972,14 @@ $('#cam').addEventListener('change', async e => {
   aiState('🤖 جارِ التعرّف على المنتج من الصورة…');
   try {
     const image = await toJpegBase64(f);
-    let { data, error } = await sb.functions.invoke('recognize', { body: { merchant_id: ctx.mid, image, media_type: 'image/jpeg' } });
+    // ما ننتظر الخدمة أكثر من 25 ثانية
+    const res = await Promise.race([sb.functions.invoke('recognize', { body: { merchant_id: ctx.mid, image, media_type: 'image/jpeg' } }), new Promise(r => setTimeout(() => r(null), 25000))]);
+    if (!res) return aiState('✓ انضافت الصورة للمنتج. التعرّف التلقائي تأخر، عبّئ البيانات يدويًا أو امسح الباركود.');
+    let { data, error } = res;
     if (error) { try { data = await error.context.json(); } catch { throw error; } }
     if (data?.error === 'not_configured') { aiOff = true; return aiState('✓ انضافت الصورة للمنتج. التعرّف التلقائي بالذكاء الاصطناعي يتفعّل قريبًا، عبّئ البيانات يدويًا أو امسح الباركود.'); }
     if (data?.error === 'limit') return aiState('وصلت الحد اليومي للتعرّف التلقائي. الصورة انضافت، عبّئ البيانات يدويًا.');
+    if (data?.error === 'ai_failed' || data?.error === 'ai_timeout') return aiState('✓ انضافت الصورة للمنتج. خدمة التعرّف التلقائي ما ردّت الحين، عبّئ البيانات يدويًا أو امسح الباركود.');
     if (data?.error) throw new Error(data.error);
     const r = data?.result;
     if (!r?.recognized) return aiState('ما قدرنا نتعرّف على المنتج من الصورة. جرّب صورة أوضح للغلاف، أو امسح الباركود.');
