@@ -789,12 +789,13 @@ function unitDefaults() {
   return { unit: 'حبة', always: false };
 }
 const unitOf = p => p.unit || unitDefaults().unit;
-const FIELDS = ['name', 'price', 'sale_price', 'quantity', 'unit', 'always_available', 'pack_name', 'pack_size', 'pack_price', 'pack_only', 'category', 'barcode', 'description', 'image_path', 'is_active', 'offer_reason', 'offer_ends_at', 'expires_on'];
+const FIELDS = ['name', 'price', 'sale_price', 'quantity', 'unit', 'always_available', 'pack_name', 'pack_size', 'pack_price', 'pack_only', 'category', 'barcode', 'description', 'image_path', 'extra_images', 'is_active', 'offer_reason', 'offer_ends_at', 'expires_on'];
 function changed(p, row) {
   const out = {};
   for (const k of FIELDS) {
     if (!(k in row)) continue;
     const a = p[k] ?? null, b = row[k] ?? null;
+    if (k === 'extra_images') { if (JSON.stringify(a || []) !== JSON.stringify(b || [])) out[k] = b; continue; }
     if (k === 'offer_ends_at') { if ((a ? new Date(a).getTime() : null) !== (b ? new Date(b).getTime() : null)) out[k] = b; continue; }
     const same = typeof a === 'number' || typeof b === 'number' || ['price', 'sale_price'].includes(k) ? (a == null ? b == null : b != null && Number(a) === Number(b)) : a === b;
     if (!same) out[k] = b;
@@ -857,7 +858,7 @@ function openProduct(p) {
   fp.preorder_hours.disabled = !canInv();
   syncOffer();
   extras = (p?.extra_images || []).map(path => ({ path })); removedExtras = [];
-  $('#extras-box').hidden = !canInv() || viaApproval(); renderExtras();
+  $('#extras-box').hidden = !canInv(); renderExtras();
   const box = $('.file[data-file="img"]', fp);
   box.dataset.existing = p?.image_path ? '1' : '';
   box.classList.toggle('has', !!p?.image_path);
@@ -933,7 +934,7 @@ fp.addEventListener('submit', async e => {
       expires_on: fp.expires_on.value || null, ...offer,
     } : { price, sale_price: sale, ...offer, pack_price: editing?.pack_size ? packPrice : null };
     if (canInv() && !viaApproval()) row.preorder_hours = fp.preorder_hours.value ? Number(fp.preorder_hours.value) : null;
-    if (canInv() && !viaApproval()) {
+    if (canInv()) {
       // الصور الإضافية: نرفع الجديد، ونحفظ الترتيب
       const paths = [];
       for (const x of extras) {
@@ -984,8 +985,9 @@ function renderExtras() {
   }));
   $('#extras-add').hidden = extras.length >= 3;
 }
+$('#extras-cam').addEventListener('change', e => { const picked = [...e.target.files]; e.target.value = ''; $('#extras-file').dispatchEvent(Object.assign(new Event('change'), { picked })); });
 $('#extras-file').addEventListener('change', e => {
-  const files = [...e.target.files]; e.target.value = '';
+  const files = e.picked || [...e.target.files]; if (!e.picked) e.target.value = '';
   for (const f of files) { if (extras.length >= 3) { toast('الحد 3 صور إضافية.'); break; } if (f.type.startsWith('image/')) extras.push({ file: f, url: URL.createObjectURL(f) }); }
   renderExtras();
 });
@@ -1125,9 +1127,9 @@ $('#q-scan').addEventListener('click', () => scan(code => {
 }));
 
 // ---------------- موافقات صاحب المتجر ----------------
-const LABEL = { unit: 'الوحدة', always_available: 'متوفر دائمًا', pack_name: 'اسم العبوة', pack_size: 'حبات العبوة', pack_price: 'سعر العبوة', pack_only: 'بالعبوة فقط', name: 'الاسم', price: 'السعر', sale_price: 'سعر العرض', quantity: 'الكمية', category: 'التصنيف', barcode: 'الباركود', description: 'الوصف', image_path: 'الصورة', is_active: 'الظهور', offer_reason: 'سبب العرض', offer_ends_at: 'نهاية العرض', expires_on: 'الصلاحية' };
+const LABEL = { unit: 'الوحدة', always_available: 'متوفر دائمًا', pack_name: 'اسم العبوة', pack_size: 'حبات العبوة', pack_price: 'سعر العبوة', pack_only: 'بالعبوة فقط', name: 'الاسم', price: 'السعر', sale_price: 'سعر العرض', quantity: 'الكمية', category: 'التصنيف', barcode: 'الباركود', description: 'الوصف', image_path: 'الصورة', extra_images: 'صور إضافية', is_active: 'الظهور', offer_reason: 'سبب العرض', offer_ends_at: 'نهاية العرض', expires_on: 'الصلاحية' };
 const ACTION = { insert: 'إضافة منتج', update: 'تعديل', delete: 'حذف' };
-const showVal = (k, v) => v == null || v === '' ? '—' : k === 'offer_reason' ? (OFFER_REASONS[v] || v) : ['offer_ends_at', 'expires_on'].includes(k) ? fmtDay(v) : k === 'is_active' ? (v ? 'ظاهر' : 'مخفي') : ['always_available', 'pack_only'].includes(k) ? (v ? 'نعم' : 'لا') : k === 'pack_price' ? money(v) : k === 'image_path' ? 'صورة جديدة' : ['price', 'sale_price'].includes(k) ? money(v) : String(v);
+const showVal = (k, v) => v == null || v === '' ? '—' : k === 'extra_images' ? (v.length ? `${v.length} صور` : 'بدون') : k === 'offer_reason' ? (OFFER_REASONS[v] || v) : ['offer_ends_at', 'expires_on'].includes(k) ? fmtDay(v) : k === 'is_active' ? (v ? 'ظاهر' : 'مخفي') : ['always_available', 'pack_only'].includes(k) ? (v ? 'نعم' : 'لا') : k === 'pack_price' ? money(v) : k === 'image_path' ? 'صورة جديدة' : ['price', 'sale_price'].includes(k) ? money(v) : String(v);
 
 function changeCard(c, { owner }) {
   const p = products.find(x => x.id === c.product_id);
@@ -1149,6 +1151,7 @@ function changeCard(c, { owner }) {
   }
   if (diff.childElementCount) txt.append(diff);
   if (c.payload?.image_path) { const im = Object.assign(document.createElement('img'), { src: imgUrl(c.payload.image_path), alt: '' }); im.style.cssText = 'width:56px;height:56px;object-fit:cover;border-radius:8px;margin-top:6px'; txt.append(im); }
+  for (const x of (Array.isArray(c.payload?.extra_images) ? c.payload.extra_images : [])) { const im = Object.assign(document.createElement('img'), { src: imgUrl(x), alt: '' }); im.style.cssText = 'width:56px;height:56px;object-fit:cover;border-radius:8px;margin:6px 0 0 6px'; txt.append(im); }
   if (!owner && c.status === 'rejected' && c.note) txt.append(mk('div', 's', 'سبب الرفض: ' + c.note));
   const acts = mk('div', 'acts');
   if (owner) {

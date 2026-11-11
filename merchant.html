@@ -588,7 +588,10 @@
     <div id="extras-box" style="display:grid;gap:8px">
       <span><b>صور إضافية</b> <span class="opt">(اختياري، حتى 3 صور من جهات ثانية)</span></span>
       <div class="thumbs" id="extras"></div>
-      <label class="btn ghost sm" id="extras-add" style="justify-self:start">＋ أضف صورة<input type="file" id="extras-file" accept="image/*" multiple hidden></label>
+      <div id="extras-add" style="display:flex;gap:8px;flex-wrap:wrap">
+        <label class="btn primary sm">📷 صوّر بالجوال<input type="file" id="extras-cam" accept="image/*" capture="environment" hidden></label>
+        <label class="btn ghost sm">🖼️ من الصور<input type="file" id="extras-file" accept="image/*" multiple hidden></label>
+      </div>
     </div>
     <label class="check"><input type="checkbox" name="is_active" checked> ظاهر للمشترين</label>
     <p class="err" role="alert"></p>
