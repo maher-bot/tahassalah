@@ -151,12 +151,13 @@ export function renderForecast(box, { bills, inflow = [], monthlyIncome = null, 
     return { h, out, inc, net: inc - out };
   });
   const w = mk('div', 'table-wrap'), tb = mk('table');
-  const tr = (cells, th = false) => { const r = mk('tr'); cells.forEach(c => { const x = mk(th ? 'th' : 'td'); if (c instanceof Node) x.append(c); else x.textContent = c; r.append(x); }); return r; };
-  tb.append(tr(['', 'خلال شهر', 'خلال شهرين', 'خلال 3 أشهر'], true),
+  const head = ['', 'خلال شهر', 'خلال شهرين', 'خلال 3 أشهر'];
+  const tr = (cells, th = false) => { const r = mk('tr'); cells.forEach((c, i) => { const x = mk(th ? 'th' : 'td'); if (!th && head[i]) x.dataset.label = head[i]; if (c instanceof Node) x.append(c); else x.textContent = c; r.append(x); }); return r; };
+  tb.append(tr(head, true),
     tr(['فواتير لازم تنسدد', ...rows.map(r => sar(r.out))]),
     tr([incomeLabel, ...rows.map(r => sar(r.inc))]),
     tr(['الفرق', ...rows.map(r => { const b = mk('b', '', sar(r.net)); b.style.color = r.net < 0 ? 'var(--danger, #b42318)' : 'var(--brand)'; return b; })]));
-  w.append(tb); w.querySelector('table').style.minWidth = '460px';
+  w.append(tb); tb.className = 'narrow-table';
   const warn = rows.find(r => r.net < 0);
   box.replaceChildren(w, mk('p', 'hint', warn ? `⚠️ خلال ${warn.h === 30 ? 'شهر' : warn.h === 60 ? 'شهرين' : '3 أشهر'} الفواتير أكثر من الدخل المتوقع بـ ${sar(-warn.net)}. رتّب السيولة من الحين.` : 'الدخل المتوقع يغطي الفواتير في الفترات الثلاث.'));
 }

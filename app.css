@@ -169,6 +169,7 @@ dialog > .stack { padding: 20px; }
 .table-wrap th, .table-wrap td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: start; white-space: nowrap; }
 .table-wrap th { color: var(--muted); font-weight: 600; font-size: .82rem; background: var(--bg); }
 .table-wrap tr:last-child td { border-bottom: 0; }
+.table-wrap table.narrow-table { min-width: 460px; }
 .bar { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; min-width: 60px; }
 .bar i { display: block; height: 100%; background: var(--brand); }
 
@@ -211,3 +212,20 @@ dialog > .stack { padding: 20px; }
 .scols-x { display: flex; justify-content: space-between; color: var(--muted); font-size: .75rem; margin-top: 4px; }
 .stack > * { min-width: 0; }
 @media (max-width: 640px) { .top .sp { flex-wrap: wrap; justify-content: flex-end; gap: 6px; } }
+
+/* الجوال: التبويبات تلتف بدل ما تطلع برا الشاشة، والجداول تصير بطاقات */
+@media (max-width: 640px) {
+  .tabs { flex-wrap: wrap; overflow: visible; gap: 6px; border-bottom: 0; }
+  .tabs button { border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; background: var(--surface); font-size: .9rem; }
+  .tabs button[aria-selected="true"] { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .tabs button[aria-selected="true"] .count { background: #fff; }
+  .table-wrap { overflow: visible; border: 0; background: none; }
+  .table-wrap table, .table-wrap table.narrow-table { min-width: 0; display: block; }
+  .table-wrap td:not([data-label]) { font-weight: 700; }
+  .table-wrap tbody { display: block; }
+  .table-wrap tr { display: block; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 6px 12px; margin-bottom: 8px; }
+  .table-wrap tr:first-child:has(th) { display: none; }
+  .table-wrap td { display: flex; justify-content: space-between; gap: 12px; white-space: normal; padding: 6px 0; border-bottom: 1px dashed var(--line); overflow-wrap: anywhere; }
+  .table-wrap td[data-label]::before { content: attr(data-label); color: var(--muted); font-size: .82rem; flex: 0 0 auto; max-width: 45%; }
+  .table-wrap tr td:last-child { border-bottom: 0; }
+}

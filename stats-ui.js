@@ -47,6 +47,6 @@ export function table(head, rows) {
   if (!rows.length) return mk('p', 'hint', 'ما فيه بيانات في هذي الفترة.');
   const w = mk('div', 'table-wrap'), t = mk('table'), th = mk('tr');
   head.forEach(h => th.append(mk('th', '', h))); t.append(th);
-  rows.forEach(r => { const tr = mk('tr'); r.forEach(v => { const td = mk('td'); if (v instanceof Node) td.append(v); else td.textContent = v ?? '—'; tr.append(td); }); t.append(tr); });
+  rows.forEach(r => { const tr = mk('tr'); r.forEach((v, i) => { const td = mk('td'); if (head[i]) td.dataset.label = head[i]; if (v instanceof Node) td.append(v); else td.textContent = v ?? '—'; tr.append(td); }); t.append(tr); });
   w.append(t); return w;
 }
