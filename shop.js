@@ -59,8 +59,9 @@ $('#to-orders').addEventListener('click', e => { e.preventDefault(); openOrders(
 $$('[data-back]').forEach(b => b.addEventListener('click', () => { if (b.dataset.back === 'v-store' && cur) openStore(cur); else showStores(); }));
 
 (async () => {
-  const { data: s } = await sb.from('app_settings').select('buyer_enabled').maybeSingle();
-  if (!s?.buyer_enabled) return show('v-closed');
+  // قبل الإطلاق: الصفحة مقفلة إلا للمختبرين (buyer_access)
+  const { data: open } = await sb.rpc('buyer_access');
+  if (!open) return show('v-closed');
   const { data } = await sb.from('stores_public').select('*');
   stores = data || [];
   navigator.geolocation?.getCurrentPosition(p => { here = { lat: p.coords.latitude, lng: p.coords.longitude }; if (!$('#v-stores').hidden) renderStores(); }, () => {}, { timeout: 8000 });
@@ -307,6 +308,7 @@ async function ensureBuyer(back) {
 function openLogin(step = 'phone') {
   $('#f-phone').hidden = step !== 'phone'; $('#f-otp').hidden = step !== 'otp'; $('#f-name').hidden = step !== 'name';
   $('#f-demo').hidden = !(IS_DEMO && step === 'phone');
+  $('#name-phone').hidden = !(step === 'name' && user && !user.phone);
   show('v-login');
 }
 const intl = p => '966' + digits(p).replace(/\D/g, '').replace(/^0/, '');
@@ -347,7 +349,9 @@ $('#f-name').addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target, name = f.name.value.trim(), err = $('.err', f);
   if (name.length < 2) return (err.textContent = 'اكتب اسمك.');
-  const { data, error } = await sb.from('buyers').insert({ id: user.id, name, phone: user.phone ? '0' + user.phone.replace(/^966/, '') : null }).select().single();
+  let ph = user.phone ? '0' + user.phone.replace(/^966/, '') : digits(f.phone.value).replace(/\D/g, '');
+  if (!valid.phone(ph)) return (err.textContent = 'الجوال يبدأ بـ 05 ومكوّن من 10 أرقام.');
+  const { data, error } = await sb.from('buyers').insert({ id: user.id, name, phone: ph }).select().single();
   if (error) return (err.textContent = friendlyError(error));
   buyer = data; const go = after; after = null; go ? go() : openOrders();
 });
@@ -468,3 +472,16 @@ function withLogo(path, el, size) {
 
 // اختيار الفاتورة يبقى محفوظ لو أعاد فتح السلة (مثلًا بعد تسجيل الدخول)
 $('#c-receipt').addEventListener('change', e => { if (e.target.name === 'receipt') try { localStorage.setItem('tah-receipt', e.target.value); } catch {} });
+
+// دخول المختبرين بالإيميل (قبل الإطلاق)
+$('#f-tester').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target, err = $('.err', f), btn = $('button[type=submit]', f);
+  setBusy(btn, true);
+  const { error } = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.password.value });
+  if (error) { setBusy(btn, false); return (err.textContent = 'الإيميل أو كلمة المرور غير صحيحة.'); }
+  const { data: ok } = await sb.rpc('buyer_access');
+  setBusy(btn, false);
+  if (!ok) { await sb.auth.signOut(); return (err.textContent = 'هذا الحساب مو من المختبرين.'); }
+  location.reload();
+});

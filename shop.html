@@ -38,6 +38,14 @@
 
   <section id="v-closed" class="narrow" hidden>
     <div class="card status"><div class="icon" style="background:var(--brand-soft);color:var(--brand)">🛍️</div><h2>التسوّق قريبًا</h2><p>نسجّل محلات الحي الحين، وأول ما نطلق تقدر تطلب من هنا. <a href="index.html">ارجع للرئيسية</a></p></div>
+    <details class="card" style="margin-top:14px;padding:12px 16px"><summary class="hint">دخول المختبرين</summary>
+      <form class="stack" id="f-tester" novalidate style="margin-top:10px">
+        <label>الإيميل<input name="email" type="email" autocomplete="username" required dir="ltr"></label>
+        <label>كلمة المرور<input name="password" type="password" autocomplete="current-password" required dir="ltr"></label>
+        <p class="err" role="alert"></p>
+        <button class="btn primary" type="submit">دخول</button>
+      </form>
+    </details>
   </section>
 
   <section id="v-stores" hidden>
@@ -101,6 +109,7 @@
     <form class="card stack" id="f-name" novalidate hidden>
       <h1 style="font-size:1.4rem">وش نسمّيك؟</h1>
       <label>الاسم<input name="name" maxlength="60" required autocomplete="name"></label>
+      <label id="name-phone" hidden>جوالك (للمحل والمندوب والفاتورة على الواتساب)<input name="phone" inputmode="numeric" maxlength="10" placeholder="05xxxxxxxx" autocomplete="tel" dir="ltr"></label>
       <p class="hint">يشوفه المحل والمندوب مع طلبك.</p>
       <p class="err" role="alert"></p>
       <button class="btn primary" type="submit">متابعة</button>
