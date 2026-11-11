@@ -243,3 +243,4 @@ dialog > .stack { padding: 20px; }
   .top .sp { flex: 1 1 auto; min-width: 0; }
   .top .sp .btn { white-space: nowrap; }
 }
+@media (max-width: 640px) { main [style*="grid-column"] { grid-column: 1 / -1 !important; } }
