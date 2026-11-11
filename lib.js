@@ -117,6 +117,9 @@ export function friendlyError(e) {
   if (/plan_basic_offers/.test(m)) return 'العروض متاحة في باقة «تاجر» و«مميز».';
   if (/plan_basic_delivery/.test(m)) return 'التوصيل (المحلي ولمدن ثانية) متاح في الباقات المدفوعة. الأساسية فيها الاستلام من المحل فقط.';
   if (/plan_basic_staff/.test(m)) return 'إضافة الموظفين متاحة في باقة «تاجر» و«مميز».';
+  if (/plan_trader_cashiers/.test(m)) return 'باقة «تاجر» تسمح بكاشيرين اثنين. رقّ للباقة المميزة لعدد مفتوح.';
+  if (/plan_trader_drivers/.test(m)) return 'باقة «تاجر» تسمح بمندوبين اثنين. رقّ للباقة المميزة لعدد مفتوح.';
+  if (/plan_pro_required/.test(m)) return 'هذي الميزة متاحة في الباقة المميزة.';
   if (/plan_basic_preorder/.test(m)) return 'الطلب المسبق متاح في باقة «أسر ومتجولين» و«تاجر» و«مميز».';
   if (/plan_family_products/.test(m)) return 'باقة «أسر ومتجولين» تسمح بـ 100 منتج ظاهر. رقّ باقتك لـ«تاجر» عشان تضيف أكثر.';
   if (/plan_trader_products/.test(m)) return 'باقة «تاجر» تسمح بـ 500 منتج ظاهر. رقّ باقتك لـ«مميز» عشان تضيف بلا حد.';

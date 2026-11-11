@@ -40,7 +40,7 @@ function setQty(p, qty) {
   }
   c.mid = cur.id; c.store = cur.store_name;
   if (qty <= 0) delete c.items[p.id];
-  else c.items[p.id] = { qty: Math.min(qty, settings?.service_roundtrip ? 999 : (p.quantity ?? 999)), name: p.name, price: unitPrice(p) };
+  else c.items[p.id] = { qty: Math.min(qty, settings?.service_roundtrip || p.always_available ? 999 : (p.quantity ?? 999)), name: p.name, price: unitPrice(p) };
   cart.save(c); renderCartBar();
 }
 const unitPrice = p => p.sale_price != null && (!p.offer_ends_at || new Date(p.offer_ends_at) > new Date()) ? Number(p.sale_price) : Number(p.price);
@@ -105,13 +105,13 @@ function renderProducts() {
   const q = $('#pq').value.trim(), c = cart.get();
   const list = products.filter(p => !q || p.name.includes(q) || (p.category || '').includes(q));
   $('#products').replaceChildren(...list.map(p => {
-    const svc = !!settings.service_roundtrip, out = !svc && p.quantity === 0;
+    const svc = !!settings.service_roundtrip, out = !svc && !p.always_available && p.quantity === 0;
     const el = mk('div', 'prod' + (out ? ' off' : ''));
     const src = imgUrl(p.image_path);
     if (src) { const i = mk('img'); i.src = src; i.alt = ''; i.loading = 'lazy'; el.append(i); } else el.append(mk('div', 'ph', p.name.slice(0, 1)));
     const t = mk('div'); t.style.minWidth = '0';
     const m = mk('div', 'm'); const up = unitPrice(p);
-    m.append(mk('b', 'num', sar(up)));
+    m.append(mk('b', 'num', sar(up)), mk('span', 'hint', '/ ' + (p.unit || (svc ? 'قطعة' : 'حبة'))));
     if (up !== Number(p.price)) m.append(Object.assign(mk('s', 'num', sar(p.price))));
     if (out) m.append(mk('span', 'low', 'نفد'));
     t.append(mk('div', 'n', p.name), m); el.append(t);

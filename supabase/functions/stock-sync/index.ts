@@ -28,6 +28,7 @@ Deno.serve(async (req) => {
   if (error) {
     const m = String(error.message);
     if (m.includes("bad_key")) return json({ error: "invalid api key" }, 401);
+    if (m.includes("plan_pro_required")) return json({ error: "stock sync needs the store's premium plan" }, 402);
     console.error("stock-sync", m);
     return json({ error: "sync failed" }, 500);
   }

@@ -516,8 +516,13 @@
     <div class="row3">
       <label>السعر (ر.س)<input name="price" inputmode="decimal" dir="ltr" required></label>
       <label><span>سعر العرض <span class="opt">(اختياري)</span></span><input name="sale_price" inputmode="decimal" dir="ltr"></label>
-      <label>الكمية المتوفرة<input name="quantity" inputmode="numeric" dir="ltr" required value="0"></label>
+      <label id="qty-row">الكمية المتوفرة<input name="quantity" inputmode="numeric" dir="ltr" required value="0"></label>
     </div>
+    <div class="row2">
+      <label>وحدة البيع<input name="unit" list="units" maxlength="20" placeholder="حبة، وجبة، قطعة، كرتون…"></label>
+      <label class="check" style="align-self:end"><input type="checkbox" name="always_available"> <span><b>متوفر دائمًا</b><br><span class="hint">ما تتابع كمية (مطاعم، خدمات، تحضير يومي)</span></span></label>
+    </div>
+    <datalist id="units"><option value="حبة"><option value="قطعة"><option value="وجبة"><option value="طبق"><option value="كرتون"><option value="علبة"><option value="كيلو"><option value="جرام"><option value="لتر"><option value="كوب"><option value="طقم"><option value="متر"><option value="خدمة"><option value="ساعة"></datalist>
     <div class="row2">
       <label><span>التصنيف <span class="opt">(اختياري)</span></span><input name="category" list="cats"></label>
       <label><span>الباركود <span class="opt">(اختياري)</span></span><input name="barcode" inputmode="numeric" dir="ltr" autocomplete="off"></label>

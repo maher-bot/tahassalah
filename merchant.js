@@ -573,6 +573,9 @@ async function openDash(id) {
     const can = [canInv() && 'إضافة المنتجات وتعديل الكميات', canPrice() && 'تعديل الأسعار', canOrders() && 'استقبال الطلبات', isDriver() && 'توصيل الطلبات'].filter(Boolean).join(' و');
     note.textContent = `صلاحياتك: ${can || 'عرض فقط'}.` + (ctx.needs ? ' كل تعديل تسويه يوصل لصاحب المتجر ويظهر بعد موافقته.' : '');
   }
+  // باقة المحل: ميزات «مميز» (المناوبات، العهدة، ربط المخزون، سجل الحركات)
+  const { data: feat } = await sb.rpc('store_features', { mid: ctx.mid });
+  ctx.pro = !!feat?.pro; ctx.plan = feat?.plan; ctx.activity = feat?.activity;
   selectTab(isDriver() ? 'deliveries' : 'products');
   show('v-dash');
   showPushCard($('#v-dash'), sb, user.id, isDriver() ? 'يوصلك تنبيه على جوالك أول ما يتحوّل لك طلب، حتى والتطبيق مقفول.' : 'يوصلك تنبيه على جوالك أول ما يجيك طلب جديد، حتى والتطبيق مقفول.');
@@ -712,8 +715,8 @@ function render() {
   const q = $('#q').value.trim().toLowerCase();
   const list = products.filter(p => !q || p.name.toLowerCase().includes(q) || (p.barcode || '').includes(q) || (p.category || '').toLowerCase().includes(q));
   $('#s-total').textContent = products.length;
-  $('#s-active').textContent = products.filter(p => p.is_active && p.quantity > 0).length;
-  $('#s-low').textContent = products.filter(p => p.quantity <= 2).length;
+  $('#s-active').textContent = products.filter(p => p.is_active && (p.always_available || p.quantity > 0)).length;
+  $('#s-low').textContent = products.filter(p => !p.always_available && p.quantity <= 2).length;
   const box = $('#plist');
   if (!products.length) {
     box.innerHTML = canInv()
@@ -731,7 +734,7 @@ function render() {
     const price = mk('span');
     if (p.sale_price != null) { price.append(mk('b', '', money(p.sale_price)), ' ', mk('s', '', money(p.price))); }
     else price.append(mk('b', '', money(p.price)));
-    const qty = mk('span', p.quantity <= 2 ? 'low' : '', p.quantity > 0 ? `الكمية ${p.quantity}` : 'نفد');
+    const qty = p.always_available ? mk('span', '', `متوفر دائمًا · لكل ${unitOf(p)}`) : mk('span', p.quantity <= 2 ? 'low' : '', p.quantity > 0 ? `${p.quantity} ${unitOf(p)}` : 'نفد');
     m.append(price, qty);
     if (p.category) m.append(mk('span', '', p.category));
     if (p.preorder_hours) m.append(mk('span', '', '🕒 طلب مسبق ' + (p.preorder_hours >= 24 ? `${p.preorder_hours / 24 === 1 ? 'يوم' : p.preorder_hours / 24 === 2 ? 'يومين' : p.preorder_hours / 24 + ' أيام'}` : `${p.preorder_hours} ساعات`)));
@@ -742,7 +745,7 @@ function render() {
     if (pendingIds.has(p.id)) m.append(mk('span', 'low', '⏳ تعديل بانتظار الموافقة'));
     mid.append(mk('div', 'n', p.name), m);
     const acts = mk('div', 'acts');
-    if (canInv()) {
+    if (canInv() && !p.always_available) {
       const minus = mk('button', 'btn ghost sm', '−1'); minus.title = 'إنقاص الكمية';
       const plus = mk('button', 'btn ghost sm', '+1'); plus.title = 'زيادة الكمية';
       minus.disabled = p.quantity <= 0;
@@ -757,7 +760,18 @@ function render() {
 $('#q').addEventListener('input', render);
 
 // كل الكتابة على المنتجات تمر من هنا: مباشرة، أو طلب ينتظر موافقة صاحب المتجر
-const FIELDS = ['name', 'price', 'sale_price', 'quantity', 'category', 'barcode', 'description', 'image_path', 'is_active', 'offer_reason', 'offer_ends_at', 'expires_on'];
+// وحدة البيع الافتراضية حسب نشاط المحل، و«متوفر دائمًا» للأكل المطبوخ والخدمات
+function unitDefaults() {
+  const a = ctx?.activity || (ctx?.owner ? merchant?.activity : '') || '';
+  if (/أطباق|أكل|مطعم|مطبخ|وجبات|مشاوي|شاورما|برجر/.test(a)) return { unit: 'وجبة', always: true };
+  if (/خدمات|فني|سطحة|صيانة|سباك|نقل|تنظيف/.test(a)) return { unit: 'خدمة', always: true };
+  if (/آيسكريم|قهوة|عصير|مشروبات/.test(a)) return { unit: 'كوب', always: false };
+  if (/ملابس|أزياء|عباي|خياط|مغسلة|أحذية|أقمشة/.test(a)) return { unit: 'قطعة', always: false };
+  if (/حلويات|مخبوزات|كيك/.test(a)) return { unit: 'قطعة', always: false };
+  return { unit: 'حبة', always: false };
+}
+const unitOf = p => p.unit || unitDefaults().unit;
+const FIELDS = ['name', 'price', 'sale_price', 'quantity', 'unit', 'always_available', 'category', 'barcode', 'description', 'image_path', 'is_active', 'offer_reason', 'offer_ends_at', 'expires_on'];
 function changed(p, row) {
   const out = {};
   for (const k of FIELDS) {
@@ -816,7 +830,9 @@ function openProduct(p) {
     fp.offer_ends_at.value = p.offer_ends_at ? new Date(p.offer_ends_at).toLocaleDateString('en-CA') : '';
     fp.is_active.checked = p.is_active;
     fp.preorder_hours.value = p.preorder_hours ?? '';
-  }
+    fp.unit.value = p.unit || ''; fp.always_available.checked = !!p.always_available;
+  } else { const d = unitDefaults(); fp.unit.value = d.unit; fp.always_available.checked = d.always; }
+  syncAlways();
   $('#preorder-row').hidden = viaApproval();
   fp.preorder_hours.disabled = !canInv();
   syncOffer();
@@ -826,7 +842,7 @@ function openProduct(p) {
   $('.cur', box).textContent = p?.image_path ? '✓ فيه صورة (اختر صورة جديدة لاستبدالها)' : '';
   // الحقول حسب الصلاحية
   const inv = canInv(), pr = canPrice() || !p;
-  for (const k of ['name', 'quantity', 'category', 'barcode', 'description', 'image', 'is_active']) fp[k].disabled = !inv;
+  for (const k of ['name', 'quantity', 'category', 'barcode', 'description', 'image', 'is_active', 'unit', 'always_available']) fp[k].disabled = !inv;
   for (const k of ['price', 'sale_price', 'offer_reason', 'offer_ends_at']) fp[k].disabled = !pr;
   fp.expires_on.disabled = !inv;
   $('#capture').hidden = !inv;
@@ -859,7 +875,8 @@ fp.addEventListener('submit', async e => {
   if (fp.name.value.trim().length < 2) return (err.textContent = 'اكتب اسم المنتج.');
   if (price == null || !(price >= 0)) return (err.textContent = 'اكتب سعر صحيح.');
   if (sale != null && !(sale >= 0 && sale < price)) return (err.textContent = 'سعر العرض لازم يكون أقل من السعر الأصلي.');
-  if (qty == null || !Number.isInteger(qty) || qty < 0) return (err.textContent = 'الكمية رقم صحيح من 0 وفوق.');
+  const always = fp.always_available.checked;
+  if (!always && (qty == null || !Number.isInteger(qty) || qty < 0)) return (err.textContent = 'الكمية رقم صحيح من 0 وفوق.');
   err.textContent = ''; setBusy(btn, true, 'جارِ الحفظ…');
   let oldImage = null, newImage = null;   // القديمة تنحذف بعد نجاح الحفظ فقط، والجديدة تنحذف لو فشل
   try {
@@ -881,7 +898,8 @@ fp.addEventListener('submit', async e => {
     };
     if (offer.offer_ends_at && new Date(offer.offer_ends_at) < new Date()) throw new Error('تاريخ نهاية العرض لازم يكون اليوم أو بعده.');
     const row = canInv() ? {
-      name: fp.name.value.trim(), price, sale_price: sale, quantity: qty,
+      name: fp.name.value.trim(), price, sale_price: sale, quantity: always ? (Number.isInteger(qty) && qty >= 0 ? qty : (editing?.quantity ?? 0)) : qty,
+      unit: fp.unit.value.trim() || null, always_available: always,
       category: fp.category.value.trim() || null, barcode: digits(fp.barcode.value).trim() || null,
       description: fp.description.value.trim() || null, is_active: fp.is_active.checked, image_path,
       expires_on: fp.expires_on.value || null, ...offer,
@@ -1040,9 +1058,9 @@ $('#q-scan').addEventListener('click', () => scan(code => {
 }));
 
 // ---------------- موافقات صاحب المتجر ----------------
-const LABEL = { name: 'الاسم', price: 'السعر', sale_price: 'سعر العرض', quantity: 'الكمية', category: 'التصنيف', barcode: 'الباركود', description: 'الوصف', image_path: 'الصورة', is_active: 'الظهور', offer_reason: 'سبب العرض', offer_ends_at: 'نهاية العرض', expires_on: 'الصلاحية' };
+const LABEL = { unit: 'الوحدة', always_available: 'متوفر دائمًا', name: 'الاسم', price: 'السعر', sale_price: 'سعر العرض', quantity: 'الكمية', category: 'التصنيف', barcode: 'الباركود', description: 'الوصف', image_path: 'الصورة', is_active: 'الظهور', offer_reason: 'سبب العرض', offer_ends_at: 'نهاية العرض', expires_on: 'الصلاحية' };
 const ACTION = { insert: 'إضافة منتج', update: 'تعديل', delete: 'حذف' };
-const showVal = (k, v) => v == null || v === '' ? '—' : k === 'offer_reason' ? (OFFER_REASONS[v] || v) : ['offer_ends_at', 'expires_on'].includes(k) ? fmtDay(v) : k === 'is_active' ? (v ? 'ظاهر' : 'مخفي') : k === 'image_path' ? 'صورة جديدة' : ['price', 'sale_price'].includes(k) ? money(v) : String(v);
+const showVal = (k, v) => v == null || v === '' ? '—' : k === 'offer_reason' ? (OFFER_REASONS[v] || v) : ['offer_ends_at', 'expires_on'].includes(k) ? fmtDay(v) : k === 'is_active' ? (v ? 'ظاهر' : 'مخفي') : k === 'always_available' ? (v ? 'نعم' : 'لا') : k === 'image_path' ? 'صورة جديدة' : ['price', 'sale_price'].includes(k) ? money(v) : String(v);
 
 function changeCard(c, { owner }) {
   const p = products.find(x => x.id === c.product_id);
@@ -1287,6 +1305,8 @@ $('#csv').addEventListener('change', async e => {
 
 
 // ---------------- العروض ----------------
+function syncAlways() { $('#qty-row').hidden = fp.always_available.checked; }
+fp.always_available.addEventListener('change', syncAlways);
 function syncOffer() { $('#offer-row').hidden = !fp.sale_price.value.trim(); }
 fp.sale_price.addEventListener('input', syncOffer);
 
@@ -1695,7 +1715,7 @@ function orderBox(o, mode) {
   if (o.driver_name && mode === 'orders') line((o.fulfillment === 'roundtrip' ? '🛵 مندوب التسليم: ' : '🛵 المندوب: ') + o.driver_name);
   if (o.collected_amount != null && o.fulfillment !== 'pickup') line(`استلم المندوب ${money(o.collected_amount)} ${o.collected_method === 'card' ? 'شبكة' : 'نقدًا'}` + (o.collected_method === 'cash' && mode === 'orders' ? (o.cash_handover_id ? ' · سلّمه للمحل ✓' : ' · لسا معه') : ''));
   if (o.collected_amount != null && o.fulfillment === 'pickup') line(`دفع ${money(o.collected_amount)} ${o.collected_method === 'card' ? 'شبكة' : 'نقدًا'} عند الكاونتر`);
-  if (mode === 'orders' && o.history?.length) line('👤 ' + o.history.map(h => `${O_ACT[h.a] || h.a}: ${h.by} ${new Date(h.at).toLocaleTimeString('ar-SA-u-nu-latn', { hour: 'numeric', minute: '2-digit' })}`).join(' · '));
+  if (mode === 'orders' && ctx?.pro && o.history?.length) line('👤 ' + o.history.map(h => `${O_ACT[h.a] || h.a}: ${h.by} ${new Date(h.at).toLocaleTimeString('ar-SA-u-nu-latn', { hour: 'numeric', minute: '2-digit' })}`).join(' · '));
   const acts = document.createElement('div'); acts.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
   const btn = (txt, cls, fn) => { const x = document.createElement('button'); x.type = 'button'; x.className = 'btn sm ' + cls; x.textContent = txt; x.onclick = fn; acts.append(x); return x; };
   const link = (txt, href) => { if (!href) return; const a = document.createElement('a'); a.className = 'btn ghost sm'; a.textContent = txt; a.href = href; a.target = '_blank'; a.rel = 'noopener'; acts.append(a); };
@@ -1895,10 +1915,21 @@ const SHIFT_ERR = { bad_pin: 'الرقم السري غلط.', pin_locked: 'مح�
 const numIn = v => Number(String(v || '0').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(',', '.'));
 const tm = d => new Date(d).toLocaleString('ar-SA-u-nu-latn-ca-gregory', { hour: 'numeric', minute: '2-digit', day: 'numeric', month: 'short' });
 let myShift = null;
+// بطاقة «متاح في الباقة المميزة»
+function proLock(what) {
+  const d = mk('div'); d.style.cssText = 'display:grid;gap:4px';
+  d.append(mk('b', '', '🔒 ' + what), mk('div', 'hint', 'متاحة في الباقة المميزة (119 ر.س شهريًا). تواصل معنا للترقية.'));
+  return d;
+}
 
 async function renderShift() {
   const bar = $('#shift-bar');
   if (!ctx || !canOrders()) { bar.hidden = true; return; }
+  if (!ctx.pro) {
+    bar.hidden = !ctx.owner;
+    bar.replaceChildren(proLock('مناوبات الكاشير بالرقم السري، وتقرير إغلاق الدرج، وعهدة كاش المندوبين'));
+    return;
+  }
   const { data } = await sb.from('cashier_shifts').select('*').eq('merchant_id', ctx.mid).eq('device_user_id', user.id).is('ended_at', null).maybeSingle();
   myShift = data; bar.hidden = false;
   const txt = mk('div');
@@ -1972,7 +2003,7 @@ $('#f-shiftend').addEventListener('submit', async e => {
 // عهدة المندوبين: الكاش اللي معهم للمحل، والكاشير يستلمه
 async function renderCustody() {
   const box = $('#custody');
-  if (!ctx || !canOrders()) { box.hidden = true; return; }
+  if (!ctx || !canOrders() || !ctx.pro) { box.hidden = true; return; }
   const { data } = await sb.rpc('driver_custody', { mid: ctx.mid });
   box.hidden = !data?.length;
   if (!data?.length) return;
@@ -2002,6 +2033,8 @@ async function renderCustody() {
 let editingCashier = null;
 async function loadCashiers() {
   if (!ctx?.owner) return;
+  $('#c-add').hidden = !ctx.pro;
+  if (!ctx.pro) { $('#cashier-list').replaceChildren(proLock('كاشيرية الكاونتر بالرقم السري وسجل المناوبات')); return; }
   const { data, error } = await sb.from('counter_cashiers').select('id,name,phone,active').eq('merchant_id', ctx.mid).order('created_at');
   if (error) return toast(friendlyError(error));
   const box = $('#cashier-list');
@@ -2080,6 +2113,8 @@ async function loadPos() {
     sb.from('products').select('id', { count: 'exact', head: true }).eq('merchant_id', ctx.mid).or('barcode.is.null,barcode.eq.'),
   ]);
   const st = $('#pos-state'), lines = [];
+  $('#pos-create').hidden = !ctx.pro;
+  if (!ctx.pro) { $('#pos-revoke').hidden = true; st.replaceChildren(proLock('ربط المخزون التلقائي مع نظام الكاشير')); return; }
   if (!link) lines.push(mk('p', 'hint', 'الربط مو مفعّل. أنشئ مفتاح، وأعطه مع رابط «طريقة الربط» لمزوّد نظام الكاشير حقك.'));
   else {
     lines.push(mk('div', '', `✅ الربط مفعّل · المفتاح ينتهي بـ …${link.key_hint}`));
