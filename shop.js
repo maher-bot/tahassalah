@@ -327,9 +327,23 @@ function orderCard(o, storeName) {
   if (o.driver_name && ['ready', 'out'].includes(o.status)) c.append(mk('div', 'hint', `🛵 المندوب: ${o.driver_name}`));
   // رمز التسليم: يعطيه الزبون للمندوب (أو للكاشير في الاستلام من المحل)
   const codeTime = o.fulfillment === 'pickup' ? ['accepted', 'preparing', 'ready'].includes(o.status) : o.status === 'out' || (o.fulfillment !== 'roundtrip' && ['accepted', 'preparing', 'ready'].includes(o.status));
-  if (o.handover_code && codeTime) {
+  // الطلب المدفوع مسبقًا: المشتري يأكّد بنفسه «استلمت طلبي» بدون تواصل، والرمز احتياط
+  const selfConfirm = o.fulfillment !== 'pickup' && o.status === 'out' && o.payment_status === 'paid';
+  if (o.buyer_confirmed_at && o.status === 'out') c.append(mk('div', 'hint', '✅ أكّدت الاستلام. شكرًا لك'));
+  else if (o.handover_code && codeTime) {
     const box = mk('div', 'note stack'); box.style.textAlign = 'center';
-    box.append(mk('div', 'hint', o.fulfillment === 'pickup' ? '🔐 رمز الاستلام: قوله للكاشير وقت ما تستلم طلبك' : '🔐 رمز التسليم: قوله للمندوب لما يوصلك'));
+    if (selfConfirm) {
+      const ok = mk('button', 'btn primary', '✓ استلمت طلبي'); ok.type = 'button';
+      ok.onclick = async () => {
+        if (!confirm('تأكد إن الطلب صار عندك. نأكّد الاستلام؟')) return;
+        setBusy(ok, true);
+        const { error } = await sb.rpc('order_action_v', { oid: o.id, action: 'buyer_confirm', args: {} });
+        setBusy(ok, false);
+        if (error) return toast(why(error));
+        toast('شكرًا، وصل المندوب تأكيدك ✓'); openOrders(true);
+      };
+      box.append(mk('div', '', 'طلبك مدفوع. لما يوصلك اضغط هنا، وما يحتاج تقابل المندوب.'), ok, mk('div', 'hint', 'أو قول للمندوب هذا الرمز:'));
+    } else box.append(mk('div', 'hint', o.fulfillment === 'pickup' ? '🔐 رمز الاستلام: قوله للكاشير وقت ما تستلم طلبك' : '🔐 رمز التسليم: قوله للمندوب لما يوصلك'));
     const code = mk('b', 'num', o.handover_code); code.style.cssText = 'font-size:2rem;letter-spacing:.35em'; code.dir = 'ltr';
     box.append(code, mk('div', 'hint', 'لا تعطيه لأحد قبل ما تستلم طلبك. لو بيستلم أحد بدالك، أرسله له.'));
     c.append(box);

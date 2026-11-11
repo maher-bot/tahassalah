@@ -41,6 +41,8 @@ async function messages(type: string, o: any, old: any): Promise<Msg[]> {
     };
     for (const [s, body] of Object.entries(buyer)) if (st(s)) out.push({ users: [o.buyer_id], title: `طلبك ${o.number}`, body, url: shop, tag });
     if (st("ready") && o.fulfillment === "pickup") out.push({ users: [o.buyer_id], title: `طلبك ${o.number}`, body: `جاهز للاستلام من ${store}${o.handover_code ? " · رمز الاستلام: " + o.handover_code : ""}`, url: shop, tag });
+    if (o.buyer_confirmed_at && o.buyer_confirmed_at !== old?.buyer_confirmed_at && o.driver_user_id)
+      out.push({ users: [o.driver_user_id], title: "✅ الزبون أكّد الاستلام", body: `${o.number}: صوّر الطلب وأنهِ التوصيل`, url: dash, tag: tag + "-d" });
     if (o.code_help_at && o.code_help_at !== old?.code_help_at)
       out.push({ users: await staffOf(o.merchant_id), title: "🔐 المندوب يحتاج موافقتك", body: `${o.number}: الزبون ما عنده رمز التسليم. اتصل فيه ووافق من الطلبات`, url: dash, tag: tag + "-code" });
     if (o.code_attempts >= 5 && (old?.code_attempts ?? 0) < 5)
