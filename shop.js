@@ -69,16 +69,38 @@ $$('[data-back]').forEach(b => b.addEventListener('click', () => { if (b.dataset
 
 // ---------------- المحلات ----------------
 function showStores() { renderStores(); show('v-stores'); showInstall($('#v-stores'), 'ثبّت تحصّله على جوالك، وتسوّق من محلات حيّك من أيقونته.'); }
-$('#sq').addEventListener('input', renderStores);
+// البحث: عن منتج أو محل في المحلات القريبة (من الخادم)، والمحلات «المميزة» القريبة تطلع أول
+let searchHits = null, searchTimer = null;
+$('#sq').addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  const q = $('#sq').value.trim();
+  if (q.length < 2) { searchHits = null; return renderStores(); }
+  searchTimer = setTimeout(async () => {
+    const { data } = await sb.rpc('search_nearby', { q, la: here?.lat ?? null, ln: here?.lng ?? null });
+    if ($('#sq').value.trim() !== q) return;
+    searchHits = data || []; renderStores();
+  }, 450);
+});
+const PREMIUM_KM = 3;
 function renderStores() {
   const q = $('#sq').value.trim();
-  const list = stores.filter(s => !q || s.store_name.includes(q) || (s.activity || '').includes(q))
-    .map(s => ({ s, d: here && s.lat != null ? km(here, s) : null }))
-    .sort((a, b) => (a.d ?? 1e9) - (b.d ?? 1e9));
-  $('#loc-note').textContent = here ? 'مرتبة من الأقرب لك.' : 'اسمح بالموقع عشان نرتبها من الأقرب.';
-  $('#stores').replaceChildren(...list.map(({ s, d }) => {
+  const withD = s => ({ s, d: here && s.lat != null ? km(here, s) : null });
+  const boost = x => x.s.premium && (x.d == null || x.d <= PREMIUM_KM);
+  let list;
+  if (searchHits && q.length >= 2) {
+    const byId = Object.fromEntries(stores.map(s => [s.id, s]));
+    list = searchHits.filter(h => byId[h.id]).map(h => ({ ...withD(byId[h.id]), hit: h }));
+  } else {
+    list = stores.map(withD).sort((a, b) => (boost(b) - boost(a)) || ((a.d ?? 1e9) - (b.d ?? 1e9)));
+  }
+  $('#loc-note').textContent = searchHits && q.length >= 2 ? (list.length ? `لقينا «${q}» في ${list.length} محل.` : `ما لقينا «${q}» قريب منك. جرّب كلمة ثانية.`)
+    : here ? 'مرتبة من الأقرب لك.' : 'اسمح بالموقع عشان نرتبها من الأقرب.';
+  $('#stores').replaceChildren(...list.map(({ s, d, hit }) => {
     const b = mk('button', 'card store-card'); b.type = 'button';
-    const t = mk('div'); t.append(mk('b', '', s.store_name), mk('div', 'hint', [s.activity, s.district].filter(Boolean).join(' · ')));
+    const name = mk('b', '', s.store_name);
+    if (s.premium) { const pb = mk('span', 'badge pending', '⭐ مميز'); pb.style.marginInlineStart = '6px'; name.append(pb); }
+    const t = mk('div'); t.append(name, mk('div', 'hint', [s.activity, s.district].filter(Boolean).join(' · ')));
+    if (hit?.matches) t.append(mk('div', 'hint', `فيه: ${(hit.sample || []).join('، ')}${hit.matches > 3 ? ` و${hit.matches - 3} غيرها` : ''}`));
     b.append(t, mk('span', 'badge approved num', d == null ? '' : d < 1 ? `${Math.round(d * 1000)} م` : `${d.toFixed(1)} كم`));
     b.onclick = () => openStore(s);
     return b;
@@ -94,7 +116,7 @@ async function openStore(s) {
     sb.from('store_settings').select('*').eq('merchant_id', s.id).maybeSingle(),
   ]);
   products = p.data || []; settings = ss.data || { pickup: true, pay_cash: true };
-  $('#st-name').textContent = s.store_name;
+  $('#st-name').textContent = s.store_name + (s.premium ? ' ⭐' : '');
   const info = [s.activity, settings.pickup !== false && 'استلام من المحل', settings.delivers && `توصيل ${Number(settings.delivery_fee) ? sar(settings.delivery_fee) : 'مجاني'}`,
     settings.service_roundtrip && `🧺 استلام وتسليم من بيتك ${Number(settings.roundtrip_fee) ? sar(settings.roundtrip_fee) : 'مجاني'}`,
     settings.min_order && `أقل طلب ${sar(settings.min_order)}`].filter(Boolean);
@@ -102,7 +124,15 @@ async function openStore(s) {
   $('#pq').value = '';
   renderProducts(); renderCartBar(); show('v-store');
 }
-$('#pq').addEventListener('input', renderProducts);
+let missTimer = null;
+$('#pq').addEventListener('input', () => {
+  renderProducts();
+  // بحث داخل المحل ما لقى شي: نسجّله للمحل (بدون هوية المشتري) عشان يعرف وش يدوّرون عليه
+  clearTimeout(missTimer);
+  const q = $('#pq').value.trim();
+  if (q.length >= 2 && cur && !products.some(p => p.name.includes(q) || (p.category || '').includes(q)))
+    missTimer = setTimeout(() => sb.rpc('log_store_miss', { mid: cur.id, q }).then(() => {}), 1500);
+});
 // المنتج بالحبة، وبالكرتون لو التاجر حدده (أو بالكرتون فقط للجملة)
 const hasPack = p => p.pack_size && p.pack_price;
 const packLabel = p => `${p.pack_name || 'كرتون'} ${p.pack_size} ${p.unit || 'حبة'}`;
@@ -317,6 +347,7 @@ async function openOrders(silent = false) {
   $('#orders').replaceChildren(...data.map(o => orderCard(o, o.store_name)));
   if (!data.length) $('#orders').append(mk('p', 'hint', 'ما عندك طلبات للحين.'));
   if (!silent) { show('v-orders'); showPushCard($('#v-orders'), sb, user.id, 'يوصلك تنبيه على جوالك مع كل تحديث لطلبك.'); }
+  const oa = $('#offer-alerts'); oa.hidden = !buyer; if (buyer) $('input', oa).checked = !!buyer.offer_alerts;
 }
 function orderCard(o, storeName) {
   const c = mk('div', 'card stack');
@@ -399,3 +430,12 @@ function orderCard(o, storeName) {
 }
 // تحديث الحالة كل 30 ثانية وأنت في صفحة طلباتي
 setInterval(() => { if (!$('#v-orders').hidden && !document.hidden) openOrders(true); }, 30000);
+
+// موافقة المشتري على تنبيهات العروض (اختيارية)
+$('#offer-alerts input').addEventListener('change', async e => {
+  const on = e.target.checked;
+  const { error } = await sb.rpc('set_offer_alerts', { on_: on });
+  if (error) { e.target.checked = !on; return toast(friendlyError(error)); }
+  if (buyer) buyer.offer_alerts = on;
+  toast(on ? 'بنبهك بعروض المحلات القريبة ✓ (فعّل التنبيهات لو ما فعّلتها)' : 'وقفنا تنبيهات العروض.');
+});

@@ -65,13 +65,24 @@ Deno.serve(async (req) => {
   webpush.setVapidDetails(ps.subject, ps.vapid_public, ps.vapid_private);
   const p = await req.json().catch(() => null);
   if (p?.type === "init") return Response.json({ ready: !!ps?.vapid_public });
-  if (!p?.record) return new Response("ignored");
+  // عرض جديد من محل «مميز»: للمشترين الموافقين على تنبيه العروض والقريبين من المحل
+  let list: Msg[] = [];
+  if (p?.type === "offer") {
+    const { data: aud } = await admin.rpc("offer_audience", { mid: p.merchant_id, la: p.lat, ln: p.lng });
+    const users = (aud ?? []).map((x: any) => x.user_id);
+    if (users.length) list = [{ users, title: `🏷️ عرض من ${p.store}`, body: `${p.product}: ${money(p.sale)} بدل ${money(p.price)}`, url: "shop.html", tag: "offer-" + p.merchant_id }];
+  } else if (!p?.record) return new Response("ignored");
+  else list = await messages(p.type, p.record, p.old_record);
   let sent = 0;
-  for (const msg of await messages(p.type, p.record, p.old_record)) {
+  for (const msg of list) {
     const users = [...new Set(msg.users.filter(Boolean))];
     if (!users.length) continue;
-    const { data: subs } = await admin.from("push_subscriptions").select("*").in("user_id", users);
-    for (const s of subs ?? []) {
+    const subs: any[] = [];
+    for (let i = 0; i < users.length; i += 150) {   // دفعات عشان طول الرابط
+      const { data } = await admin.from("push_subscriptions").select("*").in("user_id", users.slice(i, i + 150));
+      subs.push(...(data ?? []));
+    }
+    for (const s of subs) {
       try {
         await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
           JSON.stringify({ title: msg.title, body: msg.body, url: msg.url, tag: msg.tag }), { TTL: 3600, urgency: "high" });

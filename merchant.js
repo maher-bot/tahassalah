@@ -1708,6 +1708,7 @@ async function orderAct(o, action, args = {}) {
     const m = String(error.message);
     return toast(m.includes('pay_before_delivery') ? 'الطلب تحويل: أكّد استلام المبلغ قبل ما تحوّله للمندوب.' : m.includes('driver_not_found') ? 'المندوب مو مفعّل في فريق المتجر.' : m.includes('code_required') ? 'لازم رمز التسليم من الزبون أول.' : m.includes('reason_required') ? 'اكتب السبب.' : m.includes('invalid_state') ? 'حالة الطلب تغيّرت، حدّث الصفحة.' : friendlyError(error));
   }
+  if (action === 'accept' && autoPrint()) printOrder(o);
   if (!$('#p-orders').hidden) loadOrders(); if (!$('#p-deliveries').hidden) loadDeliveries();
 }
 function orderBox(o, mode) {
@@ -1817,6 +1818,7 @@ function orderBox(o, mode) {
   if (allPhotos.length) btn(`📷 الصور (${allPhotos.length})`, 'ghost', async () => {
     for (const p of allPhotos) { const { data } = await sb.storage.from('receipts').createSignedUrl(p, 300); if (data) open(data.signedUrl, '_blank'); }
   });
+  if (mode === 'orders' && !['rejected', 'cancelled'].includes(o.status)) btn('🖨️ طباعة', 'ghost', () => printOrder(o));
   if (o.buyer_phone) { link('📞 اتصال', 'tel:+966' + String(o.buyer_phone).replace(/\D/g, '').replace(/^(966|0)/, '')); link('💬 واتساب الزبون', waLink(o.buyer_phone)); }
   if (mode === 'orders') {
     if (o.payment_proof && o.payment_status === 'proof') btn('📎 الإيصال', 'ghost', async () => { const { data } = await sb.storage.from('receipts').createSignedUrl(o.payment_proof, 300); if (data) open(data.signedUrl, '_blank'); });
@@ -2175,7 +2177,7 @@ async function loadStats() {
   if (!ctx.pro) { body.replaceChildren(S.section('📊 مؤشرات الأداء', null, proLock('مؤشرات أداء المحل: المنتجات الأكثر طلبًا، وأداء المندوبين والكاشيرية، وأوقات الذروة'))); return; }
   body.replaceChildren(S.mk('p', 'hint', 'جارِ التحميل…'));
   const days = Number($('#st-days').value);
-  const { data: d, error } = await sb.rpc('store_stats', { mid: ctx.mid, days });
+  const [{ data: d, error }, { data: dem }] = await Promise.all([sb.rpc('store_stats', { mid: ctx.mid, days }), sb.rpc('demand_report', { days })]);
   if (error) return body.replaceChildren(S.mk('p', 'err', friendlyError(error)));
   const rate = d.orders ? Math.round(d.done / d.orders * 100) : 0;
   const shifts = Object.fromEntries((d.shifts || []).map(x => [x.name, x]));
@@ -2193,6 +2195,9 @@ async function loadStats() {
     S.section('الطلبات اليومية', 'مرّر على العمود تشوف العدد.', S.dayCols(d.by_day || [], days)),
     S.section('🔥 المنتجات الأكثر طلبًا', d.no_sales ? `${S.nf(d.no_sales)} منتج ظاهر ما انطلب ولا مرة في هذي الفترة. جرّب عليها عرض أو صورة أوضح.` : null,
       S.bars((d.top_products || []).map(p => ({ label: p.name, value: p.qty, note: S.sar(p.rev) })))),
+    S.section('🔎 وش يدوّر عليه الناس قربك ولا يلقونه عندك', 'كلمات بحث المشترين حولك (3 كم) وما عندك منتج باسمها، وبحثهم داخل محلك اللي ما لقوا له نتيجة. فرصة تضيفها.',
+      S.mk('b', '', 'حولك'), S.bars((dem?.nearby || []).map(x => ({ label: x.q, value: x.n, note: x.nowhere ? `${x.nowhere} مرة ما لقوه في أي محل` : '' }))),
+      S.mk('b', '', 'داخل محلك'), S.bars((dem?.in_store || []).map(x => ({ label: x.q, value: x.n })))),
     d.low_stock?.length ? S.section('⚠️ منتجات عليها طلب وكميتها قليلة', null, S.bars(d.low_stock.map(p => ({ label: p.name, value: p.qty, note: p.unit || '' })))) : null,
     S.section('🛵 أداء المندوبين', null, S.table(['المندوب', 'سلّم', 'متوسط التوصيل', 'كاش استلمه', 'معه الحين', 'تسليم بدون رمز', 'بالطريق'],
       (d.drivers || []).map(x => [x.name, S.nf(x.delivered), S.mins(x.avg_min), S.sar(x.cash), S.sar(x.cash_held), S.nf(x.overrides), S.nf(x.on_road)]))),
@@ -2207,3 +2212,40 @@ async function loadStats() {
   );
 }
 $('#st-days').addEventListener('change', loadStats);
+
+// ---------------- طباعة إيصال الطلب (طابعة الكاشير، ومقاسه يناسب الطابعات الحرارية 80 ملم) ----------------
+const autoPrint = () => { try { return localStorage.getItem('tah-autoprint') === '1'; } catch { return false; } };
+{ const cb = $('#o-autoprint'); cb.checked = autoPrint(); cb.addEventListener('change', () => { try { localStorage.setItem('tah-autoprint', cb.checked ? '1' : '0'); } catch {} }); }
+const esc = t => String(t ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function printOrder(o) {
+  const rows = o.items.map(i => `<tr><td>${esc(i.name)}</td><td class="n">${i.qty}</td><td class="n">${money(i.line_total)}</td></tr>`).join('');
+  const paid = o.payment_status === 'paid' ? 'مدفوع ✓' : 'غير مدفوع';
+  const html = `<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${esc(o.number)}</title><style>
+    @page { size: 80mm auto; margin: 4mm; }
+    body { font-family: system-ui, Tahoma, sans-serif; font-size: 12px; color: #000; margin: 0; width: 72mm; }
+    h1 { font-size: 16px; text-align: center; margin: 0 0 2px; } .c { text-align: center; } .big { font-size: 20px; font-weight: 700; text-align: center; margin: 6px 0; }
+    table { width: 100%; border-collapse: collapse; margin: 6px 0; } td { padding: 3px 0; border-bottom: 1px dashed #999; vertical-align: top; } .n { text-align: left; white-space: nowrap; padding-inline-start: 6px; }
+    .row { display: flex; justify-content: space-between; } .tot { font-size: 15px; font-weight: 700; border-top: 2px solid #000; padding-top: 4px; margin-top: 4px; }
+    hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; } small { color: #333; }
+  </style></head><body>
+    <h1>${esc(o.store_name || ctx.store)}</h1>
+    <div class="c"><small>إيصال طلب عبر تحصّله · ليس فاتورة ضريبية</small></div>
+    <div class="big">${esc(o.number)}</div>
+    <div class="row"><span>الزبون</span><b>${esc(o.buyer_name)}</b></div>
+    <div class="row"><span>التاريخ</span><span>${new Date(o.created_at).toLocaleString('ar-SA-u-nu-latn-ca-gregory', { dateStyle: 'medium', timeStyle: 'short' })}</span></div>
+    <div class="row"><span>الاستلام</span><b>${esc(FUL[o.fulfillment])}${o.express ? ' ⚡' : ''}</b></div>
+    <table><tr><td><b>المنتج</b></td><td class="n"><b>العدد</b></td><td class="n"><b>المبلغ</b></td></tr>${rows}</table>
+    <div class="row"><span>المنتجات</span><span>${money(o.subtotal)}</span></div>
+    ${Number(o.delivery_fee) ? `<div class="row"><span>${o.fulfillment === 'roundtrip' ? 'الاستلام والتسليم' : 'التوصيل'}</span><span>${money(o.delivery_fee)}</span></div>` : ''}
+    ${Number(o.express_fee) ? `<div class="row"><span>مستعجل</span><span>${money(o.express_fee)}</span></div>` : ''}
+    <div class="row tot"><span>الإجمالي</span><span>${money(o.total)}</span></div>
+    <div class="row"><span>الدفع</span><b>${esc(O_PAY[o.payment_method])} · ${paid}</b></div>
+    ${o.note ? `<hr><div>📝 ${esc(o.note)}</div>` : ''}
+    <hr><div class="c"><small>${o.fulfillment === 'pickup' ? 'الزبون يعطي الكاشير رمز الاستلام من جواله.' : 'التسليم برمز الزبون أو تأكيده من جواله.'}<br>شكرًا لتسوّقكم 🌿 tahassalah.com</small></div>
+  </body></html>`;
+  const f = document.createElement('iframe');
+  f.style.cssText = 'position:fixed;width:0;height:0;border:0;opacity:0';
+  document.body.append(f);
+  f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close();
+  setTimeout(() => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch { toast('ما قدرنا نفتح الطباعة.'); } setTimeout(() => f.remove(), 60000); }, 300);
+}
