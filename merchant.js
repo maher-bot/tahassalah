@@ -1708,7 +1708,7 @@ function orderBox(o, mode) {
   // صورة الاستلام / التسليم: من كاميرا الصفحة مباشرة (بدون اختيار ملف)، وتطلع للكاشير وصاحب المحل فقط
   const camBtn = (label, cls, tag, after) => {
     const b = btn(label, cls, async () => {
-      const shot = await takePhoto(`${o.number} · ${tag === 'collect' ? 'استلام' : 'تسليم'}`);
+      const shot = await takePhoto(`${o.number} · ${tag === 'collect' ? 'استلام من الزبون' : tag === 'pickup' ? 'استلام من المحل' : 'تسليم'}`);
       if (!shot) return;
       setBusy(b, true);
       try {
@@ -1744,7 +1744,7 @@ function orderBox(o, mode) {
     const f = document.createElement('div'); f.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap'; f.append(save, cancel);
     box.append(note, tot, f); el.insertBefore(box, acts);
   });
-  const allPhotos = [...(o.collect_photos || []), ...(o.delivery_photos || [])];
+  const allPhotos = [...(o.collect_photos || []), ...(o.pickup_photos || []), ...(o.delivery_photos || [])];
   if (allPhotos.length) btn(`📷 الصور (${allPhotos.length})`, 'ghost', async () => {
     for (const p of allPhotos) { const { data } = await sb.storage.from('receipts').createSignedUrl(p, 300); if (data) open(data.signedUrl, '_blank'); }
   });
@@ -1775,7 +1775,7 @@ function orderBox(o, mode) {
   } else {
     if (['ready'].includes(o.status) && o.store_lat != null) link('🏪 موقع المحل', `https://www.google.com/maps/dir/?api=1&destination=${o.store_lat},${o.store_lng}`);
     link('🗺️ موقع الزبون', mapLink(o));
-    if (o.status === 'ready') btn('🛵 استلمت الطلب وطالع', 'primary', () => orderAct(o, 'out'));
+    if (o.status === 'ready') camBtn('📷 استلمت الطلب من المحل (صوّره)', 'primary', 'pickup', photos => orderAct(o, 'out', { photos }));
     if (o.status === 'out') {
       // صورة التسليم تنهي التوصيل
       if (o.payment_status === 'paid') camBtn('📷 صوّر التسليم وأنهِ', 'primary', 'delivered', photos => orderAct(o, 'delivered', { photos }));
