@@ -73,13 +73,21 @@ $('#f-signup').addEventListener('submit', async e => {
   hidePasswords(f);
   const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: here() } });
   setBusy(btn, false);
+  // الإيميل مسجّل من قبل (مثلًا كمسوّق أو موظف): ندخّله بنفس حسابه، وبعد الدخول يقدر يسجّل متجره
+  const exists = (error && /already registered|already been registered|user_already_exists/i.test(error.message + (error.code || '')))
+    || (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0);
+  if (exists) return existingAccount(email);
   if (error) return (err.textContent = friendlyError(error));
-  if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
-    return (err.textContent = 'هذا الإيميل مسجل من قبل. سجّل دخول بدلًا من ذلك.');
-  }
   if (typeof gtag === 'function') gtag('event', 'sign_up', { method: 'merchant', ...utmParams() });
   if (!data.session) { $('#sent-to').textContent = email; show('v-check-email'); }
 });
+function existingAccount(email) {
+  try { sessionStorage.setItem('tah-intent', 'store'); } catch {}
+  $('#v-auth [role=tab][data-tab=login]')?.click();
+  const f = $('#f-login'); f.email.value = email; f.password.value = '';
+  $('.err', f).textContent = 'إيميلك مسجّل عندنا من قبل (مثلًا كمسوّق أو موظف). ادخل بكلمة مرور حسابك نفسها، وبعدها تقدر تسجّل متجرك بنفس الإيميل.';
+  f.password.focus();
+}
 $('#f-login').addEventListener('submit', async e => {
   e.preventDefault();
   const f = e.target, err = $('.err', f), btn = $('button[type=submit]', f);
@@ -183,10 +191,9 @@ async function route(session) {
     const [ad, rp] = await Promise.all([sb.rpc('is_admin'), sb.rpc('my_rep')]);
     const isAdmin = !!ad.data, isRep = !!rp.data?.[0];
     const hasStore = !!merchant || stores.length > 0 || invites.length > 0;
-    const n = isAdmin + isRep + hasStore;
-    if (n > 1) return showRoles(isAdmin, isRep, hasStore);
-    if (isRep && n === 1) return location.replace('rep.html');
-    if (isAdmin && n === 1) return location.replace('admin.html');
+    let intent = null; try { intent = sessionStorage.getItem('tah-intent'); } catch {}
+    if (intent === 'store' && !hasStore) { try { sessionStorage.setItem('tah-role', 'merchant'); } catch {} return openApply(); }
+    if (isAdmin || isRep) return showRoles(isAdmin, isRep, hasStore);
   }
   if (merchant?.status === 'approved' || stores.length) return openDash(pickStore());
   if (!merchant) return openApply();
@@ -200,7 +207,9 @@ function pickStore() {
 }
 
 function showRoles(isAdmin, isRep, hasStore) {
-  $('#go-admin').hidden = !isAdmin; $('#go-rep').hidden = !isRep; $('#go-store').hidden = !hasStore;
+  $('#go-admin').hidden = !isAdmin; $('#go-rep').hidden = !isRep; $('#go-store').hidden = false;
+  $('#go-store b').textContent = hasStore ? '🏪 المحل التجاري' : '＋ سجّل متجرك';
+  $('#go-store span').textContent = hasStore ? 'لوحة متجرك' : 'سجّل محلك أو نشاطك بنفس الإيميل';
   show('v-roles');
 }
 $('#go-store').addEventListener('click', () => { try { sessionStorage.setItem('tah-role', 'merchant'); } catch {} route(); });
