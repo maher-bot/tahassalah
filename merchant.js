@@ -1668,7 +1668,7 @@ async function orderAct(o, action, args = {}) {
   const { error } = await sb.rpc('order_action_v', { oid: o.id, action, args });
   if (error) {
     const m = String(error.message);
-    return toast(m.includes('pay_before_delivery') ? 'الطلب تحويل: أكّد استلام المبلغ قبل ما تحوّله للمندوب.' : m.includes('driver_not_found') ? 'المندوب مو مفعّل في فريق المتجر.' : m.includes('invalid_state') ? 'حالة الطلب تغيّرت، حدّث الصفحة.' : friendlyError(error));
+    return toast(m.includes('pay_before_delivery') ? 'الطلب تحويل: أكّد استلام المبلغ قبل ما تحوّله للمندوب.' : m.includes('driver_not_found') ? 'المندوب مو مفعّل في فريق المتجر.' : m.includes('code_required') ? 'لازم رمز التسليم من الزبون أول.' : m.includes('reason_required') ? 'اكتب السبب.' : m.includes('invalid_state') ? 'حالة الطلب تغيّرت، حدّث الصفحة.' : friendlyError(error));
   }
   if (!$('#p-orders').hidden) loadOrders(); if (!$('#p-deliveries').hidden) loadDeliveries();
 }
@@ -1747,6 +1747,33 @@ function orderBox(o, mode) {
     const f = document.createElement('div'); f.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap'; f.append(save, cancel);
     box.append(note, tot, f); el.insertBefore(box, acts);
   });
+  // رمز التسليم: يكتبه المندوب/الكاشير من الزبون، وبدونه ما يكتمل التسليم
+  const needCode = o.code_needed && !o.code_ok;
+  const codeBox = (withHelp) => {
+    if (o.code_locked) { line('🔒 انقفل رمز التسليم بعد 5 محاولات غلط.' + (mode === 'orders' ? ' تأكد من الزبون ووافق بدون رمز.' : ' تواصل مع المحل.'), 'low'); return; }
+    const inp = Object.assign(document.createElement('input'), { inputMode: 'numeric', maxLength: 4, placeholder: 'رمز الزبون', autocomplete: 'off' });
+    inp.dir = 'ltr'; inp.style.cssText = 'width:120px;letter-spacing:.3em;text-align:center';
+    acts.append(inp);
+    btn('🔐 تحقق من الرمز', 'primary', async () => {
+      const code = inp.value.replace(/\D/g, '');
+      if (code.length !== 4) return toast('الرمز 4 أرقام، اطلبه من الزبون.');
+      const { data, error } = await sb.rpc('order_verify_code', { oid: o.id, code });
+      if (error) return toast(friendlyError(error));
+      if (data.ok) { toast('الرمز صحيح ✓'); return mode === 'orders' ? loadOrders() : loadDeliveries(); }
+      toast(data.error === 'locked' ? 'انقفل الرمز بعد 5 محاولات غلط.' : `الرمز غلط. باقي ${data.left} محاولات.`);
+      inp.value = ''; if (data.error === 'locked') (mode === 'orders' ? loadOrders() : loadDeliveries());
+    });
+    if (withHelp) btn(o.code_help_at ? '⏳ بانتظار موافقة المحل' : 'الزبون ما عنده الرمز', 'ghost', () => {
+      if (o.code_help_at) return toast('أرسلنا للمحل. يتصل بالزبون ويوافق.');
+      if (confirm('نرسل للمحل يتصل بالزبون ويوافق على التسليم بدون رمز؟')) orderAct(o, 'code_help');
+    });
+  };
+  const overrideBtn = () => btn(o.code_help_at ? '🔐 المندوب يطلب موافقتك: سلّم بدون رمز' : '🔓 تسليم بدون رمز', o.code_help_at ? 'primary' : 'ghost', () => {
+    const r = prompt('تأكدت من الزبون؟ اكتب السبب (ينحفظ باسمك):', o.code_help_at ? 'اتصلت بالزبون وأكّد' : '');
+    if (r != null) orderAct(o, 'code_override', { reason: r });
+  });
+  if (o.code_override_by) line(`🔓 تسليم بدون رمز، وافق: ${o.code_override_by}${o.code_override_reason ? ' · ' + o.code_override_reason : ''}`);
+  else if (o.code_needed && o.code_ok && ['out', 'ready', 'accepted', 'preparing'].includes(o.status)) line('🔐 الرمز صحيح ✓');
   const allPhotos = [...(o.collect_photos || []), ...(o.pickup_photos || []), ...(o.delivery_photos || [])];
   if (allPhotos.length) btn(`📷 الصور (${allPhotos.length})`, 'ghost', async () => {
     for (const p of allPhotos) { const { data } = await sb.storage.from('receipts').createSignedUrl(p, 300); if (data) open(data.signedUrl, '_blank'); }
@@ -1764,7 +1791,8 @@ function orderBox(o, mode) {
     }
     if (['accepted', 'preparing'].includes(o.status) && o.fulfillment === 'pickup') btn('جاهز للاستلام', 'ghost', () => orderAct(o, 'ready'));
     if (o.payment_status !== 'paid' && ['accepted', 'preparing', 'ready'].includes(o.status) && ['transfer', 'tabby', 'tamara'].includes(o.payment_method)) btn('✓ تم الدفع', 'ghost', () => { if (confirm('تأكدت إن المبلغ وصل؟')) orderAct(o, 'paid'); });
-    if (o.fulfillment === 'pickup' && ['accepted', 'preparing', 'ready'].includes(o.status)) {
+    if (o.fulfillment === 'pickup' && ['accepted', 'preparing', 'ready'].includes(o.status) && needCode) { codeBox(false); overrideBtn(); }
+    else if (o.fulfillment === 'pickup' && ['accepted', 'preparing', 'ready'].includes(o.status)) {
       if (o.payment_status === 'paid') btn('✓ استلمه الزبون', 'primary', () => { if (confirm('الزبون استلم طلبه؟')) orderAct(o, 'picked_up'); });
       else {
         btn(`✓ استلم ودفع ${money(o.total)} نقدًا`, 'primary', () => { if (confirm(`الزبون استلم ودفع ${money(o.total)} نقدًا؟`)) orderAct(o, 'picked_up', { method: 'cash' }); });
@@ -1772,6 +1800,7 @@ function orderBox(o, mode) {
       }
     }
     if (o.fulfillment === 'delivery' && ['accepted', 'preparing', 'ready'].includes(o.status) && !o.driver_user_id) pickDriver('🛵 حوّل للمندوب', 'assign');
+    if (o.status === 'out' && needCode && (o.code_help_at || o.code_locked)) overrideBtn();
     if (['accepted', 'preparing', 'to_collect'].includes(o.status)) btn('إلغاء', 'ghost', () => { const r = prompt('سبب الإلغاء (يشوفه الزبون):'); if (r != null) orderAct(o, 'reject', { reason: r }); });
   } else if (['to_collect', 'collecting'].includes(o.status)) {
     // مشوار الاستلام من الزبون
@@ -1785,7 +1814,10 @@ function orderBox(o, mode) {
     if (['ready'].includes(o.status) && o.store_lat != null) link('🏪 موقع المحل', `https://www.google.com/maps/dir/?api=1&destination=${o.store_lat},${o.store_lng}`);
     link('🗺️ موقع الزبون', mapLink(o));
     if (o.status === 'ready') camBtn('📷 استلمت الطلب من المحل (صوّره)', 'primary', 'pickup', photos => orderAct(o, 'out', { photos }));
-    if (o.status === 'out') {
+    if (o.status === 'out' && needCode) {
+      codeBox(true);
+      const hint = document.createElement('div'); hint.className = 'hint'; hint.style.width = '100%'; hint.textContent = 'اطلب من الزبون رمز التسليم (يطلع له في صفحة طلبه)، واكتبه هنا. بعدها تصوّر وتنهي التوصيل.'; acts.append(hint);
+    } else if (o.status === 'out') {
       // صورة التسليم تنهي التوصيل
       if (o.payment_status === 'paid') camBtn('📷 صوّر التسليم وأنهِ', 'primary', 'delivered', photos => orderAct(o, 'delivered', { photos }));
       else {
@@ -1856,7 +1888,7 @@ setInterval(() => { if (!document.hidden && !$('#p-deliveries').hidden) loadDeli
 // ---------------- مناوبات الكاشير والعهدة ----------------
 const O_ACT = { accept: 'قبله', reject: 'رفضه', preparing: 'جهّزه', ready: 'جاهز', assign: 'حوّله للمندوب', assign_collect: 'حوّله لمندوب الاستلام',
   picked_up: 'سلّمه للزبون', paid: 'أكّد الدفع', processing: 'بدأ التنفيذ', out: 'طلع فيه', delivered: 'سلّمه', collected: 'استلم من الزبون',
-  collecting: 'راح يستلم', adjust: 'عدّل العدد', approve_adjust: 'وافق على التعديل', proof: 'أرسل الإيصال' };
+  collecting: 'راح يستلم', code_ok: 'تحقق من الرمز', code_help: 'طلب موافقة بدون رمز', code_override: 'وافق بدون رمز', adjust: 'عدّل العدد', approve_adjust: 'وافق على التعديل', proof: 'أرسل الإيصال' };
 const SHIFT_ERR = { bad_pin: 'الرقم السري غلط.', pin_locked: 'محاولات كثيرة غلط. انتظر 10 دقايق.', shift_open: 'فيه مناوبة مفتوحة على هذا الجهاز.', bad_amount: 'اكتب المبلغ صح.', not_allowed: 'ما عندك صلاحية الطلبات في هذا المحل.' };
 const numIn = v => Number(String(v || '0').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(',', '.'));
 const tm = d => new Date(d).toLocaleString('ar-SA-u-nu-latn-ca-gregory', { hour: 'numeric', minute: '2-digit', day: 'numeric', month: 'short' });

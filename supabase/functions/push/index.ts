@@ -37,10 +37,14 @@ async function messages(type: string, o: any, old: any): Promise<Msg[]> {
     const buyer: Record<string, string> = {
       accepted: `${store} قبل طلبك`, rejected: `${store} اعتذر عن طلبك${o.reason ? ": " + o.reason : ""}`,
       to_collect: "المندوب بيجيك يستلم أغراضك", at_store: "وصلت أغراضك المحل", processing: "طلبك قيد التنفيذ",
-      out: "طلبك مع المندوب في الطريق 🛵", delivered: "تم تسليم طلبك ✓", picked_up: "تم استلام طلبك ✓",
+      out: `طلبك مع المندوب في الطريق 🛵${o.handover_code ? " · رمز التسليم: " + o.handover_code + " (أعطه للمندوب)" : ""}`, delivered: "تم تسليم طلبك ✓", picked_up: "تم استلام طلبك ✓",
     };
     for (const [s, body] of Object.entries(buyer)) if (st(s)) out.push({ users: [o.buyer_id], title: `طلبك ${o.number}`, body, url: shop, tag });
-    if (st("ready") && o.fulfillment === "pickup") out.push({ users: [o.buyer_id], title: `طلبك ${o.number}`, body: `جاهز للاستلام من ${store}`, url: shop, tag });
+    if (st("ready") && o.fulfillment === "pickup") out.push({ users: [o.buyer_id], title: `طلبك ${o.number}`, body: `جاهز للاستلام من ${store}${o.handover_code ? " · رمز الاستلام: " + o.handover_code : ""}`, url: shop, tag });
+    if (o.code_help_at && o.code_help_at !== old?.code_help_at)
+      out.push({ users: await staffOf(o.merchant_id), title: "🔐 المندوب يحتاج موافقتك", body: `${o.number}: الزبون ما عنده رمز التسليم. اتصل فيه ووافق من الطلبات`, url: dash, tag: tag + "-code" });
+    if (o.code_attempts >= 5 && (old?.code_attempts ?? 0) < 5)
+      out.push({ users: await staffOf(o.merchant_id), title: "🔒 انقفل رمز التسليم", body: `${o.number}: 5 محاولات غلط. تأكد من الزبون قبل التسليم`, url: dash, tag: tag + "-code" });
     if (st("cancelled")) out.push({ users: await staffOf(o.merchant_id), title: "ألغى الزبون طلبه", body: o.number, url: dash, tag });
   }
   return out;

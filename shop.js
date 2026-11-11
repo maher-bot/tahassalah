@@ -325,6 +325,15 @@ function orderCard(o, storeName) {
   }
   c.append(mk('div', 'num', `الإجمالي ${sar(o.total)} · ${o.fulfillment === 'delivery' ? 'توصيل' : o.fulfillment === 'roundtrip' ? 'استلام وتسليم' + (o.express ? ' ⚡ مستعجل' : '') : 'استلام من المحل'} · ${PAY[o.payment_method]}${o.payment_status === 'paid' ? ' · مدفوع ✓' : o.payment_status === 'proof' ? ' · وصل الإيصال' : ''}`));
   if (o.driver_name && ['ready', 'out'].includes(o.status)) c.append(mk('div', 'hint', `🛵 المندوب: ${o.driver_name}`));
+  // رمز التسليم: يعطيه الزبون للمندوب (أو للكاشير في الاستلام من المحل)
+  const codeTime = o.fulfillment === 'pickup' ? ['accepted', 'preparing', 'ready'].includes(o.status) : o.status === 'out' || (o.fulfillment !== 'roundtrip' && ['accepted', 'preparing', 'ready'].includes(o.status));
+  if (o.handover_code && codeTime) {
+    const box = mk('div', 'note stack'); box.style.textAlign = 'center';
+    box.append(mk('div', 'hint', o.fulfillment === 'pickup' ? '🔐 رمز الاستلام: قوله للكاشير وقت ما تستلم طلبك' : '🔐 رمز التسليم: قوله للمندوب لما يوصلك'));
+    const code = mk('b', 'num', o.handover_code); code.style.cssText = 'font-size:2rem;letter-spacing:.35em'; code.dir = 'ltr';
+    box.append(code, mk('div', 'hint', 'لا تعطيه لأحد قبل ما تستلم طلبك. لو بيستلم أحد بدالك، أرسله له.'));
+    c.append(box);
+  }
   if (o.reason) c.append(mk('div', 'hint', 'السبب: ' + o.reason));
 
   const acts = mk('div'); acts.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
