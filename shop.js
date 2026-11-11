@@ -155,7 +155,15 @@ function renderProducts() {
     const el = mk('div', 'prod' + (out ? ' off' : ''));
     const src = imgUrl(p.image_path);
     if (pack && !p.pack_only) el.append(mk('div', 'ph', '📦'));
-    else if (src) { const i = mk('img'); i.src = src; i.alt = ''; i.loading = 'lazy'; el.append(i); } else el.append(mk('div', 'ph', p.name.slice(0, 1)));
+    else if (src) {
+      // الضغط على الصورة يكبّرها ويعرض باقي صور المنتج
+      const all = [p.image_path, ...(p.extra_images || [])];
+      const b = mk('button', 'pic'); b.type = 'button'; b.setAttribute('aria-label', `صور ${p.name}`);
+      const i = mk('img'); i.src = src; i.alt = ''; i.loading = 'lazy'; b.append(i);
+      if (all.length > 1) b.append(mk('span', 'cnt num', `${all.length} صور`));
+      b.onclick = () => viewImages(p.name, all);
+      el.append(b);
+    } else el.append(mk('div', 'ph', p.name.slice(0, 1)));
     const t = mk('div'); t.style.minWidth = '0';
     const m = mk('div', 'm');
     if (pack) m.append(mk('b', 'num', sar(p.pack_price)), mk('span', 'hint', '/ ' + packLabel(p)));
@@ -485,3 +493,13 @@ $('#f-tester').addEventListener('submit', async e => {
   if (!ok) { await sb.auth.signOut(); return (err.textContent = 'هذا الحساب مو من المختبرين.'); }
   location.reload();
 });
+
+// عارض صور المنتج (يسحب يمين ويسار بين الصور)
+function viewImages(title, paths) {
+  const d = $('#img-view');
+  $('#iv-title').textContent = title;
+  $('#iv-slides').replaceChildren(...paths.map((p, i) => { const im = mk('img'); im.src = imgUrl(p); im.alt = `${title} · صورة ${i + 1}`; return im; }));
+  $('#iv-hint').hidden = paths.length < 2;
+  d.showModal(); $('#iv-slides').scrollTo(0, 0);
+}
+$('#iv-close').addEventListener('click', () => $('#img-view').close());

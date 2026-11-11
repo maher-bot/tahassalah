@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="تحصّله">
-<link rel="stylesheet" href="app.css?v=20261111d">
+<link rel="stylesheet" href="app.css?v=20261111e">
 </head>
 <body>
 <header class="top"><div class="in">
@@ -585,6 +585,11 @@
       </div>
     </details>
     <div class="file" data-file="img"><label><span>صورة المنتج <span class="opt">(اختياري)</span></span><input type="file" name="image" accept="image/*"></label><span class="cur"></span></div>
+    <div id="extras-box" style="display:grid;gap:8px">
+      <span><b>صور إضافية</b> <span class="opt">(اختياري، حتى 3 صور من جهات ثانية)</span></span>
+      <div class="thumbs" id="extras"></div>
+      <label class="btn ghost sm" id="extras-add" style="justify-self:start">＋ أضف صورة<input type="file" id="extras-file" accept="image/*" multiple hidden></label>
+    </div>
     <label class="check"><input type="checkbox" name="is_active" checked> ظاهر للمشترين</label>
     <p class="err" role="alert"></p>
     <div class="foot">

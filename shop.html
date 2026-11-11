@@ -15,7 +15,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="تحصّله">
-<link rel="stylesheet" href="app.css?v=20261111d">
+<link rel="stylesheet" href="app.css?v=20261111e">
 </head>
 <body>
 <header class="top"><div class="in">
@@ -122,6 +122,14 @@
     <div id="orders" style="display:grid;gap:10px"></div>
   </section>
 </main>
+<dialog id="img-view">
+  <div class="stack">
+    <h2 style="font-size:1.2rem" id="iv-title"></h2>
+    <div class="slides" id="iv-slides"></div>
+    <p class="hint" id="iv-hint" style="text-align:center">اسحب يمين ويسار تشوف باقي الصور</p>
+    <div class="foot"><button class="btn primary" type="button" id="iv-close">إغلاق</button></div>
+  </div>
+</dialog>
 <script type="module" src="shop.js"></script>
 </body>
 </html>

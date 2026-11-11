@@ -856,6 +856,8 @@ function openProduct(p) {
   $('#preorder-row').hidden = viaApproval();
   fp.preorder_hours.disabled = !canInv();
   syncOffer();
+  extras = (p?.extra_images || []).map(path => ({ path })); removedExtras = [];
+  $('#extras-box').hidden = !canInv() || viaApproval(); renderExtras();
   const box = $('.file[data-file="img"]', fp);
   box.dataset.existing = p?.image_path ? '1' : '';
   box.classList.toggle('has', !!p?.image_path);
@@ -904,6 +906,7 @@ fp.addEventListener('submit', async e => {
   if (!always && (qty == null || !Number.isInteger(qty) || qty < 0)) return (err.textContent = 'الكمية رقم صحيح من 0 وفوق.');
   err.textContent = ''; setBusy(btn, true, 'جارِ الحفظ…');
   let oldImage = null, newImage = null;   // القديمة تنحذف بعد نجاح الحفظ فقط، والجديدة تنحذف لو فشل
+  const newExtras = [];
   try {
     let image_path = editing?.image_path ?? null;
     const file = fp.image.files[0];
@@ -930,14 +933,30 @@ fp.addEventListener('submit', async e => {
       expires_on: fp.expires_on.value || null, ...offer,
     } : { price, sale_price: sale, ...offer, pack_price: editing?.pack_size ? packPrice : null };
     if (canInv() && !viaApproval()) row.preorder_hours = fp.preorder_hours.value ? Number(fp.preorder_hours.value) : null;
+    if (canInv() && !viaApproval()) {
+      // الصور الإضافية: نرفع الجديد، ونحفظ الترتيب
+      const paths = [];
+      for (const x of extras) {
+        if (x.path) { paths.push(x.path); continue; }
+        const small = await shrinkImage(x.file);
+        if (small.size > 2 * 1024 * 1024) throw new Error('فيه صورة كبيرة جدًا، اختر صورة أصغر من 2 ميجا.');
+        const path = `${ctx.mid}/${crypto.randomUUID()}.${small.type === 'image/webp' ? 'webp' : fileExt(small)}`;
+        const { error } = await sb.storage.from('product-images').upload(path, small, { contentType: small.type });
+        if (error) throw error;
+        newExtras.push(path); paths.push(path);
+      }
+      row.extra_images = paths;
+    }
     if (editing && !canPrice()) { delete row.price; delete row.sale_price; delete row.offer_reason; delete row.offer_ends_at; delete row.pack_price; }
     const r = await writeProduct(editing ? 'update' : 'insert', editing, row);
     if (oldImage) sb.storage.from('product-images').remove([oldImage]);
+    if (removedExtras.length && r === 'done') sb.storage.from('product-images').remove(removedExtras);
     dlg.close();
     toast(r === 'queued' ? QUEUED : r === 'same' ? 'ما فيه تغيير.' : editing ? 'تم حفظ التعديل.' : 'تمت إضافة المنتج.');
     await loadProducts();
   } catch (ex) {
     if (newImage) sb.storage.from('product-images').remove([newImage]);
+    if (newExtras.length) sb.storage.from('product-images').remove(newExtras);
     err.textContent = friendlyError(ex);
   }
   finally { setBusy(btn, false); }
@@ -947,9 +966,28 @@ $('#del').addEventListener('click', async () => {
   if (!editing || !confirm(viaApproval() ? `طلب حذف «${editing.name}»؟ يُحذف بعد موافقة صاحب المتجر.` : `حذف «${editing.name}» نهائيًا؟`)) return;
   try {
     const r = await writeProduct('delete', editing);
-    if (r === 'done' && editing.image_path) sb.storage.from('product-images').remove([editing.image_path]);
+    if (r === 'done') { const all = [editing.image_path, ...(editing.extra_images || [])].filter(Boolean); if (all.length) sb.storage.from('product-images').remove(all); }
     dlg.close(); toast(r === 'queued' ? QUEUED : 'تم حذف المنتج.'); await loadProducts();
   } catch (ex) { toast(friendlyError(ex)); }
+});
+
+// ---------------- صور إضافية للمنتج (حتى 3 مع الرئيسية = 4) ----------------
+let extras = [], removedExtras = [];
+function renderExtras() {
+  $('#extras').replaceChildren(...extras.map((x, i) => {
+    const w = document.createElement('div'); w.className = 'thumb';
+    const im = Object.assign(document.createElement('img'), { src: x.path ? imgUrl(x.path) : x.url, alt: `صورة إضافية ${i + 1}` });
+    const rm = Object.assign(document.createElement('button'), { type: 'button', textContent: '✕', title: 'حذف الصورة' });
+    rm.setAttribute('aria-label', 'حذف الصورة');
+    rm.onclick = () => { if (x.path) removedExtras.push(x.path); else URL.revokeObjectURL(x.url); extras.splice(i, 1); renderExtras(); };
+    w.append(im, rm); return w;
+  }));
+  $('#extras-add').hidden = extras.length >= 3;
+}
+$('#extras-file').addEventListener('change', e => {
+  const files = [...e.target.files]; e.target.value = '';
+  for (const f of files) { if (extras.length >= 3) { toast('الحد 3 صور إضافية.'); break; } if (f.type.startsWith('image/')) extras.push({ file: f, url: URL.createObjectURL(f) }); }
+  renderExtras();
 });
 
 // ---------------- الكاميرا والتعرّف على المنتج ----------------
@@ -1503,8 +1541,8 @@ $('#data-delete')?.addEventListener('click', async e => {
   try {
     const { data: xs } = await sb.from('merchant_ibans').select('cert_path').eq('merchant_id', m.id);
     const docs = [m.cr_path, m.id_path, m.vat_path, m.iban_path, ...(m.extra_docs || []), ...(xs || []).map(x => x.cert_path)].filter(Boolean);
-    const { data: prods } = await sb.from('products').select('image_path').eq('merchant_id', m.id).not('image_path', 'is', null);
-    const imgs = (prods || []).map(p => p.image_path);
+    const { data: prods } = await sb.from('products').select('image_path, extra_images').eq('merchant_id', m.id);
+    const imgs = (prods || []).flatMap(p => [p.image_path, ...(p.extra_images || [])]).filter(Boolean);
     if (docs.length) { const { error } = await sb.storage.from('merchant-docs').remove(docs); if (error) throw error; }
     if (imgs.length) { const { error } = await sb.storage.from('product-images').remove(imgs); if (error) throw error; }
     const { error } = await sb.rpc('delete_my_account');
