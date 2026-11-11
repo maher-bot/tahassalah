@@ -86,6 +86,10 @@ async function main(only) {
     if (await page.locator('#f-demo').isVisible()) { await page.click('#f-demo button[type=submit]'); await wait(3500); }
     await page.goto('https://tahassalah.com/shop.html?demo=1', { waitUntil: 'networkidle' }); await wait(2500);
     await check(page, 'مشتري › المحلات', out);
+    await page.fill('#sq', 'حليب'); await wait(2500); await check(page, 'مشتري › نتائج البحث', out);
+    await page.locator('.pgroup button', { hasText: 'أضف للسلة' }).first().click().catch(() => {}); await wait(400);
+    await page.click('#go-basket').catch(() => {}); await wait(2500); await check(page, 'مشتري › السلة من البحث', out);
+    await page.goto('https://tahassalah.com/shop.html?demo=1', { waitUntil: 'networkidle' }); await wait(2500);
     await page.locator('#stores button', { hasText: 'بقالة النور' }).first().click(); await wait(2500); await check(page, 'مشتري › المحل', out);
     await page.locator('#products .prod button', { hasText: 'أضف' }).first().click(); await wait(500);
     await page.click('#go-cart'); await wait(1200); await check(page, 'مشتري › السلة', out);

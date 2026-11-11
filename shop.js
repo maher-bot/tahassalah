@@ -1,12 +1,14 @@
-// صفحة المشتري: المحلات القريبة ← منتجات المحل ← السلة ← تأكيد الطلب ← متابعة الطلب.
+// صفحة المشتري: بحث عن منتج (اسم، باركود، صورة) ومقارنة سعره بين المحلات ← السلة (من أكثر من محل) ← تأكيد طلب كل محل ← متابعة الطلب.
+// وتحتها قائمة المحلات القريبة لمن يبي يتصفح محل بعينه.
 // الدفع للمحل مباشرة (عند الاستلام، شبكة، تحويل، تابي/تمارا في المحل)؛ المنصة ما تمسك فلوس.
 import { sb, $, $$, toast, digits, valid, friendlyError, setBusy, shrinkImage, fileExt } from './lib.js';
 import { IS_DEMO } from './config.js';
 import { invoiceLink } from './invoice-ui.js';
 import { pickLocation } from './mappick.js';
+import { scanBarcode } from './scan.js';
 import { showInstall, showPushCard } from './pwa.js';
 
-const VIEWS = ['v-loading', 'v-closed', 'v-stores', 'v-store', 'v-cart', 'v-login', 'v-orders'];
+const VIEWS = ['v-loading', 'v-closed', 'v-stores', 'v-store', 'v-basket', 'v-cart', 'v-login', 'v-orders'];
 const show = id => { VIEWS.forEach(v => { $('#' + v).hidden = v !== id; }); window.scrollTo(0, 0); };
 const sar = n => Number(n || 0).toLocaleString('ar-SA-u-nu-latn', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' ر.س';
 const mk = (tag, cls = '', text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
@@ -25,20 +27,26 @@ let user = null, buyer = null, here = null, stores = [], cur = null, settings = 
 let after = null;    // وين يرجع بعد الدخول
 let coords = null;
 
-// ---------------- السلة (محل واحد) ----------------
+// ---------------- السلة: لكل محل سلته (المشتري يجمع من أكثر من محل، وكل محل طلبه لحاله) ----------------
 const CART_KEY = 'tah-cart';
 const cart = {
-  get() { try { return JSON.parse(localStorage.getItem(CART_KEY)) || { mid: null, items: {} }; } catch { return { mid: null, items: {} }; } },
-  save(c) { try { localStorage.setItem(CART_KEY, JSON.stringify(c)); } catch {} },
+  all() {
+    let a = null; try { a = JSON.parse(localStorage.getItem(CART_KEY)); } catch {}
+    if (a?.stores) return a;
+    const n = { stores: {} };
+    if (a?.mid && a.items && Object.keys(a.items).length) n.stores[a.mid] = { store: a.store, items: a.items };   // الصيغة القديمة (محل واحد)
+    return n;
+  },
+  write(a) { try { localStorage.setItem(CART_KEY, JSON.stringify(a)); } catch {} },
+  get(mid = cur?.id) { const b = mid ? cart.all().stores[mid] : null; return { mid: mid || null, store: b?.store, items: b?.items || {} }; },
+  save(c) { if (!c.mid) return; const a = cart.all(); if (Object.keys(c.items).length) a.stores[c.mid] = { store: c.store, items: c.items }; else delete a.stores[c.mid]; cart.write(a); },
+  clear(mid) { const a = cart.all(); delete a.stores[mid]; cart.write(a); },
   count(c = cart.get()) { return Object.values(c.items).reduce((s, x) => s + x.qty, 0); },
   sum(c = cart.get()) { return Object.values(c.items).reduce((s, x) => s + x.qty * x.price, 0); },
+  buckets() { return Object.entries(cart.all().stores).map(([mid, b]) => ({ mid, store: b.store, items: b.items })); },
 };
 function setQty(p, qty, pack = false) {
-  let c = cart.get();
-  if (c.mid && c.mid !== cur.id && cart.count(c)) {
-    if (!confirm('السلة فيها منتجات من محل ثاني. تفرّغها وتبدأ من هذا المحل؟')) return;
-    c = { mid: null, items: {} };
-  }
+  const c = cart.get();
   c.mid = cur.id; c.store = cur.store_name;
   pack = !!(pack || p.pack_only);
   const key = pack ? p.id + ':p' : p.id, cap = settings?.service_roundtrip || p.always_available ? 999 : pack ? Math.floor((p.quantity ?? 0) / p.pack_size) : (p.quantity ?? 999);
@@ -78,38 +86,206 @@ $$('[data-back]').forEach(b => b.addEventListener('click', () => { if (b.dataset
 
 // ---------------- المحلات ----------------
 function showStores() { renderStores(); show('v-stores'); showInstall($('#v-stores'), 'ثبّت تحصّله على جوالك، وتسوّق من محلات حيّك من أيقونته.'); }
-// البحث: عن منتج أو محل في المحلات القريبة (من الخادم)، والمحلات «المميزة» القريبة تطلع أول
-let searchHits = null, searchTimer = null;
+// ---------------- البحث عن منتج ومقارنة سعره بين المحلات ----------------
+let results = null, resLabel = '', sortBy = 'price', searchTimer = null, searchSeq = 0;
+const sState = t => { const el = $('#s-state'); el.hidden = !t; el.textContent = t || ''; };
+const normName = t => String(t || '').toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').replace(/\s+/g, ' ').trim();
+async function runSearch({ q = null, bc = null, label = null } = {}) {
+  const seq = ++searchSeq;
+  sState('جارِ البحث…');
+  const { data, error } = await sb.rpc('product_search', { q, bc, la: here?.lat ?? null, ln: here?.lng ?? null });
+  if (seq !== searchSeq) return null;
+  sState('');
+  if (error) { toast(friendlyError(error)); return null; }
+  results = data || []; resLabel = label || (bc ? `باركود ${bc}` : q);
+  renderStores();
+  return results;
+}
 $('#sq').addEventListener('input', () => {
   clearTimeout(searchTimer);
   const q = $('#sq').value.trim();
-  if (q.length < 2) { searchHits = null; return renderStores(); }
-  searchTimer = setTimeout(async () => {
-    const { data } = await sb.rpc('search_nearby', { q, la: here?.lat ?? null, ln: here?.lng ?? null });
-    if ($('#sq').value.trim() !== q) return;
-    searchHits = data || []; renderStores();
-  }, 450);
+  if (q.length < 2) { searchSeq++; results = null; sState(''); return renderStores(); }
+  searchTimer = setTimeout(() => runSearch({ q }), 450);
 });
+$('#res-clear').addEventListener('click', () => { $('#sq').value = ''; searchSeq++; results = null; sState(''); renderStores(); });
+$$('.seg [data-sort]').forEach(b => b.addEventListener('click', () => {
+  sortBy = b.dataset.sort; $$('.seg [data-sort]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); renderResults();
+}));
+// بالباركود
+$('#s-scan').addEventListener('click', async () => {
+  const code = await scanBarcode();
+  if (!code) return;
+  $('#sq').value = '';
+  const r = await runSearch({ bc: code });
+  if (r && !r.length) sState(`ما لقينا منتج بهذا الباركود (${code}) في المحلات القريبة. جرّب تكتب اسمه.`);
+});
+// بالصورة (تصوير أو رفع): الذكاء الاصطناعي يتعرّف على المنتج، وبعدها نبحث باسمه
+async function toJpegBase64(file, max = 1024) {
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const c = Object.assign(document.createElement('canvas'), { width: Math.round(bmp.width * k), height: Math.round(bmp.height * k) });
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.82).split(',')[1];
+}
+async function searchByPhoto(file) {
+  if (!file) return;
+  if (!(await ensureBuyer(() => showStores()))) return toast('سجّل دخولك أول عشان تبحث بالصورة، وبعدها صوّر المنتج.', 4500);
+  sState('🤖 جارِ التعرّف على المنتج من الصورة…');
+  try {
+    const image = await toJpegBase64(file);
+    const res = await Promise.race([sb.functions.invoke('recognize', { body: { mode: 'buyer', image, media_type: 'image/jpeg' } }), new Promise(r => setTimeout(() => r(null), 25000))]);
+    if (!res) return sState('التعرّف على الصورة تأخر. اكتب اسم المنتج أو امسح الباركود.');
+    let { data, error } = res;
+    if (error) { try { data = await error.context.json(); } catch { throw error; } }
+    if (data?.error === 'not_configured') return sState('البحث بالصورة يتفعّل قريبًا. الحين اكتب اسم المنتج أو امسح الباركود.');
+    if (data?.error === 'limit') return sState('وصلت الحد اليومي للبحث بالصورة. اكتب اسم المنتج أو امسح الباركود.');
+    if (data?.error) return sState('ما قدرنا نقرأ الصورة الحين. اكتب اسم المنتج أو امسح الباركود.');
+    const r = data?.result;
+    if (!r?.recognized) return sState('ما قدرنا نتعرّف على المنتج من الصورة. جرّب صورة أوضح، أو اكتب اسمه.');
+    // نجرب: الباركود لو ظهر، ثم الاسم كامل، ثم كلمات البحث المختصرة
+    const tries = [];
+    if (/^\d{8,14}$/.test(String(r.barcode || ''))) tries.push({ bc: String(r.barcode), label: r.name });
+    for (const t of [r.name, r.search, String(r.name || '').split(' ').slice(0, 2).join(' '), String(r.search || r.name || '').split(' ')[0]])
+      if (t && t.trim().length >= 2 && !tries.some(x => x.q === t.trim())) tries.push({ q: t.trim(), label: r.name });
+    for (const t of tries) {
+      const out = await runSearch(t);
+      if (out?.length) { $('#sq').value = t.q || ''; return sState(`✓ تعرّفنا عليه: ${r.name}`); }
+    }
+    $('#sq').value = r.search || r.name || '';
+    sState(`تعرّفنا عليه: ${r.name}، بس ما لقيناه في المحلات القريبة.`);
+  } catch (ex) { sState('ما قدرنا نقرأ الصورة الحين: ' + friendlyError(ex)); }
+}
+for (const id of ['#s-cam', '#s-img']) $(id).addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; searchByPhoto(f); });
+
+// نجمع نفس المنتج من أكثر من محل: بالباركود أولًا، ثم بنفس الاسم
+function groupResults(rows) {
+  const groups = new Map(), byName = new Map();
+  for (const r of rows.filter(r => r.barcode)) {
+    const k = 'b:' + r.barcode;
+    if (!groups.has(k)) groups.set(k, { key: k, rows: [] });
+    groups.get(k).rows.push(r);
+    if (!byName.has(normName(r.name))) byName.set(normName(r.name), k);
+  }
+  for (const r of rows.filter(r => !r.barcode)) {
+    const k = byName.get(normName(r.name)) || 'n:' + normName(r.name);
+    if (!groups.has(k)) { groups.set(k, { key: k, rows: [] }); byName.set(normName(r.name), k); }
+    groups.get(k).rows.push(r);
+  }
+  return [...groups.values()];
+}
+const offerPrice = r => r.pack_only && r.pack_price ? Number(r.pack_price) : r.on_offer ? Number(r.sale_price) : Number(r.price);
+const offerUnit = r => r.pack_only && r.pack_size ? `${r.pack_name || 'كرتون'} ${r.pack_size} ${r.unit || 'حبة'}` : (r.unit || 'حبة');
+const dist = d => d == null ? '' : d < 1 ? `${Math.round(d * 1000)} م` : `${d.toFixed(1)} كم`;
+function searchSetQty(r, qty) {
+  const pack = !!(r.pack_only && r.pack_size);
+  const c = cart.get(r.merchant_id); c.mid = r.merchant_id; c.store = r.store_name;
+  const key = pack ? r.id + ':p' : r.id;
+  const cap = r.always_available || !(r.quantity > 0) ? 999 : pack ? Math.floor(r.quantity / r.pack_size) : r.quantity;
+  if (qty <= 0) delete c.items[key];
+  else c.items[key] = { pid: r.id, pack, qty: Math.min(qty, cap), name: pack ? `${r.name} (${offerUnit(r)})` : r.name, price: offerPrice(r) };
+  cart.save(c); renderResults(); renderGcart();
+}
+function renderResults() {
+  if (!results) return;
+  const groups = groupResults(results);
+  for (const g of groups) {
+    g.rows.sort((a, b) => (b.in_stock - a.in_stock) || (sortBy === 'near' ? ((a.km ?? 1e9) - (b.km ?? 1e9)) || (offerPrice(a) - offerPrice(b)) : (offerPrice(a) - offerPrice(b)) || ((a.km ?? 1e9) - (b.km ?? 1e9))));
+    g.min = Math.min(...g.rows.filter(r => r.in_stock).map(offerPrice), Infinity);
+    g.near = Math.min(...g.rows.map(r => r.km ?? 1e9));
+  }
+  groups.sort((a, b) => (b.rows.length - a.rows.length) || (sortBy === 'near' ? a.near - b.near : a.min - b.min));
+  const nStores = new Set(results.map(r => r.merchant_id)).size;
+  $('#res-title').textContent = groups.length ? `«${resLabel}»: ${groups.length === 1 ? 'منتج واحد' : groups.length + ' منتجات'} في ${nStores === 1 ? 'محل واحد' : nStores + ' محلات'}` : `ما لقينا «${resLabel}» في المحلات القريبة`;
+  const box = $('#results');
+  if (!groups.length) { box.replaceChildren(mk('div', 'empty', 'جرّب كلمة ثانية أو أقصر، أو امسح باركود المنتج.')); return; }
+  box.replaceChildren(...groups.map(g => {
+    const first = g.rows.find(r => r.image_path) || g.rows[0];
+    const el = mk('article', 'card pgroup');
+    const head = mk('div', 'head');
+    const imgs = [first.image_path, ...(first.extra_images || [])].filter(Boolean);
+    if (imgs.length) {
+      const b = mk('button', 'pic'); b.type = 'button'; b.setAttribute('aria-label', `صور ${first.name}`);
+      const i = mk('img'); i.src = imgUrl(imgs[0]); i.alt = ''; i.loading = 'lazy'; b.append(i);
+      if (imgs.length > 1) b.append(mk('span', 'cnt num', `${imgs.length} صور`));
+      b.onclick = () => viewImages(first.name, imgs);
+      head.append(b);
+    } else head.append(mk('div', 'ph', first.name.trim()[0] || '؟'));
+    const t = mk('div'); t.style.minWidth = '0';
+    const inStock = g.rows.filter(r => r.in_stock);
+    t.append(mk('b', '', first.name), mk('div', 'hint num', [first.category, new Set(g.rows.map(r => r.merchant_id)).size > 1 ? `في ${new Set(g.rows.map(r => r.merchant_id)).size} محلات` : null,
+      inStock.length ? (inStock.length > 1 && g.min !== Math.max(...inStock.map(offerPrice)) ? `من ${sar(g.min)} إلى ${sar(Math.max(...inStock.map(offerPrice)))}` : sar(g.min)) : 'نفد من الكل'].filter(Boolean).join(' · ')));
+    head.append(t); el.append(head);
+    g.rows.forEach((r, idx) => {
+      const row = mk('div', 'offer' + (r.in_stock ? '' : ' off'));
+      const st = mk('button', 'st'); st.type = 'button';
+      if (r.logo_path) { const lg = mk('img'); lg.src = imgUrl(r.logo_path); lg.alt = ''; lg.loading = 'lazy'; st.append(lg); }
+      const sn = mk('div'); sn.style.minWidth = '0';
+      sn.append(mk('b', '', r.store_name + (r.premium ? ' ⭐' : '')), mk('div', 'hint num', [dist(r.km), normName(r.name) !== normName(first.name) ? r.name : null].filter(Boolean).join(' · ')));
+      st.append(sn);
+      st.onclick = () => { const s = stores.find(x => x.id === r.merchant_id); if (s) openStore(s); };
+      const pr = mk('div', 'pr num');
+      pr.append(mk('b', '', sar(offerPrice(r))));
+      if (r.on_offer && !(r.pack_only && r.pack_price)) pr.append(mk('s', 'hint', sar(r.price)));
+      pr.append(mk('span', 'hint', '/ ' + offerUnit(r)));
+      if (r.in_stock && inStock.length > 1 && offerPrice(r) === g.min && g.min !== Math.max(...inStock.map(offerPrice)) && inStock.indexOf(r) === inStock.findIndex(x => offerPrice(x) === g.min)) pr.append(mk('span', 'best', 'الأرخص'));
+      const key = r.pack_only && r.pack_size ? r.id + ':p' : r.id;
+      const inCart = cart.get(r.merchant_id).items[key]?.qty || 0;
+      const box2 = mk('div', 'qty');
+      if (!r.in_stock) box2.append(mk('span', 'low', 'نفد'));
+      else if (inCart) {
+        const minus = mk('button', '', '−'); minus.type = 'button'; minus.setAttribute('aria-label', 'نقّص'); minus.onclick = () => searchSetQty(r, inCart - 1);
+        const plus = mk('button', '', '+'); plus.type = 'button'; plus.setAttribute('aria-label', 'زوّد'); plus.onclick = () => searchSetQty(r, inCart + 1);
+        box2.append(plus, mk('b', 'num', String(inCart)), minus);
+      } else { const add = mk('button', 'btn primary sm', 'أضف للسلة'); add.type = 'button'; add.onclick = () => searchSetQty(r, 1); box2.append(add); }
+      row.append(st, pr, box2); el.append(row);
+    });
+    return el;
+  }));
+}
+// شريط السلة العام (كل المحلات) وصفحة السلة
+function renderGcart() {
+  const b = cart.buckets(), n = b.reduce((s, x) => s + cart.count(x), 0), sum = b.reduce((s, x) => s + cart.sum(x), 0);
+  $('#gcart').hidden = !n;
+  $('#gcart-sum').textContent = `🛒 ${n} منتج${b.length > 1 ? ` من ${b.length} محلات` : ''} · ${sar(sum)}`;
+}
+async function checkoutStore(mid) {
+  const s = stores.find(x => x.id === mid);
+  if (!s) { toast('هذا المحل مو متاح الحين.'); return; }
+  await openStore(s); openCart();
+}
+function openBasket() {
+  const b = cart.buckets().filter(x => cart.count(x));
+  if (!b.length) { toast('السلة فاضية.'); return showStores(); }
+  $('#basket').replaceChildren(...b.map(x => {
+    const el = mk('div', 'card'); el.style.cssText = 'display:grid;gap:8px';
+    el.append(mk('b', '', '🏪 ' + (x.store || 'محل')));
+    Object.values(x.items).forEach(i => { const r = mk('div', 'hint num'); r.style.cssText = 'display:flex;justify-content:space-between;gap:8px'; r.append(mk('span', '', `${i.name} × ${i.qty}`), mk('span', '', sar(i.price * i.qty))); el.append(r); });
+    const tot = mk('div', 'num'); tot.style.cssText = 'display:flex;justify-content:space-between;font-weight:700;border-top:1px dashed var(--line);padding-top:8px';
+    tot.append(mk('span', '', 'المنتجات'), mk('span', '', sar(cart.sum(x))));
+    const acts = mk('div'); acts.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap';
+    const go = mk('button', 'btn primary', 'أكمل الطلب من هذا المحل ←'); go.type = 'button'; go.style.flex = '1'; go.onclick = () => checkoutStore(x.mid);
+    const rm = mk('button', 'btn ghost sm', 'حذف'); rm.type = 'button'; rm.onclick = () => { if (confirm(`تحذف منتجات «${x.store || 'المحل'}» من السلة؟`)) { cart.clear(x.mid); openBasket(); } };
+    acts.append(go, rm); el.append(tot, acts); return el;
+  }));
+  show('v-basket');
+}
+$('#go-basket').addEventListener('click', () => { const b = cart.buckets().filter(x => cart.count(x)); if (b.length === 1) checkoutStore(b[0].mid); else openBasket(); });
+
 const PREMIUM_KM = 3;
 function renderStores() {
-  const q = $('#sq').value.trim();
+  const searching = !!results;
+  $('#res-wrap').hidden = !searching; $('#stores-wrap').hidden = searching;
+  renderGcart();
+  if (searching) return renderResults();
   const withD = s => ({ s, d: here && s.lat != null ? km(here, s) : null });
   const boost = x => x.s.premium && (x.d == null || x.d <= PREMIUM_KM);
-  let list;
-  if (searchHits && q.length >= 2) {
-    const byId = Object.fromEntries(stores.map(s => [s.id, s]));
-    list = searchHits.filter(h => byId[h.id]).map(h => ({ ...withD(byId[h.id]), hit: h }));
-  } else {
-    list = stores.map(withD).sort((a, b) => (boost(b) - boost(a)) || ((a.d ?? 1e9) - (b.d ?? 1e9)));
-  }
-  $('#loc-note').textContent = searchHits && q.length >= 2 ? (list.length ? `لقينا «${q}» في ${list.length} محل.` : `ما لقينا «${q}» قريب منك. جرّب كلمة ثانية.`)
-    : here ? 'مرتبة من الأقرب لك.' : 'اسمح بالموقع عشان نرتبها من الأقرب.';
-  $('#stores').replaceChildren(...list.map(({ s, d, hit }) => {
+  const list = stores.map(withD).sort((a, b) => (boost(b) - boost(a)) || ((a.d ?? 1e9) - (b.d ?? 1e9)));
+  $('#loc-note').textContent = !list.length ? 'ما فيه محلات مفعّلة قريبة منك للحين.' : here ? 'مرتبة من الأقرب لك.' : 'اسمح بالموقع عشان نرتبها من الأقرب.';
+  $('#stores').replaceChildren(...list.map(({ s, d }) => {
     const b = mk('button', 'card store-card'); b.type = 'button';
     const name = mk('b', '', s.store_name);
     if (s.premium) { const pb = mk('span', 'badge pending', '⭐ مميز'); pb.style.marginInlineStart = '6px'; name.append(pb); }
     const t = mk('div'); t.append(name, mk('div', 'hint', [s.activity, s.district].filter(Boolean).join(' · ')));
-    if (hit?.matches) t.append(mk('div', 'hint', `فيه: ${(hit.sample || []).join('، ')}${hit.matches > 3 ? ` و${hit.matches - 3} غيرها` : ''}`));
     b.append(withLogo(s.logo_path, t, 44), mk('span', 'badge approved num', d == null ? '' : d < 1 ? `${Math.round(d * 1000)} م` : `${d.toFixed(1)} كم`));
     b.onclick = () => openStore(s);
     return b;
@@ -301,9 +477,10 @@ fo.addEventListener('submit', async e => {
   const rc = fo.querySelector('input[name=receipt]:checked')?.value || 'none';
   try { localStorage.setItem('tah-receipt', rc); } catch {}
   if (rc !== 'none') await sb.rpc('order_set_receipt', { oid: data.id, pref: rc });
-  cart.save({ mid: null, items: {} });
-  toast(`وصل طلبك ${data.number} للمحل ✓`, 4500);
-  openOrders();
+  cart.clear(c.mid);
+  const left = cart.buckets().length;
+  toast(`وصل طلبك ${data.number} للمحل ✓` + (left ? ` · باقي في سلتك منتجات من ${left === 1 ? 'محل ثاني' : left + ' محلات'}` : ''), 5500);
+  if (left) openBasket(); else openOrders();
 });
 
 // ---------------- الدخول بالجوال ----------------

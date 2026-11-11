@@ -32,6 +32,26 @@
   .steps i.on { background: var(--brand); }
   .store-card { display: flex; justify-content: space-between; gap: 10px; align-items: center; cursor: pointer; text-align: start; width: 100%; font: inherit; color: inherit; }
   .opt-grid { display: grid; gap: 8px; }
+  .searchbox { display: grid; gap: 10px; }
+  .searchbox input[type=search] { font-size: 1.05rem; padding: 14px; }
+  .sbtns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .sbtns .btn { flex: 1 1 auto; justify-content: center; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .seg button { font: inherit; font-size: .88rem; border: 0; background: var(--surface); color: var(--muted); padding: 6px 12px; cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--brand); color: #fff; font-weight: 700; }
+  .pgroup { padding: 14px; display: grid; gap: 10px; }
+  .pgroup .head { display: flex; gap: 12px; align-items: center; min-width: 0; }
+  .pgroup .head .pic, .pgroup .head .ph { flex: 0 0 auto; width: 76px; height: 76px; border-radius: 12px; position: relative; border: 0; padding: 0; background: var(--brand-soft); display: grid; place-items: center; color: var(--brand); font-size: 1.6rem; font-family: var(--font-display); overflow: hidden; }
+  .pgroup .head .pic { cursor: zoom-in; }
+  .pgroup .head .pic img { width: 100%; height: 100%; object-fit: cover; }
+  .pgroup .head .pic .cnt { position: absolute; bottom: 2px; inset-inline-start: 2px; background: rgba(0,0,0,.6); color: #fff; font-size: .68rem; border-radius: 6px; padding: 0 5px; font-family: inherit; }
+  .offer { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px dashed var(--line); flex-wrap: wrap; }
+  .offer.off { opacity: .55; }
+  .offer .st { flex: 1 1 150px; min-width: 0; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: start; cursor: pointer; display: flex; gap: 8px; align-items: center; }
+  .offer .st img { width: 32px; height: 32px; object-fit: contain; border-radius: 8px; border: 1px solid var(--line); background: #fff; flex: 0 0 auto; }
+  .offer .pr { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+  .offer .pr b { font-size: 1.1rem; }
+  .best { background: var(--brand); color: #fff; border-radius: 999px; font-size: .72rem; padding: 1px 8px; font-weight: 700; }
 </style>
 <main>
   <p id="v-loading" class="hint" style="text-align:center;padding:40px">جارِ التحميل…</p>
@@ -49,10 +69,42 @@
   </section>
 
   <section id="v-stores" hidden>
-    <div class="toolbar"><h1 style="font-size:1.6rem;margin-inline-end:auto">محلات حولك</h1>
-      <input type="search" id="sq" placeholder="ابحث عن منتج أو محل قريب منك" style="flex:0 1 280px"></div>
-    <p class="hint" id="loc-note"></p>
-    <div id="stores" style="display:grid;gap:8px;margin-top:10px"></div>
+    <div class="card searchbox">
+      <h1 style="font-size:1.5rem">وش تدوّر عليه؟</h1>
+      <input type="search" id="sq" placeholder="اكتب اسم المنتج (مثل: حليب، رز، شاحن)" enterkeyhint="search" autocomplete="off">
+      <div class="sbtns">
+        <button class="btn ghost sm" type="button" id="s-scan">▦ امسح الباركود</button>
+        <label class="btn ghost sm">📷 صوّر المنتج<input type="file" id="s-cam" accept="image/*" capture="environment" hidden></label>
+        <label class="btn ghost sm">🖼️ ارفع صورة<input type="file" id="s-img" accept="image/*" hidden></label>
+      </div>
+      <p class="hint" id="s-state" hidden></p>
+    </div>
+
+    <div id="res-wrap" hidden>
+      <div class="toolbar" style="margin-top:14px">
+        <b id="res-title" style="margin-inline-end:auto"></b>
+        <div class="seg" role="group" aria-label="ترتيب المحلات">
+          <button type="button" data-sort="price" aria-pressed="true">الأرخص</button>
+          <button type="button" data-sort="near" aria-pressed="false">الأقرب</button>
+        </div>
+        <button class="btn ghost sm" type="button" id="res-clear">✕ مسح البحث</button>
+      </div>
+      <div id="results" style="display:grid;gap:12px;margin-top:10px"></div>
+    </div>
+
+    <div id="stores-wrap">
+      <h2 style="font-size:1.25rem;margin-top:18px">محلات حولك</h2>
+      <p class="hint" id="loc-note"></p>
+      <div id="stores" style="display:grid;gap:8px;margin-top:10px"></div>
+    </div>
+    <div class="cartbar" id="gcart" hidden><span id="gcart-sum"></span><button class="btn sm" type="button" id="go-basket">السلة ←</button></div>
+  </section>
+
+  <section id="v-basket" class="narrow" hidden>
+    <button class="btn ghost sm" type="button" data-back="v-stores">→ رجوع</button>
+    <h1 style="font-size:1.5rem;margin:10px 0">🛒 سلتك</h1>
+    <p class="hint">كل محل طلبه لحاله (له توصيله ودفعه). أكمل طلب كل محل من زره.</p>
+    <div id="basket" style="display:grid;gap:12px;margin-top:10px"></div>
   </section>
 
   <section id="v-store" hidden>
