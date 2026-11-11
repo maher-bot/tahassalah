@@ -852,6 +852,7 @@ function openProduct(p) {
     fp.pack_name.value = p.pack_name || ''; fp.pack_size.value = p.pack_size ?? ''; fp.pack_price.value = p.pack_price ?? ''; fp.pack_only.checked = !!p.pack_only;
   } else { const d = unitDefaults(); fp.unit.value = d.unit; fp.always_available.checked = d.always; }
   syncAlways(); $('#pack-box').open = !!p?.pack_size;
+  $('#more-box').open = !!(p?.expires_on || p?.preorder_hours || p?.description);
   $('#preorder-row').hidden = viaApproval();
   fp.preorder_hours.disabled = !canInv();
   syncOffer();

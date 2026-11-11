@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="تحصّله">
-<link rel="stylesheet" href="app.css?v=20261111c">
+<link rel="stylesheet" href="app.css?v=20261111d">
 </head>
 <body>
 <header class="top"><div class="in">
@@ -568,6 +568,9 @@
         <select name="offer_reason"><option value="">عرض عادي</option><option value="expiry">قرب انتهاء الصلاحية</option><option value="low_stock">كمية قليلة متبقية</option><option value="clearance">تصفية</option><option value="season">عرض موسمي</option><option value="new">منتج جديد</option></select></label>
       <label><span>ينتهي العرض <span class="opt">(اختياري)</span></span><input type="date" name="offer_ends_at"></label>
     </div>
+    <datalist id="cats"></datalist>
+    <details id="more-box" class="more"><summary><b>⚙️ تفاصيل إضافية</b> <span class="opt">(الصلاحية، الطلب المسبق، الوصف)</span></summary>
+      <div class="stack" style="margin-top:10px">
     <label><span>تاريخ انتهاء الصلاحية <span class="opt">(اختياري، للمواد الغذائية والأدوية)</span></span><input type="date" name="expires_on"></label>
     <label id="preorder-row"><span>التوفر</span><select name="preorder_hours">
       <option value="">متوفر الحين</option>
@@ -578,8 +581,9 @@
       <option value="48">طلب مسبق · قبل يومين</option>
       <option value="72">طلب مسبق · قبل 3 أيام</option>
     </select><span class="hint">للأطباق والكيك والطلبات اللي تتجهّز بالطلب.</span></label>
-    <datalist id="cats"></datalist>
     <label><span>الوصف <span class="opt">(اختياري)</span></span><textarea name="description" maxlength="1000"></textarea></label>
+      </div>
+    </details>
     <div class="file" data-file="img"><label><span>صورة المنتج <span class="opt">(اختياري)</span></span><input type="file" name="image" accept="image/*"></label><span class="cur"></span></div>
     <label class="check"><input type="checkbox" name="is_active" checked> ظاهر للمشترين</label>
     <p class="err" role="alert"></p>
