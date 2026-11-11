@@ -26,6 +26,27 @@ const PAY = { cash: 'نقدًا عند الاستلام', card: 'شبكة (مد�
 let user = null, buyer = null, here = null, stores = [], cur = null, settings = null, products = [];
 let after = null;    // وين يرجع بعد الدخول
 let coords = null;
+// عنوان التوصيل المحفوظ: من حساب المشتري لو داخل، وإلا من الجهاز
+const ADDR_KEY = 'tah-addr';
+function savedAddr() {
+  if (buyer?.address && buyer.lat != null) return { address: buyer.address, lat: buyer.lat, lng: buyer.lng };
+  try { const a = JSON.parse(localStorage.getItem(ADDR_KEY)); if (a?.address && a.lat != null) return a; } catch {}
+  return null;
+}
+function applySavedAddr() {
+  const a = savedAddr();
+  if (!a) return;
+  if (!fo.address.value.trim()) fo.address.value = a.address;
+  if (!coords) { coords = { lat: a.lat, lng: a.lng }; $('#c-loc').textContent = '✓ موقعك محفوظ من طلبك السابق'; }
+}
+async function rememberAddr(address, c) {
+  const a = { address, lat: c.lat, lng: c.lng };
+  try { localStorage.setItem(ADDR_KEY, JSON.stringify(a)); } catch {}
+  if (buyer && (buyer.address !== address || buyer.lat !== c.lat || buyer.lng !== c.lng)) {
+    const { error } = await sb.from('buyers').update(a).eq('id', buyer.id);
+    if (!error) Object.assign(buyer, a);
+  }
+}
 
 // ---------------- السلة: لكل محل سلته (المشتري يجمع من أكثر من محل، وكل محل طلبه لحاله) ----------------
 const CART_KEY = 'tah-cart';
@@ -70,9 +91,19 @@ $$('[data-back]').forEach(b => b.addEventListener('click', () => { if (b.dataset
   // قبل الإطلاق: الصفحة مقفلة إلا للمختبرين (buyer_access)
   const { data: open } = await sb.rpc('buyer_access');
   if (!open) return show('v-closed');
+  // لو المشتري داخل من قبل: نجيب ملفه (فيه عنوانه المحفوظ)
+  { const { data: ses } = await sb.auth.getSession(); if (ses?.session?.user) { user = ses.session.user; const { data: b } = await sb.from('buyers').select('*').eq('id', user.id).maybeSingle(); buyer = b; } }
   const { data } = await sb.from('stores_public').select('*');
   stores = data || [];
-  navigator.geolocation?.getCurrentPosition(p => { here = { lat: p.coords.latitude, lng: p.coords.longitude }; if (!$('#v-stores').hidden) renderStores(); }, () => {}, { timeout: 8000 });
+  // موقع المشتري للترتيب: نستخدم آخر موقع محفوظ مباشرة، ونحدّثه بهدوء لو المتصفح سامح من قبل (بدون ما نسأله كل مرة)
+  try { const h = JSON.parse(localStorage.getItem('tah-here')); if (h?.lat) here = h; } catch {}
+  const locate = () => navigator.geolocation?.getCurrentPosition(p => {
+    here = { lat: p.coords.latitude, lng: p.coords.longitude };
+    try { localStorage.setItem('tah-here', JSON.stringify(here)); } catch {}
+    if (!$('#v-stores').hidden) renderStores();
+  }, () => {}, { timeout: 8000, maximumAge: 5 * 60e3 });
+  let perm = null; try { perm = (await navigator.permissions?.query({ name: 'geolocation' }))?.state; } catch {}
+  if (!here || perm === 'granted') locate();
   if (location.hash === '#orders') return openOrders();
   // من زر «إيقاف تنبيهات العروض» في التنبيه
   if (location.hash === '#stop-offers') {
@@ -402,11 +433,14 @@ function openCart() {
   if (settings.service_roundtrip) ful.unshift(radio('ful', 'roundtrip', '🧺 استلام وتسليم من بيتك', Number(settings.roundtrip_fee)
     ? `(${sar(settings.roundtrip_fee)} للمشوارين${settings.roundtrip_free_over ? `، مجاني فوق ${sar(settings.roundtrip_free_over)}` : ''})` : '(مجاني)', true));
   if (settings.service_roundtrip) ful.forEach((x, i) => { if (i) x.querySelector('input').checked = false; });
+  const prevFul = fulVal();   // نحافظ على اختياره لو انعاد رسم السلة (مثل بعد تسجيل الدخول)
   $('#c-ful').replaceChildren(...ful);
+  if (prevFul) { const keep = fo.querySelector(`input[name=ful][value=${prevFul}]`); if (keep) keep.checked = true; }
   const ex = $('#c-express-row'); ex.hidden = !settings.express_enabled;
   $('#c-express-lbl').textContent = `⚡ مستعجل: يرجع لك خلال ${settings.express_hours || 24} ساعة (+${sar(settings.express_fee)})`;
   if (!fo.collect_at.value) { const d = new Date(Date.now() + 2 * 36e5); d.setMinutes(0, 0, 0); fo.collect_at.value = new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 16); }
   if (!ful.length) $('#c-ful').append(mk('p', 'err', 'المحل ما فعّل الاستلام ولا التوصيل.'));
+  applySavedAddr();
   renderPay(); updateTotal();
   show('v-cart');
 }
@@ -441,7 +475,7 @@ function updateTotal() {
 }
 $('#c-locate').addEventListener('click', () => {
   $('#c-loc').textContent = 'جارِ تحديد موقعك…';
-  navigator.geolocation?.getCurrentPosition(p => { coords = { lat: p.coords.latitude, lng: p.coords.longitude }; $('#c-loc').textContent = '✓ تم تحديد الموقع'; },
+  navigator.geolocation?.getCurrentPosition(p => { coords = { lat: p.coords.latitude, lng: p.coords.longitude }; $('#c-loc').textContent = '✓ تم تحديد الموقع الجديد'; },
     () => { $('#c-loc').textContent = 'ما قدرنا نحدد موقعك. حدّده على الخريطة.'; }, { enableHighAccuracy: true, timeout: 15000 });
 });
 $('#c-map').addEventListener('click', async () => { const p = await pickLocation(coords || here); if (p) { coords = p; $('#c-loc').textContent = '✓ تم تحديد الموقع على الخريطة'; } });
@@ -477,6 +511,7 @@ fo.addEventListener('submit', async e => {
   const rc = fo.querySelector('input[name=receipt]:checked')?.value || 'none';
   try { localStorage.setItem('tah-receipt', rc); } catch {}
   if (rc !== 'none') await sb.rpc('order_set_receipt', { oid: data.id, pref: rc });
+  if (f !== 'pickup') rememberAddr(fo.address.value.trim(), coords);
   cart.clear(c.mid);
   const left = cart.buckets().length;
   toast(`وصل طلبك ${data.number} للمحل ✓` + (left ? ` · باقي في سلتك منتجات من ${left === 1 ? 'محل ثاني' : left + ' محلات'}` : ''), 5500);
