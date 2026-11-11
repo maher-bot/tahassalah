@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<script src="consent.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ربط نظام الكاشير · تحصّله</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=El+Messiri:wght@700&display=swap">
+<link rel="icon" href="brand/favicon.ico" sizes="any">
+<link rel="icon" href="brand/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="brand/apple-touch-icon.png">
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="legal.css">
+<style>.legal pre{background:var(--surface-2,#f3f5f4);padding:12px 14px;border-radius:12px;overflow-x:auto;font-size:.85rem;text-align:left;direction:ltr}</style>
+</head>
+<body>
+<header class="top"><div class="in">
+  <a class="mark" href="index.html"><svg viewBox="0 0 512 512" aria-hidden="true"><circle cx="256" cy="256" r="256" fill="var(--brand)"/><circle cx="256" cy="256" r="102.4" fill="none" stroke="var(--surface)" stroke-width="18" opacity=".9"/><circle cx="256" cy="256" r="174" fill="none" stroke="var(--surface)" stroke-width="18" opacity=".5"/><circle cx="256" cy="256" r="38.4" fill="var(--surface)"/><path d="M363.5 197.6C345.1 179.7 312.3 144.4 312.3 112.6a51.2 51.2 0 0 1 102.4 0C414.7 144.4 382 179.7 363.5 197.6z" fill="var(--pin)" stroke="var(--brand)" stroke-width="10"/><circle cx="363.5" cy="112.6" r="19.5" fill="#fff"/></svg>تحصّله</a>
+  <div class="sp"><a href="terms.html">شروط التجار</a><a class="btn primary sm" href="merchant.html">سجّل متجرك</a></div>
+</div></header>
+
+<main class="legal">
+  <p class="eyebrow">لمزوّدي أنظمة الكاشير (POS)</p>
+  <h1>ربط المخزون مع تحصّله</h1>
+  <p class="updated">آخر تحديث: 11 نوفمبر 2026</p>
+
+  <p>تحصّله منصة تعرض منتجات المحلات القريبة للمشترين. عشان تبقى الكميات صحيحة، نظام الكاشير يرسل الكمية الحالية لكل منتج تلقائيًا، كل ما تتغير (بيع، استلام بضاعة، جرد) أو كل فترة قصيرة (نقترح كل 5 دقايق للمنتجات اللي تغيّرت).</p>
+
+  <section>
+    <h2>1. المفتاح</h2>
+    <p>صاحب المحل ينشئ «مفتاح الربط» من لوحة متجره (التوصيل والاستلام ← ربط المخزون مع نظام الكاشير) ويعطيكم إياه. كل محل له مفتاح خاص، يبدأ بـ <code dir="ltr">tah_</code>. لا تنشروه، ولو انكشف صاحب المحل ينشئ مفتاح جديد فيوقف القديم فورًا.</p>
+  </section>
+
+  <section>
+    <h2>2. الطلب</h2>
+<pre dir="ltr">POST https://loyiwdjgtvyihnzrqskn.supabase.co/functions/v1/stock-sync
+x-api-key: tah_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+Content-Type: application/json
+
+{"items": [
+  {"barcode": "6281234567890", "quantity": 12},
+  {"barcode": "6289876543210", "quantity": 0, "price": 9.50}
+]}</pre>
+    <ul>
+      <li><b dir="ltr">barcode</b>: باركود المنتج (نفس الباركود المسجّل عند المحل في تحصّله). نقبل أيضًا <code dir="ltr">sku</code> أو <code dir="ltr">code</code>.</li>
+      <li><b dir="ltr">quantity</b>: الكمية الحالية في المحل (رقم). نقبل أيضًا <code dir="ltr">qty</code> أو <code dir="ltr">stock</code>.</li>
+      <li><b dir="ltr">price</b> (اختياري): سعر البيع بالريال. لو أرسلتوه يتحدّث السعر في المنصة.</li>
+      <li>حتى 5000 منتج في الطلب الواحد. ممكن ترسلون المنتجات اللي تغيّرت بس، أو كل المنتجات.</li>
+      <li>المفتاح ممكن ينرسل في <code dir="ltr">Authorization: Bearer tah_...</code> بدل <code dir="ltr">x-api-key</code>.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>3. الرد</h2>
+<pre dir="ltr">200 {"ok": true, "updated": 1, "unchanged": 1, "invalid": 0, "unknown_count": 0, "unknown": []}
+401 {"error": "invalid api key"}</pre>
+    <p><code dir="ltr">unknown</code>: باركودات ما لقينا لها منتج عند المحل في تحصّله (أول 50). صاحب المحل يضيفها أو يصحّح باركودها.</p>
+  </section>
+
+  <section>
+    <h2>4. الطلبات اللي من المنصة</h2>
+    <p>لما المشتري يطلب من تحصّله، الكمية تنقص في المنصة فورًا. والكمية اللي ترسلونها نطرح منها الكميات المحجوزة في طلبات المنصة اللي لسا ما اكتملت، عشان ما ترجع الكمية قبل ما يتسجّل الطلب في نظامكم. الكاشير يسجّل طلب المنصة في نظام الكاشير وقت التسليم مثل أي عملية بيع.</p>
+  </section>
+
+  <section>
+    <h2>5. التواصل</h2>
+    <p>للاستفسار التقني أو للشراكة في الربط المباشر: <a href="https://wa.me/966555606635" target="_blank" rel="noopener">واتساب الدعم</a>.</p>
+  </section>
+</main>
+</body>
+</html>

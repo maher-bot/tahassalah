@@ -2,6 +2,7 @@ import { rememberLogin, hidePasswords, sb, $, $$, toast, clean, digits, valid, m
 import { takePhoto } from './camera.js';
 import { showInstall, showPushCard } from './pwa.js';
 import { pickLocation } from './mappick.js';
+import { SUPABASE_URL } from './config.js';
 
 const VIEWS = ['v-loading', 'v-auth', 'v-check-email', 'v-reset', 'v-apply', 'v-status', 'v-invites', 'v-dash', 'v-roles', 'v-rep-done'];
 const show = id => { VIEWS.forEach(v => { $('#' + v).hidden = v !== id; }); window.scrollTo(0, 0); };
@@ -593,10 +594,10 @@ function selectTab(name) {
   for (const t of ['products', 'approvals', 'mine', 'team', 'settings', 'orders', 'deliveries']) $('#p-' + t).hidden = t !== name;
   if (name === 'orders') loadOrders();
   if (name === 'deliveries') loadDeliveries();
-  if (name === 'settings') loadSettings();
+  if (name === 'settings') { loadSettings(); loadPos(); }
   if (name === 'approvals') loadApprovals();
   if (name === 'mine') loadMine();
-  if (name === 'team') loadTeam();
+  if (name === 'team') { loadTeam(); loadCashiers(); loadShiftLog(); }
 }
 $$('#d-tabs [role=tab]').forEach(b => b.addEventListener('click', () => selectTab(b.dataset.tab)));
 
@@ -1692,7 +1693,9 @@ function orderBox(o, mode) {
   }
   if (o.note) line('📝 ' + o.note);
   if (o.driver_name && mode === 'orders') line((o.fulfillment === 'roundtrip' ? '🛵 مندوب التسليم: ' : '🛵 المندوب: ') + o.driver_name);
-  if (o.collected_amount != null) line(`استلم المندوب ${money(o.collected_amount)} ${o.collected_method === 'card' ? 'شبكة' : 'نقدًا'}`);
+  if (o.collected_amount != null && o.fulfillment !== 'pickup') line(`استلم المندوب ${money(o.collected_amount)} ${o.collected_method === 'card' ? 'شبكة' : 'نقدًا'}` + (o.collected_method === 'cash' && mode === 'orders' ? (o.cash_handover_id ? ' · سلّمه للمحل ✓' : ' · لسا معه') : ''));
+  if (o.collected_amount != null && o.fulfillment === 'pickup') line(`دفع ${money(o.collected_amount)} ${o.collected_method === 'card' ? 'شبكة' : 'نقدًا'} عند الكاونتر`);
+  if (mode === 'orders' && o.history?.length) line('👤 ' + o.history.map(h => `${O_ACT[h.a] || h.a}: ${h.by} ${new Date(h.at).toLocaleTimeString('ar-SA-u-nu-latn', { hour: 'numeric', minute: '2-digit' })}`).join(' · '));
   const acts = document.createElement('div'); acts.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
   const btn = (txt, cls, fn) => { const x = document.createElement('button'); x.type = 'button'; x.className = 'btn sm ' + cls; x.textContent = txt; x.onclick = fn; acts.append(x); return x; };
   const link = (txt, href) => { if (!href) return; const a = document.createElement('a'); a.className = 'btn ghost sm'; a.textContent = txt; a.href = href; a.target = '_blank'; a.rel = 'noopener'; acts.append(a); };
@@ -1761,7 +1764,13 @@ function orderBox(o, mode) {
     }
     if (['accepted', 'preparing'].includes(o.status) && o.fulfillment === 'pickup') btn('جاهز للاستلام', 'ghost', () => orderAct(o, 'ready'));
     if (o.payment_status !== 'paid' && ['accepted', 'preparing', 'ready'].includes(o.status) && ['transfer', 'tabby', 'tamara'].includes(o.payment_method)) btn('✓ تم الدفع', 'ghost', () => { if (confirm('تأكدت إن المبلغ وصل؟')) orderAct(o, 'paid'); });
-    if (o.fulfillment === 'pickup' && ['accepted', 'preparing', 'ready'].includes(o.status)) btn('✓ استلمه الزبون', 'primary', () => { if (confirm(o.payment_status === 'paid' ? 'الزبون استلم طلبه؟' : `الزبون استلم ودفع ${money(o.total)}؟`)) orderAct(o, 'picked_up'); });
+    if (o.fulfillment === 'pickup' && ['accepted', 'preparing', 'ready'].includes(o.status)) {
+      if (o.payment_status === 'paid') btn('✓ استلمه الزبون', 'primary', () => { if (confirm('الزبون استلم طلبه؟')) orderAct(o, 'picked_up'); });
+      else {
+        btn(`✓ استلم ودفع ${money(o.total)} نقدًا`, 'primary', () => { if (confirm(`الزبون استلم ودفع ${money(o.total)} نقدًا؟`)) orderAct(o, 'picked_up', { method: 'cash' }); });
+        btn('✓ استلم والدفع شبكة', 'ghost', () => { if (confirm(`الزبون استلم ودفع ${money(o.total)} بالشبكة؟`)) orderAct(o, 'picked_up', { method: 'card' }); });
+      }
+    }
     if (o.fulfillment === 'delivery' && ['accepted', 'preparing', 'ready'].includes(o.status) && !o.driver_user_id) pickDriver('🛵 حوّل للمندوب', 'assign');
     if (['accepted', 'preparing', 'to_collect'].includes(o.status)) btn('إلغاء', 'ghost', () => { const r = prompt('سبب الإلغاء (يشوفه الزبون):'); if (r != null) orderAct(o, 'reject', { reason: r }); });
   } else if (['to_collect', 'collecting'].includes(o.status)) {
@@ -1799,8 +1808,9 @@ async function loadOrders() {
   ordersCache = data;
   $('#o-list').replaceChildren(...data.map(o => orderBox(o, 'orders')));
   if (!data.length) $('#o-list').append(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'ما فيه طلبات هنا.' }));
-  const cash = data.filter(o => o.collected_method === 'cash' && o.done_at && new Date(o.done_at) >= start).reduce((s, o) => s + Number(o.collected_amount), 0);
-  $('#o-cash').textContent = f === 'done' ? `كاش مع المندوبين اليوم: ${money(cash)}` : '';
+  const cash = data.filter(o => o.fulfillment !== 'pickup' && o.collected_method === 'cash' && o.done_at && new Date(o.done_at) >= start).reduce((s, o) => s + Number(o.collected_amount), 0);
+  $('#o-cash').textContent = f === 'done' ? `كاش استلمه المندوبين اليوم: ${money(cash)}` : '';
+  renderShift(); renderCustody();
 }
 $('#o-filter').addEventListener('change', loadOrders);
 // تنبيه الطلبات الجديدة: عدّاد وصوت كل 20 ثانية
@@ -1833,12 +1843,239 @@ async function loadDeliveries() {
     || (o.driver_user_id === user.id && (['ready', 'out'].includes(o.status) || (o.done_at && new Date(o.done_at) >= start))));
   if (error) return toast(friendlyError(error));
   const open = data.filter(o => ['ready', 'out', 'to_collect', 'collecting'].includes(o.status));
-  const byStore = {};
-  data.filter(o => o.collected_method === 'cash').forEach(o => { byStore[o.store_name] = (byStore[o.store_name] || 0) + Number(o.collected_amount); });
-  const cashTxt = Object.entries(byStore).map(([s, v]) => `${s}: ${money(v)}`).join(' · ');
+  // العهدة: الكاش اللي معي ولسا ما استلمه كاشير المحل
+  const { data: cus } = await sb.rpc('my_custody');
+  const cashTxt = (cus || []).map(c => `${c.store_name}: ${money(c.amount)}`).join(' · ');
   $('#dl-sum').textContent = `عندك ${open.length} طلب للتوصيل · سلّمت اليوم ${data.length - open.length}` + (cashTxt ? ` · الكاش اللي معك (سلّمه لكل محل): ${cashTxt}` : '');
   const c = $('#c-deliv'); c.hidden = !open.length; c.textContent = open.length;
   $('#dl-list').replaceChildren(...data.map(o => orderBox(o, 'driver')));
   if (!data.length) $('#dl-list').append(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'ما عندك طلبات الحين. أول ما يحوّل لك الكاشير طلب يطلع هنا.' }));
 }
 setInterval(() => { if (!document.hidden && !$('#p-deliveries').hidden) loadDeliveries(); }, 30000);
+
+// ---------------- مناوبات الكاشير والعهدة ----------------
+const O_ACT = { accept: 'قبله', reject: 'رفضه', preparing: 'جهّزه', ready: 'جاهز', assign: 'حوّله للمندوب', assign_collect: 'حوّله لمندوب الاستلام',
+  picked_up: 'سلّمه للزبون', paid: 'أكّد الدفع', processing: 'بدأ التنفيذ', out: 'طلع فيه', delivered: 'سلّمه', collected: 'استلم من الزبون',
+  collecting: 'راح يستلم', adjust: 'عدّل العدد', approve_adjust: 'وافق على التعديل', proof: 'أرسل الإيصال' };
+const SHIFT_ERR = { bad_pin: 'الرقم السري غلط.', pin_locked: 'محاولات كثيرة غلط. انتظر 10 دقايق.', shift_open: 'فيه مناوبة مفتوحة على هذا الجهاز.', bad_amount: 'اكتب المبلغ صح.', not_allowed: 'ما عندك صلاحية الطلبات في هذا المحل.' };
+const numIn = v => Number(String(v || '0').replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(',', '.'));
+const tm = d => new Date(d).toLocaleString('ar-SA-u-nu-latn-ca-gregory', { hour: 'numeric', minute: '2-digit', day: 'numeric', month: 'short' });
+let myShift = null;
+
+async function renderShift() {
+  const bar = $('#shift-bar');
+  if (!ctx || !canOrders()) { bar.hidden = true; return; }
+  const { data } = await sb.from('cashier_shifts').select('*').eq('merchant_id', ctx.mid).eq('device_user_id', user.id).is('ended_at', null).maybeSingle();
+  myShift = data; bar.hidden = false;
+  const txt = mk('div');
+  const b = (label, cls, fn) => { const x = mk('button', 'btn sm ' + cls, label); x.type = 'button'; x.onclick = fn; return x; };
+  const acts = mk('div'); acts.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap';
+  if (myShift) {
+    txt.append(mk('b', '', `🟢 على المناوبة: ${myShift.cashier_name}`), mk('div', 'hint', `من ${tm(myShift.started_at)} · كل حركة تنحفظ باسمه، والتنبيهات تجي هذا الجهاز.`));
+    acts.append(b('⏹ إنهاء المناوبة', 'ghost', openShiftEnd));
+  } else {
+    txt.append(mk('b', '', '⚪ ما فيه مناوبة على هذا الجهاز'), mk('div', 'hint', 'ابدأ مناوبتك عشان تنحفظ الطلبات والكاش باسمك، وتوصلك تنبيهات الطلبات.'));
+    acts.append(b('▶️ ابدأ مناوبة', 'primary', openShiftStart));
+  }
+  bar.replaceChildren(txt, acts);
+}
+
+async function openShiftStart() {
+  const f = $('#f-shift'); f.reset(); $('.err', f).textContent = '';
+  const { data } = await sb.from('counter_cashiers').select('id,name').eq('merchant_id', ctx.mid).eq('active', true).order('name');
+  const me = ctx.owner ? 'أنا (صاحب المحل)' : 'أنا بحسابي';
+  f.who.replaceChildren(...(data || []).map(c => new Option(c.name, c.id)), new Option(me, ''));
+  const sync = () => { $('#shift-pin-row').hidden = !f.who.value; };
+  f.who.onchange = sync; sync();
+  $('#dlg-shift').showModal(); (f.who.value ? f.pin : f.opening).focus();
+}
+$('#shift-cancel').addEventListener('click', () => $('#dlg-shift').close());
+$('#f-shift').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target, err = $('.err', f), btn = $('#shift-go');
+  const opening = numIn(f.opening.value);
+  if (!(opening >= 0)) return (err.textContent = 'اكتب مبلغ الدرج صح.');
+  if (f.who.value && !/^\d{4,6}$/.test(f.pin.value)) return (err.textContent = 'اكتب الرقم السري.');
+  setBusy(btn, true);
+  const { data, error } = await sb.rpc('shift_start', { mid: ctx.mid, cashier: f.who.value || null, pin: f.who.value ? f.pin.value : null, opening });
+  setBusy(btn, false);
+  if (error) return (err.textContent = friendlyError(error));
+  if (!data.ok) { f.pin.value = ''; return (err.textContent = SHIFT_ERR[data.error] || data.error); }
+  $('#dlg-shift').close(); toast(`بدأت مناوبة ${data.name} ✓`); loadOrders();
+});
+
+const reportLines = r => [
+  ['طلبات تعامل معها', r.orders, false], ['كاش الدرج أول المناوبة', r.opening], ['مبيعات نقد عند الكاونتر', r.cash_sales],
+  ['مبيعات شبكة', r.card_sales], ['تحويلات أكّدها', r.transfers], [`كاش استلمه من المندوبين (${r.handovers_count})`, r.handovers],
+  ['المفروض في الدرج', r.expected_cash],
+].map(([k, v, m = true]) => { const d = mk('div'); d.style.cssText = 'display:flex;justify-content:space-between;gap:10px'; d.append(mk('span', '', k), mk('b', '', m ? money(v) : String(v))); return d; });
+
+async function openShiftEnd() {
+  if (!myShift) return;
+  const f = $('#f-shiftend'); f.reset(); $('.err', f).textContent = '';
+  const { data, error } = await sb.rpc('shift_report', { sid: myShift.id });
+  if (error) return toast(friendlyError(error));
+  $('#shift-report').replaceChildren(...reportLines(data));
+  f.counted.value = data.expected_cash;
+  $('#dlg-shiftend').showModal(); f.counted.select();
+}
+$('#shiftend-cancel').addEventListener('click', () => $('#dlg-shiftend').close());
+$('#f-shiftend').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target, err = $('.err', f), btn = $('#shiftend-go');
+  const counted = numIn(f.counted.value);
+  if (!f.counted.value.trim() || !(counted >= 0)) return (err.textContent = 'اكتب الكاش اللي عدّيته.');
+  setBusy(btn, true);
+  const { data, error } = await sb.rpc('shift_end', { sid: myShift.id, counted, note: f.note.value });
+  setBusy(btn, false);
+  if (error) return (err.textContent = friendlyError(error));
+  $('#dlg-shiftend').close();
+  const d = Number(data.diff);
+  toast(d === 0 ? 'انتهت المناوبة ✓ الدرج مطابق.' : `انتهت المناوبة. ${d > 0 ? 'زيادة' : 'نقص'} ${money(Math.abs(d))} في الدرج.`, 6000);
+  loadOrders();
+});
+
+// عهدة المندوبين: الكاش اللي معهم للمحل، والكاشير يستلمه
+async function renderCustody() {
+  const box = $('#custody');
+  if (!ctx || !canOrders()) { box.hidden = true; return; }
+  const { data } = await sb.rpc('driver_custody', { mid: ctx.mid });
+  box.hidden = !data?.length;
+  if (!data?.length) return;
+  const rows = data.map(c => {
+    const r = mk('div'); r.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap';
+    r.append(mk('span', '', `🛵 ${c.driver_name || 'مندوب'}: ${money(c.amount)} (${c.orders} طلب)`));
+    const x = mk('button', 'btn primary sm', '💵 استلمت الكاش'); x.type = 'button';
+    x.onclick = async () => {
+      const v = prompt(`كم استلمت من ${c.driver_name || 'المندوب'}؟ المفروض ${c.amount} ر.س`, String(c.amount));
+      if (v == null) return;
+      const amt = numIn(v);
+      if (!(amt >= 0)) return toast('اكتب المبلغ صح.');
+      const note = amt !== Number(c.amount) ? prompt('المبلغ مختلف. وش السبب؟ (يشوفه صاحب المحل)') : null;
+      setBusy(x, true);
+      const { data: h, error } = await sb.rpc('receive_cash', { mid: ctx.mid, driver: c.driver_user_id, received: amt, note });
+      setBusy(x, false);
+      if (error) return toast(String(error.message).includes('nothing_to_receive') ? 'ما فيه كاش معه الحين.' : friendlyError(error));
+      toast(`استلمت ${money(h.received)} عن ${h.orders} طلب ✓`); loadOrders();
+    };
+    r.append(x); return r;
+  });
+  box.replaceChildren(mk('b', '', '💵 كاش مع المندوبين (لسا ما تسلّم)'), ...rows,
+    mk('div', 'hint', myShift ? `يدخل في عهدة مناوبة ${myShift.cashier_name}.` : 'ابدأ مناوبة قبل الاستلام عشان يدخل الكاش في تقرير مناوبتك.'));
+}
+
+// ---------------- كاشيرية الكاونتر (صاحب المحل) ----------------
+let editingCashier = null;
+async function loadCashiers() {
+  if (!ctx?.owner) return;
+  const { data, error } = await sb.from('counter_cashiers').select('id,name,phone,active').eq('merchant_id', ctx.mid).order('created_at');
+  if (error) return toast(friendlyError(error));
+  const box = $('#cashier-list');
+  if (!data.length) { box.replaceChildren(mk('p', 'hint', 'ما أضفت كاشير بعد.')); return; }
+  box.replaceChildren(...data.map(c => {
+    const el = mk('div', 'row-card'), txt = mk('div');
+    const t = mk('div', 't', c.name + ' '); t.append(mk('span', 'badge ' + (c.active ? 'approved' : 'suspended'), c.active ? 'مفعّل' : 'موقوف'));
+    txt.append(t, mk('div', 's', (c.phone || 'بدون جوال') + ' · يدخل بالرقم السري'));
+    const acts = mk('div', 'acts'), ed = mk('button', 'btn ghost sm', 'تعديل'); ed.type = 'button'; ed.onclick = () => openCashier(c);
+    acts.append(ed); el.append(txt, acts); return el;
+  }));
+}
+function openCashier(c) {
+  editingCashier = c; const f = $('#f-cashier'); f.reset(); $('.err', f).textContent = '';
+  $('#cashier-title').textContent = c ? 'تعديل الكاشير' : 'إضافة كاشير';
+  $('#pin-hint').textContent = c ? 'اتركه فاضي إذا ما تبغى تغيّره. لا تستخدم رقم الهوية.' : 'يدخل فيه مناوبته. لا تستخدم رقم الهوية.';
+  $('#cashier-del').hidden = !c;
+  if (c) { f.name.value = c.name; f.phone.value = c.phone || ''; f.active.checked = c.active; }
+  $('#dlg-cashier').showModal(); f.name.focus();
+}
+$('#c-add').addEventListener('click', () => openCashier(null));
+$('#cashier-cancel').addEventListener('click', () => $('#dlg-cashier').close());
+$('#cashier-del').addEventListener('click', async () => {
+  if (!editingCashier || !confirm(`حذف ${editingCashier.name}؟ مناوباته السابقة تبقى في السجل.`)) return;
+  const { error } = await sb.rpc('cashier_delete', { cid: editingCashier.id });
+  if (error) return toast(friendlyError(error));
+  $('#dlg-cashier').close(); loadCashiers();
+});
+$('#f-cashier').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target, err = $('.err', f), btn = $('#cashier-save');
+  const name = f.name.value.trim(), phone = f.phone.value.replace(/\D/g, ''), pin = f.pin.value.trim();
+  if (name.length < 2) return (err.textContent = 'اكتب اسم الكاشير.');
+  if (phone && !/^05\d{8}$/.test(phone)) return (err.textContent = 'الجوال يبدأ بـ 05 وفيه 10 أرقام.');
+  if ((!editingCashier || pin) && !/^\d{4,6}$/.test(pin)) return (err.textContent = 'الرقم السري من 4 إلى 6 أرقام.');
+  if (pin && /^(\d)\1+$/.test(pin) || ['1234', '12345', '123456'].includes(pin)) return (err.textContent = 'اختر رقم سري أصعب من كذا.');
+  setBusy(btn, true);
+  const { error } = await sb.rpc('cashier_save', { cid: editingCashier?.id || null, cname: name, cphone: phone || null, pin: pin || null, is_active: f.active.checked });
+  setBusy(btn, false);
+  if (error) return (err.textContent = friendlyError(error));
+  $('#dlg-cashier').close(); toast('تم الحفظ ✓'); loadCashiers();
+});
+
+async function loadShiftLog() {
+  if (!ctx?.owner) return;
+  const [{ data: sh }, { data: ho }] = await Promise.all([
+    sb.from('cashier_shifts').select('*').eq('merchant_id', ctx.mid).order('started_at', { ascending: false }).limit(30),
+    sb.from('cash_handovers').select('*').eq('merchant_id', ctx.mid).order('at', { ascending: false }).limit(30),
+  ]);
+  const box = $('#shift-log'), items = [];
+  (sh || []).forEach(s => {
+    const el = mk('div', 'row-card'), txt = mk('div');
+    const r = s.report || {}, d = s.ended_at ? Number(r.diff || 0) : null;
+    const t = mk('div', 't', `${s.cashier_name} `);
+    t.append(mk('span', 'badge ' + (!s.ended_at ? 'pending' : d === 0 ? 'approved' : 'rejected'), !s.ended_at ? 'مفتوحة' : d === 0 ? 'مطابق' : `${d > 0 ? 'زيادة' : 'نقص'} ${money(Math.abs(d))}`));
+    txt.append(t, mk('div', 's', `${tm(s.started_at)}${s.ended_at ? ' ← ' + tm(s.ended_at) : ''}`));
+    if (s.ended_at) txt.append(mk('div', 's', `نقد ${money(r.cash_sales)} · شبكة ${money(r.card_sales)} · تحويل ${money(r.transfers)} · من المندوبين ${money(r.handovers)} · المفروض ${money(r.expected_cash)} · عدّ ${money(r.counted)}${s.note ? ' · ' + s.note : ''}`));
+    el.append(txt); items.push([s.started_at, el]);
+  });
+  (ho || []).forEach(h => {
+    const el = mk('div', 'row-card'), txt = mk('div');
+    const t = mk('div', 't', `💵 ${h.received_by_name || ''} استلم ${money(h.received)} من ${h.driver_name || 'المندوب'} `);
+    if (Number(h.received) !== Number(h.expected)) t.append(mk('span', 'badge rejected', `المفروض ${money(h.expected)}`));
+    txt.append(t, mk('div', 's', `${tm(h.at)} · ${h.order_ids.length} طلب${h.note ? ' · ' + h.note : ''}`));
+    el.append(txt); items.push([h.at, el]);
+  });
+  items.sort((a, b) => new Date(b[0]) - new Date(a[0]));
+  box.replaceChildren(...(items.length ? items.map(x => x[1]) : [mk('p', 'hint', 'ما فيه مناوبات بعد.')]));
+}
+
+// ---------------- ربط المخزون مع نظام الكاشير ----------------
+async function loadPos() {
+  if (!ctx?.owner) return;
+  const [{ data: link }, { count: noBarcode }] = await Promise.all([
+    sb.from('pos_links').select('key_hint,created_at,last_sync_at,last_result').eq('merchant_id', ctx.mid).maybeSingle(),
+    sb.from('products').select('id', { count: 'exact', head: true }).eq('merchant_id', ctx.mid).or('barcode.is.null,barcode.eq.'),
+  ]);
+  const st = $('#pos-state'), lines = [];
+  if (!link) lines.push(mk('p', 'hint', 'الربط مو مفعّل. أنشئ مفتاح، وأعطه مع رابط «طريقة الربط» لمزوّد نظام الكاشير حقك.'));
+  else {
+    lines.push(mk('div', '', `✅ الربط مفعّل · المفتاح ينتهي بـ …${link.key_hint}`));
+    if (!link.last_sync_at) lines.push(mk('div', 'low', '⏳ ما وصلنا أي تحديث من نظام الكاشير بعد.'));
+    else {
+      const hrs = (Date.now() - new Date(link.last_sync_at)) / 36e5, r = link.last_result || {};
+      lines.push(mk('div', hrs > 24 ? 'low' : 'hint', `${hrs > 24 ? '⚠️ آخر تحديث من أكثر من يوم: ' : 'آخر تحديث: '}${tm(link.last_sync_at)} · تحدّث ${r.updated || 0} منتج` + (r.unknown_count ? ` · ${r.unknown_count} باركود ما له منتج عندنا` : '')));
+      if (r.unknown?.length) lines.push(mk('div', 'hint', 'باركودات ما لقيناها: ' + r.unknown.slice(0, 10).join('، ')));
+    }
+    const url = mk('code', '', `${SUPABASE_URL}/functions/v1/stock-sync`); url.dir = 'ltr'; url.style.cssText = 'word-break:break-all';
+    lines.push(mk('div', 'hint', 'رابط الربط:'), url);
+  }
+  if (noBarcode) lines.push(mk('div', 'low', `⚠️ عندك ${noBarcode} منتج بدون باركود، هذي ما تتحدّث من نظام الكاشير.`));
+  st.replaceChildren(...lines);
+  $('#pos-create').textContent = link ? 'مفتاح جديد (يلغي القديم)' : 'إنشاء مفتاح الربط';
+  $('#pos-revoke').hidden = !link;
+}
+$('#pos-create').addEventListener('click', async e => {
+  if ($('#pos-revoke').hidden === false && !confirm('المفتاح القديم يوقف فورًا، ولازم تعطي الجديد لمزوّد نظام الكاشير. تكمل؟')) return;
+  setBusy(e.target, true);
+  const { data, error } = await sb.rpc('pos_key_create');
+  setBusy(e.target, false);
+  if (error) return toast(friendlyError(error));
+  try { await navigator.clipboard.writeText(data); } catch {}
+  prompt('هذا مفتاح الربط. انسخه وأعطه لمزوّد نظام الكاشير. ما يطلع مرة ثانية (انتسخ تلقائيًا):', data);
+  loadPos();
+});
+$('#pos-revoke').addEventListener('click', async () => {
+  if (!confirm('إيقاف الربط؟ نظام الكاشير ما يقدر يحدّث الكميات بعدها.')) return;
+  const { error } = await sb.rpc('pos_key_revoke');
+  if (error) return toast(friendlyError(error));
+  loadPos();
+});

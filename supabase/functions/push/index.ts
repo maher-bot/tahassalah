@@ -8,7 +8,10 @@ const money = (n: number) => Number(n).toLocaleString("ar-SA", { maximumFraction
 
 type Msg = { users: string[]; title: string; body: string; url: string; tag: string };
 
+// تنبيهات المحل: لو فيه مناوبة مفتوحة تروح لأجهزة المناوبة فقط، وإلا لصاحب المحل وموظفين الطلبات
 async function staffOf(mid: string) {
+  const { data: shifts } = await admin.from("cashier_shifts").select("device_user_id").eq("merchant_id", mid).is("ended_at", null);
+  if (shifts?.length) return shifts.map((x: any) => x.device_user_id);
   const { data } = await admin.from("merchant_staff").select("user_id").eq("merchant_id", mid).eq("status", "active").contains("perms", ["orders"]);
   return [mid, ...(data ?? []).map((x: any) => x.user_id).filter(Boolean)];
 }

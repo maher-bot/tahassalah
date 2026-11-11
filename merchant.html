@@ -354,6 +354,8 @@
 
     <!-- طلبات المشترين (صاحب المتجر والكاشير) -->
     <div id="p-orders" hidden>
+      <div class="card" id="shift-bar" hidden style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;padding:12px 14px;margin-bottom:10px"></div>
+      <div class="card stack" id="custody" hidden style="padding:12px 14px;margin-bottom:10px"></div>
       <div class="toolbar"><select id="o-filter" style="width:auto"><option value="active">الطلبات الجارية</option><option value="done">المكتملة اليوم</option><option value="all">الكل</option></select>
         <span class="hint" id="o-cash" style="margin-inline-start:auto"></span></div>
       <div class="mlist" id="o-list"></div>
@@ -454,6 +456,12 @@
           <button class="btn danger sm" type="button" id="data-delete">حذف حسابي وبياناتي نهائيًا</button>
         </div>
       </div>
+      <div class="card" id="pos-card" style="margin-top:16px;display:grid;gap:10px">
+        <b>🔗 ربط المخزون مع نظام الكاشير</b>
+        <p class="hint">نظام الكاشير حق محلك يرسل الكميات للمنصة تلقائيًا كل ما تتغير، بدون ما يحدّثها أحد بيده. الربط بالباركود، فلازم كل منتج في المنصة يكون عليه نفس باركوده في نظام الكاشير.</p>
+        <div id="pos-state" class="stack"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn primary sm" type="button" id="pos-create">إنشاء مفتاح الربط</button><button class="btn danger sm" type="button" id="pos-revoke" hidden>إيقاف الربط</button><a class="btn ghost sm" href="pos-api.html" target="_blank">طريقة الربط (لمزوّد نظام الكاشير)</a></div>
+      </div>
       <form class="card" id="f-paylink" novalidate style="margin-top:16px;display:grid;gap:10px">
         <b>💳 رابط الدفع الإلكتروني الخاص بك <span class="opt">(اختياري)</span></b>
         <p class="hint">إذا عندك بوابة دفع باسمك أو متجر في سلة أو زد، حط رابط الدفع هنا. المشتري يدفع لك مباشرة والمنصة ما تستلم أي فلوس. الرابط يراجعه فريقنا قبل ما يظهر، ويظهر للمشتري بعد ما توافق على طلبه فقط (لما ينطلق التطبيق).</p>
@@ -483,6 +491,14 @@
         <button class="btn primary" id="t-add" type="button">＋ إضافة موظف</button>
       </div>
       <div class="mlist" id="team-list"></div>
+      <div class="toolbar" style="margin-top:22px">
+        <div style="flex:1;min-width:200px"><b>🧑‍💼 كاشيرية الكاونتر</b>
+          <p class="hint">للمحلات اللي فيها أكثر من كاشير على جهاز واحد. تضيف الكاشير باسمه ورقم سري، وهو يفتح مناوبته من «الطلبات» على جهاز الكاونتر، والتنبيهات تروح للجهاز اللي عليه مناوبة. سجّل جهاز الكاونتر بحساب موظف صلاحيته «الطلبات» فقط، مو بحسابك أنت.</p></div>
+        <button class="btn primary" id="c-add" type="button">＋ إضافة كاشير</button>
+      </div>
+      <div class="mlist" id="cashier-list"></div>
+      <div style="margin-top:22px"><b>📋 سجل المناوبات وتسليم الكاش</b></div>
+      <div class="mlist" id="shift-log" style="margin-top:8px"></div>
     </div>
   </section>
 </main>
@@ -571,6 +587,42 @@
     <label class="check"><input type="checkbox" name="needs_approval" checked> <span><b>تعديلاته تحتاج موافقتي</b><br><span class="hint">كل إضافة أو تعديل أو حذف يسويه ينتظر موافقتك قبل ما يظهر. شيلها لما تثق فيه.</span></span></label>
     <p class="err" role="alert"></p>
     <div class="foot"><span style="flex:1"></span><button class="btn ghost" type="button" id="staff-cancel">إلغاء</button><button class="btn primary" type="submit" id="staff-save">إرسال الدعوة</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlg-cashier">
+  <form id="f-cashier" method="dialog" class="stack" novalidate>
+    <h2 style="font-size:1.25rem" id="cashier-title">إضافة كاشير</h2>
+    <div class="row2">
+      <label>اسم الكاشير<input name="name" maxlength="60" required></label>
+      <label><span>جواله <span class="opt">(اختياري)</span></span><input name="phone" inputmode="numeric" dir="ltr" maxlength="10" placeholder="05xxxxxxxx"></label>
+    </div>
+    <label><span>الرقم السري (4 إلى 6 أرقام)</span><input name="pin" inputmode="numeric" dir="ltr" maxlength="6" autocomplete="new-password" type="password"><span class="hint" id="pin-hint">يدخل فيه مناوبته. لا تستخدم رقم الهوية.</span></label>
+    <label class="check"><input type="checkbox" name="active" checked> مفعّل</label>
+    <p class="err" role="alert"></p>
+    <div class="foot"><button class="btn danger" type="button" id="cashier-del" hidden>حذف</button><span style="flex:1"></span><button class="btn ghost" type="button" id="cashier-cancel">إلغاء</button><button class="btn primary" type="submit" id="cashier-save">حفظ</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlg-shift">
+  <form id="f-shift" method="dialog" class="stack" novalidate>
+    <h2 style="font-size:1.25rem">▶️ بدء مناوبة</h2>
+    <label>مين على الكاونتر؟<select name="who"></select></label>
+    <label id="shift-pin-row">الرقم السري<input name="pin" inputmode="numeric" dir="ltr" maxlength="6" type="password" autocomplete="off"></label>
+    <label><span>الكاش في الدرج الحين <span class="opt">(ر.س)</span></span><input name="opening" inputmode="decimal" dir="ltr" value="0"></label>
+    <p class="err" role="alert"></p>
+    <div class="foot"><span style="flex:1"></span><button class="btn ghost" type="button" id="shift-cancel">إلغاء</button><button class="btn primary" type="submit" id="shift-go">ابدأ</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlg-shiftend">
+  <form id="f-shiftend" method="dialog" class="stack" novalidate>
+    <h2 style="font-size:1.25rem">⏹ إنهاء المناوبة</h2>
+    <div id="shift-report" class="stack"></div>
+    <label><span>كم الكاش في الدرج الحين؟ <span class="opt">(عدّه)</span></span><input name="counted" inputmode="decimal" dir="ltr" required></label>
+    <label><span>ملاحظة <span class="opt">(اختياري)</span></span><input name="note" maxlength="300"></label>
+    <p class="err" role="alert"></p>
+    <div class="foot"><span style="flex:1"></span><button class="btn ghost" type="button" id="shiftend-cancel">رجوع</button><button class="btn primary" type="submit" id="shiftend-go">أنهِ المناوبة</button></div>
   </form>
 </dialog>
 
