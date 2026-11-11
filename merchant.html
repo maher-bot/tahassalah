@@ -639,7 +639,8 @@
       <label class="check"><input type="checkbox" name="p_delivery"> توصيل الطلبات (مندوب)</label>
       <label class="check"><input type="checkbox" name="p_earnings"> الحسابات: الفواتير والمصروفات والدخل (محاسب)</label>
     </fieldset>
-    <label class="check"><input type="checkbox" name="needs_approval" checked> <span><b>تعديلاته تحتاج موافقتي</b><br><span class="hint">كل إضافة أو تعديل أو حذف يسويه ينتظر موافقتك قبل ما يظهر. شيلها لما تثق فيه.</span></span></label>
+    <input type="checkbox" name="needs_approval" hidden>
+    <p class="hint">اللي تعطيه الصلاحية يعدّل مباشرة وتعديله يظهر على طول، وكل حركة محفوظة باسمه.</p>
     <p class="err" role="alert"></p>
     <div class="foot"><span style="flex:1"></span><button class="btn ghost" type="button" id="staff-cancel">إلغاء</button><button class="btn primary" type="submit" id="staff-save">إرسال الدعوة</button></div>
   </form>

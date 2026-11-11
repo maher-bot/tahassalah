@@ -573,6 +573,7 @@ async function openDash(id) {
   $('#d-switch-wrap').hidden = opts.length < 2;
 
   $$('#d-tabs [data-owner]').forEach(b => { b.hidden = !ctx.owner; });
+  $('#d-tabs [data-tab=approvals]').hidden = true;   // يظهر فقط لو فيه تعديلات قديمة معلّقة
   $$('#d-tabs [data-staff]').forEach(b => { b.hidden = !viaApproval(); });
   $$('#d-tabs [data-orders]').forEach(b => { b.hidden = !canOrders(); });
   $$('#d-tabs [data-driver]').forEach(b => { b.hidden = !isDriver(); });
@@ -1177,6 +1178,7 @@ async function loadApprovals() {
   if (error) return toast(friendlyError(error));
   approvals = data;
   const c = $('#c-approvals'); c.hidden = !approvals.length; c.textContent = approvals.length;
+  if (ctx.owner) $('#d-tabs [data-tab=approvals]').hidden = !approvals.length;
   const box = $('#appr-list');
   if (!approvals.length) { box.innerHTML = '<div class="empty">ما فيه تعديلات تنتظر موافقتك.</div>'; return; }
   const all = mk('button', 'btn ghost sm', `✓ موافقة على الكل (${approvals.length})`);
@@ -1234,7 +1236,7 @@ async function loadTeam() {
     const st = STAFF_STATUS[s.status]; t.append(mk('span', 'badge ' + st[0], st[1]));
     const perms = [s.perms.includes('inventory') && 'المنتجات والكميات', s.perms.includes('prices') && 'الأسعار'].filter(Boolean).join(' + ');
     txt.append(t, mk('div', 's', `${s.email} · ${ROLES[s.role] || s.role} · ${perms}`),
-      mk('div', 's', s.needs_approval ? '🔒 تعديلاته تحتاج موافقتك' : '✓ يعدّل مباشرة بدون موافقة'));
+      mk('div', 's', '✓ يعدّل مباشرة حسب صلاحياته'));
     const acts = mk('div', 'acts');
     const edit = mk('button', 'btn ghost sm', 'تعديل'); edit.onclick = () => openStaff(s);
     acts.append(edit);
@@ -1270,7 +1272,7 @@ function openStaff(s) {
     fs.p_inventory.checked = s.perms.includes('inventory'); fs.p_prices.checked = s.perms.includes('prices');
     fs.p_orders.checked = s.perms.includes('orders'); fs.p_delivery.checked = s.perms.includes('delivery');
     fs.p_earnings.checked = s.perms.includes('earnings');
-    fs.needs_approval.checked = s.needs_approval;
+    fs.needs_approval.checked = false;
   }
   dlgStaff.showModal(); (s ? fs.name : fs.name).focus();
 }
@@ -1291,7 +1293,7 @@ fs.addEventListener('submit', async e => {
   if (!editingStaff && !/^\S+@\S+\.\S+$/.test(email)) return (err.textContent = 'اكتب إيميل صحيح.');
   if (!perms.length) return (err.textContent = 'اختر صلاحية وحدة على الأقل.');
   err.textContent = ''; setBusy(btn, true);
-  const row = { name, role: fs.role.value, perms, needs_approval: fs.needs_approval.checked };
+  const row = { name, role: fs.role.value, perms, needs_approval: false };
   const { error } = editingStaff
     ? await sb.from('merchant_staff').update(row).eq('id', editingStaff.id)
     : await sb.from('merchant_staff').insert({ ...row, email, merchant_id: ctx.mid });
